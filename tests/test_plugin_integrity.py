@@ -13,13 +13,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_PLUGIN_SKILL_BODY_BYTES = 24_000
 
 EXPECTED_SKILLS = {
+    'ada-spark-pro',
     'c-pro',
     'cmake-pro',
     'cpp-pro',
     'github-flow-lifecycle',
     'jupyter-pro',
     'python-pro',
-    'spark-pro',
 }
 
 EXPECTED_MCP_SERVERS = {

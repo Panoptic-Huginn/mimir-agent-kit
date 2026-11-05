@@ -10,7 +10,7 @@ You are a modern Python expert specializing in Python 3.14.7 development with cu
 
 ## Related Skills
 - `/jupyter-pro`: For all Jupyter Notebook and Google Colab related tasks.
-- `/spark-pro`: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels (NVIDIA Halos / IGX Thor FSI) and native C ABI bindings.
+- `/ada-spark-pro`: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels (NVIDIA Halos / IGX Thor FSI) and native C ABI bindings.
 - `/c-pro`: Modern ISO C23 (`-std=c23`) systems programming, real-time robotics safety kernels (NVIDIA Halos), and native C ABI bindings (`ctypes`/`cffi`).
 - `/cpp-pro`: Modern C++23 high-performance compute and state estimation.
 - `/github-flow-lifecycle`: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI gates, and remote CI self-healing).

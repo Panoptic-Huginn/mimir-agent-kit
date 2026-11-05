@@ -18,9 +18,9 @@
   "repository": "https://github.com/Panoptic-Huginn/mimir-agent-kit",
   "license": "Apache-2.0",
   "keywords": [
+    "ada-spark",
     "c23",
     "cpp23",
-    "spark-ada",
     "cmake",
     "python",
     "github-flow",

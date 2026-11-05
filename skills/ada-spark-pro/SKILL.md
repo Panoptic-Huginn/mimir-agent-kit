@@ -1,5 +1,5 @@
 ---
-name: spark-pro
+name: ada-spark-pro
 description: Write formally verified, deterministic, and safety-critical SPARK Ada (Ada 2022 / SPARK 2014+ subset, GNAT FSF 16.1+ & GNATprove 16.1+ via Alire 2.1+) systems software. Specializes in real-time robotics OS architectures (such as NVIDIA Halos, IGX Thor Functional Safety Island, and Holoscan Sensor Bridge), Silver/Gold deductive proofs (Absence of Run-Time Errors and functional contracts), Jorvik/Ravenscar concurrency, zero-allocation bare-metal/RT-Linux execution, MMIO hardware registers, and zero-copy C23/C++23 ABI interoperability. Do NOT use for Apache Spark big-data workloads (use /gcp-spark instead).
 metadata:
   version: v1
@@ -83,7 +83,7 @@ Always write modern **Ada 2022** code restricted to the formally verifiable **SP
 
 Never rely on "test-only" validation when `gnatprove` can provide mathematical proof across all inputs. Follow the 5-tier SPARK Assurance Roadmap:
 
-| Tier | `gnatprove` Mode | Guarantee | Mandatory Policy in `spark-pro` |
+| Tier | `gnatprove` Mode | Guarantee | Mandatory Policy in `ada-spark-pro` |
 | :--- | :--- | :--- | :--- |
 | **1. Stone** | `--mode=check_all` | Valid SPARK subset adherence (`SPARK_Mode => On`; no aliasing/side-effects in functions). | **Mandatory** for all units (except thin FFI/HAL body wrappers). |
 | **2. Bronze** | `--mode=flow` | Complete data/flow initialization; accurate `Global` and `Depends` contracts; no dead stores or uninitialized reads. | **Mandatory** for all SPARK units. |

@@ -8,7 +8,7 @@ metadata:
 
 ## 🔗 Related Skills
 
-- **spark-pro**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels and hybrid CMake + Alire/GPRbuild static library targets.
+- **ada-spark-pro**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels and hybrid CMake + Alire/GPRbuild static library targets.
 - **c-pro**: Modern ISO C23 (`-std=c23`, LLVM Clang 23.1+ & Apple Clang 21.0+) systems programming, real-time robotics OS safety kernels (NVIDIA Halos), and CERT C / MISRA C compliance.
 - **cpp-pro**: Modern C++ standards (C++23/C++26), memory safety, template metaprogramming, and performance optimization.
 - **python-pro**: Tooling, benchmark analysis scripts, and Python orchestration.

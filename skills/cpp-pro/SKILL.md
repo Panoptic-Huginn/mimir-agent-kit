@@ -8,7 +8,7 @@ metadata:
 
 ## Related Skills
 
-- **`/spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels (NVIDIA Halos / IGX Thor FSI), Silver/Gold deductive proofs, and `extern "C"` / `Interfaces.C` interop.
+- **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels (NVIDIA Halos / IGX Thor FSI), Silver/Gold deductive proofs, and `extern "C"` / `Interfaces.C` interop.
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`, LLVM Clang 23.1+ & Apple Clang 21.0+) systems programming, real-time robotics safety kernels (NVIDIA Halos), lock-free atomics, and CERT C / MISRA C standards.
 - **`/cmake-pro`**: Modern CMake 4.4.3+ (`CMakePresets.json` v10+, `cmake --workflow --preset`, `gersemi`) build system architecture.
 - **`/python-pro`**: Python 3.14+ (`pixi` and `uv`) orchestration, bindings, and benchmark analysis.

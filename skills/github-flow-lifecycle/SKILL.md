@@ -19,6 +19,7 @@ This skill governs the complete software delivery lifecycle from initial task in
 
 ## Related Skills
 
+- **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels and Silver/Gold deductive proofs.
 - **`/python-pro`**: Python 3.14+ (`pixi` and `uv`), `ruff`, `mypy`, `pytest`, and `rumdl` standards.
 - **`/cmake-pro`**: Modern CMake 4.4.3+ (`CMakePresets.json` v10+, `cmake --workflow --preset`, `gersemi`) standards.
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`, `clang-tidy`, `clang-format`, CERT C / MISRA C, sanitizers) systems and robotics safety standards.
