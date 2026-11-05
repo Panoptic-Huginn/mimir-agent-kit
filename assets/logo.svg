@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Mimir Agent Kit Logo">
+  <defs>
+    <linearGradient id="mimirRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+    <linearGradient id="mimirWell" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#312E81" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer runic shield with >=10% transparent padding (radius 98 inside 256x256) -->
+  <circle cx="128" cy="128" r="98" fill="url(#mimirWell)" stroke="url(#mimirRing)" stroke-width="10"/>
+  <!-- Inner concentric ripple of Mimir's Well -->
+  <circle cx="128" cy="128" r="74" fill="none" stroke="#BAE6FD" stroke-opacity="0.45" stroke-width="3" stroke-dasharray="10 6"/>
+  <!-- Stylized Mannaz / Mimir rune + all-seeing iris -->
+  <path d="M84 166 V90 L128 126 L172 90 V166" fill="none" stroke="#F8FAFC" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="84" r="9" fill="#38BDF8"/>
+  <!-- Water ripples at base of well -->
+  <path d="M92 182 Q128 196 164 182" fill="none" stroke="#7DD3FC" stroke-width="6" stroke-linecap="round"/>
+</svg>

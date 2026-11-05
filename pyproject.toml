@@ -1,0 +1,94 @@
+[project]
+name = "mimir-agent-kit"
+version = "1.0.0"
+description = "Cross-platform Google Antigravity plugin bundling custom systems engineering skills, GitHub Flow safety hooks, and portable research MCP servers."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.14"
+dependencies = [
+    "mcp>=2.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "pyyaml>=6.0.3",
+    "ruff>=0.16.9",
+    "rumdl>=0.2.77",
+    "types-pyyaml>=6.0.12.20260815",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+exclude = [".agents", ".venv", "skills/*/examples"]
+line-length = 9999
+preview = true
+target-version = "py314"
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "single"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "RUF", "UP", "W"]
+select = ["ANN", "ARG", "B", "D", "DOC", "E", "F", "I", "N", "PERF", "PYI", "RUF", "S", "T20", "TC", "UP", "W"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "assert",
+    "subprocess-without-shell-equals-true",
+    "suspicious-subprocess-import",
+]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 9999
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+enable_error_code = ["ignore-without-code"]
+explicit_package_bases = true
+files = ["scripts", "tests"]
+follow_imports = "normal"
+ignore_missing_imports = false
+no_implicit_optional = true
+pretty = true
+python_version = "3.14"
+show_error_codes = true
+strict = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+check_untyped_defs = true
+module = ["tests.*"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = ["error"]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.rumdl]
+exclude = [".git", ".github", ".venv", "build", "dist", "node_modules", "skills"]
+flavor = "gfm"
+line-length = 9999
+respect-gitignore = true

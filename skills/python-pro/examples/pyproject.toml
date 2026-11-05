@@ -1,0 +1,155 @@
+[project]
+name = "my-python-project"
+version = "0.1.0"
+description = "A modern Python 3.14.7 project template."
+readme = "README.md"
+requires-python = ">=3.14.7"
+dependencies = [
+    "arviz>=1.3.0",
+    "astropy>=8.0.1",
+    "greenlet>=3.5.6",
+    "ipywidgets>=8.1.9",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.1",
+    "nbformat>=5.11.1",
+    "numba>=0.60.0",
+    "numpy>=2.5.3",
+    "plotly>=7.0.0",
+    "pydantic>=2.10.0",
+    "pymc>=6.3.1",
+    "pyyaml>=6.0.3",
+    "ruamel-yaml>=0.18.0",
+    "scipy>=1.15.0",
+    "structlog>=24.0.0",
+    "tomli-w>=1.2.0",
+    "xarray>=2026.7.0",
+    "zarr==3.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "google-adk>=2.10.0",
+    "google-antigravity>=0.1.19",
+    "google-genai>=2.24.0",
+    "mcp>=2.2.0",
+    "mypy>=2.3.1",
+    "pre-commit>=4.6.2",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.15.1",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.6.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest>=8.3.0",
+    "ruff>=0.16.9",
+    "rumdl>=0.2.77",
+    "tomli-w>=1.2.0",
+    "types-pyyaml>=6.0.12.20260815",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+exclude = [".agents"]
+line-length = 9999
+preview = true
+target-version = "py314"
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "single"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "RUF", "UP", "W"]
+select = ["ANN", "ARG", "B", "D", "DOC", "E", "F", "I", "N", "NPY", "PD", "PERF", "PYI", "RUF", "S", "T20", "TC", "UP", "W"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["module-import-not-at-top-of-file", "print"]
+"benchmarks/*" = ["print"]
+"scripts/*" = ["print"]
+"tests/**" = ["assert"]
+"tools/*" = ["print"]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 9999
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+enable_error_code = ["ignore-without-code"]
+explicit_package_bases = true
+files = ["scripts", "src", "tests"]
+follow_imports = "normal"
+ignore_missing_imports = false
+mypy_path = "src"
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+pretty = true
+python_version = "3.14"
+show_error_codes = true
+strict = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+check_untyped_defs = true
+module = ["tests.*"]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "IPython.*",
+    "astropy.*",
+    "ipywidgets.*",
+    "numba.*",
+    "plotly.*",
+    "pymc",
+    "scipy.*",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = ["error"]
+markers = [
+    "benchmark: performance and execution speed benchmarks",
+    "integration: integration tests",
+    "regression: benchmark regression tests",
+    "slow: marks tests as slow",
+]
+testpaths = ["tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "pragma: no cover",
+    "raise NotImplementedError",
+]
+show_missing = true
+
+[tool.coverage.run]
+branch = true
+omit = ["*/scripts/*", "*/tests/*"]
+source = ["src"]
+
+[tool.rumdl]
+exclude = [".git", ".github", ".venv", "build", "dist", "node_modules"]
+flavor = "gfm"
+line-length = 9999
+respect-gitignore = true
