@@ -29,6 +29,7 @@
       "command": "uv",
       "args": [
         "run",
+        "--isolated",
         "--no-project",
         "--python",
         ">=3.14",

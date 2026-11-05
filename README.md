@@ -70,7 +70,7 @@ flowchart TD
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
 | `github-mcp-server` | `docker run ... ghcr.io/github/github-mcp-server` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`) | `GITHUB_PERSONAL_ACCESS_TOKEN` |
-| `academic-mcp` | `uv run ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search | `ACADEMIC_CORPUS_DB_PATH` |
+| `academic-mcp` | `uv run --isolated --no-project ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv` | arXiv preprint search and metadata retrieval | None |
 | `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server` | PubMed / Europe PMC biomedical & life-science literature search | None |
 | `semantic-scholar` | `uvx semantic-scholar-mcp` | Semantic Scholar paper graph, citations, and author lookup | None |
