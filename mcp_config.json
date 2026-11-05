@@ -1,0 +1,166 @@
+{
+  "mcpServers": {
+    "github-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_TOOLSETS",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_TOOLSETS": "all"
+      },
+      "variables": [
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "title": "GitHub Personal Access Token",
+          "description": "GitHub fine-grained or classic PAT with repo, issues, pull_requests, and actions read/write scopes (stored in your OS Keyring).",
+          "link": "https://github.com/settings/tokens"
+        }
+      ]
+    },
+    "academic-mcp": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-project",
+        "--python",
+        ">=3.14",
+        "--with",
+        "mcp>=2.2.0",
+        "python",
+        "${PLUGIN_ROOT}/scripts/academic_mcp_server.py",
+        "--db",
+        "${ACADEMIC_CORPUS_DB_PATH}"
+      ],
+      "variables": [
+        {
+          "name": "ACADEMIC_CORPUS_DB_PATH",
+          "title": "Academic Corpus SQLite DB Path",
+          "description": "Local path to your SQLite academic_corpus.db file (e.g., ~/development/heimdall-astro/data/papers/academic_corpus.db). Initialized automatically if absent."
+        }
+      ]
+    },
+    "arxiv": {
+      "command": "uvx",
+      "args": [
+        "mcp-arxiv"
+      ]
+    },
+    "europe-pmc": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@cyanheads/pubmed-mcp-server"
+      ]
+    },
+    "semantic-scholar": {
+      "command": "uvx",
+      "args": [
+        "semantic-scholar-mcp"
+      ]
+    },
+    "nasa_ads": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp<2",
+        "nasa-ads-mcp"
+      ],
+      "env": {
+        "ADS_API_TOKEN": "${ADS_API_TOKEN}",
+        "NASA_ADS_MCP_TRANSPORT": "stdio"
+      },
+      "variables": [
+        {
+          "name": "ADS_API_TOKEN",
+          "title": "NASA ADS API Token",
+          "description": "API token from NASA Astrophysics Data System (ui.adsabs.harvard.edu -> Account -> Settings -> API Token).",
+          "link": "https://ui.adsabs.harvard.edu/user/settings/token"
+        }
+      ]
+    },
+    "zotero": {
+      "command": "uvx",
+      "args": [
+        "zotero-mcp-server"
+      ],
+      "env": {
+        "ZOTERO_API_KEY": "${ZOTERO_API_KEY}",
+        "ZOTERO_LIBRARY_ID": "${ZOTERO_LIBRARY_ID}"
+      },
+      "variables": [
+        {
+          "name": "ZOTERO_API_KEY",
+          "title": "Zotero API Key",
+          "description": "Private Zotero Web API key with library read/write access.",
+          "link": "https://www.zotero.org/settings/keys"
+        },
+        {
+          "name": "ZOTERO_LIBRARY_ID",
+          "title": "Zotero Library ID",
+          "description": "Numeric Zotero userID or groupID shown on your Zotero API keys settings page.",
+          "link": "https://www.zotero.org/settings/keys"
+        }
+      ]
+    },
+    "google-workspace": {
+      "command": "uvx",
+      "args": [
+        "workspace-mcp",
+        "--single-user"
+      ],
+      "env": {
+        "GOOGLE_OAUTH_CLIENT_ID": "${GOOGLE_OAUTH_CLIENT_ID}",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "${GOOGLE_OAUTH_CLIENT_SECRET}",
+        "USER_GOOGLE_EMAIL": "${USER_GOOGLE_EMAIL}"
+      },
+      "variables": [
+        {
+          "name": "GOOGLE_OAUTH_CLIENT_ID",
+          "title": "Google OAuth Client ID",
+          "description": "Desktop OAuth 2.0 Client ID from Google Cloud Console for Google Workspace APIs.",
+          "link": "https://console.cloud.google.com/apis/credentials"
+        },
+        {
+          "name": "GOOGLE_OAUTH_CLIENT_SECRET",
+          "title": "Google OAuth Client Secret",
+          "description": "Desktop OAuth 2.0 Client Secret paired with GOOGLE_OAUTH_CLIENT_ID.",
+          "link": "https://console.cloud.google.com/apis/credentials"
+        },
+        {
+          "name": "USER_GOOGLE_EMAIL",
+          "title": "Google Account Email",
+          "description": "Primary Google Workspace / Gmail address used for single-user OAuth sessions."
+        }
+      ]
+    },
+    "jupyter": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp<2",
+        "mcp-server-jupyter"
+      ]
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    },
+    "time": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-time"
+      ]
+    }
+  }
+}

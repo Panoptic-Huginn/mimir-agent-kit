@@ -1,0 +1,51 @@
+# Python & uv virtual environments / caches
+.venv/
+__pycache__/
+*.py[codz]
+*$py.class
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.rumdl_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Operating System & Editor artifacts
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Secrets, local credentials & environment overrides (NEVER commit)
+.env
+.env.*
+*.env
+!*example*.env
+*secret*
+*credentials*.json
+*token*.json
+*.pem
+*.key
+*.p12
+mcp_config.local.json
+
+# Local SQLite databases & WAL files
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Antigravity ephemeral runtime / teamwork scratch directories
+.agents/teamwork/
+.gemini/

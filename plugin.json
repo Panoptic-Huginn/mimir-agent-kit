@@ -1,0 +1,30 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "mimir-agent-kit",
+  "displayName": "Mimir Agent Kit",
+  "version": "1.0.0",
+  "description": "Systems engineering skills (C23, C++23, SPARK Ada, CMake, Python), GitHub Flow safety hooks, and portable research MCP servers.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Start a feature branch and GitHub issue workflow using /github-flow-lifecycle",
+    "Review this C23 or SPARK Ada module for deterministic real-time safety invariants",
+    "Search arXiv, NASA ADS, and the local academic corpus for recent state-estimation papers"
+  ],
+  "author": {
+    "name": "Jamie LaPointe",
+    "url": "https://github.com/jamielapointe"
+  },
+  "homepage": "https://github.com/Panoptic-Huginn/mimir-agent-kit",
+  "repository": "https://github.com/Panoptic-Huginn/mimir-agent-kit",
+  "license": "Apache-2.0",
+  "keywords": [
+    "c23",
+    "cpp23",
+    "spark-ada",
+    "cmake",
+    "python",
+    "github-flow",
+    "research",
+    "mcp"
+  ]
+}
