@@ -1,0 +1,93 @@
+# .pre-commit-config.yaml - Curated Pre-Commit Configuration for mimir-agent-kit
+# Enforces repository hygiene, Python formatting, strict type checking, and
+# AntiGravity 2.29.0 agentic settings verification via uv.
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+exclude: '^\.agents/teamwork/|^\.gemini/|^\.venv/|build/|dist/'
+
+repos:
+  # ---------------------------------------------------------------------------
+  # 1. Repository & File Hygiene (pre-commit/pre-commit-hooks)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: '(^|/)tsconfig.*\.json$'
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-ast
+      - id: debug-statements
+      - id: check-vcs-permalinks
+      - id: check-xml
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+  # ---------------------------------------------------------------------------
+  # 2. Python Linting & Formatting (Ruff via uv)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (uv)
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format (uv)
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+  # ---------------------------------------------------------------------------
+  # 3. Static Type Analysis (Mypy via uv)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (uv)
+        entry: uv run mypy
+        language: system
+        types: [python]
+        require_serial: true
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # 4. Markdown Hygiene (rumdl via uv)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: rumdl
+        name: rumdl markdown check (uv)
+        entry: uv run rumdl check
+        language: system
+        types: [markdown]
+        exclude: ^skills/
+        pass_filenames: true
+
+  # ---------------------------------------------------------------------------
+  # 5. AntiGravity 2.29.0 Agentic Settings & Schema Validation
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: agentic-settings-validation
+        name: AntiGravity 2.29.0 Agentic Settings Validation (uv)
+        entry: uv run python scripts/validate_agentic_settings.py --strict
+        language: system
+        pass_filenames: false
+        files: ^(plugin\.json|hooks\.json|mcp_config\.json|rules/.*|skills/.*|\.agents/.*|scripts/validate_agentic_settings\.py|scripts/validation/.*)$

@@ -20,7 +20,7 @@ jobs:
   validate-and-test:
     name: Validate & Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -30,28 +30,31 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v4
 
       - name: Set up uv and Python 3.14
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: '3.14'
           enable-cache: true
+          cache-dependency-glob: 'uv.lock'
 
-      - name: Sync locked dependencies
-        run: uv sync --locked --dev
+      - name: Check lockfile freshness
+        run: uv lock --check
 
-      - name: Run Ruff linter
-        run: uv run ruff check .
+      - name: Sync dependencies
+        run: uv sync --frozen --all-extras --dev
 
-      - name: Check Ruff formatting
-        run: uv run ruff format --check .
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-${{ runner.os }}-
 
-      - name: Run strict Mypy type checking
-        run: uv run mypy
-
-      - name: Run Markdown linter (rumdl)
-        run: uv run rumdl check .
+      - name: Run pre-commit checks
+        run: uv run pre-commit run --all-files --show-diff-on-failure
 
       - name: Run pytest suite
         run: uv run pytest -v
