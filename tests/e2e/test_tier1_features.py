@@ -747,6 +747,8 @@ def test_f11_all_workflows_sha_pinned_and_persist_credentials_false() -> None:
                 uses_val = step.get('uses', '')
                 if isinstance(uses_val, str) and uses_val.startswith('actions/checkout@'):
                     assert step.get('with', {}).get('persist-credentials') is False
+                if isinstance(uses_val, str) and uses_val.startswith('ossf/scorecard-action@'):
+                    assert step.get('with', {}).get('publish_results') is False, 'scorecard.yml must keep publish_results: false to prevent external Rekor CI flakes'
 
 
 def test_f11_pre_commit_external_repos_sha_frozen_and_security_hooks_configured() -> None:

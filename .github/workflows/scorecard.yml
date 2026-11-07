@@ -22,7 +22,6 @@ jobs:
     timeout-minutes: 15
     permissions:
       security-events: write
-      id-token: write
       contents: read
       actions: read
       issues: read
@@ -39,7 +38,9 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          # Keep publish_results disabled so post-merge main CI does not flake on
+          # external Sigstore Rekor (rekor.sigstore.dev) or api.scorecard.dev outages.
+          publish_results: false
 
       - name: Upload SARIF artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -47,3 +48,9 @@ jobs:
           name: scorecard-sarif
           path: results.sarif
           retention-days: 5
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: results.sarif
