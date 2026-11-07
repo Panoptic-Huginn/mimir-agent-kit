@@ -98,9 +98,16 @@ uv lock --check
 printf "%b\n" "${GREEN}✓ uv.lock is synchronized with pyproject.toml${RESET}"
 
 # Stage 2: Curated pre-commit hooks
+# Skip 'no-commit-to-branch' during non-commit full-tree CI audits so local CI
+# passes on both feature branches and 'main' checkouts (actual 'git commit'
+# invocations still enforce 'no-commit-to-branch' via .git/hooks/pre-commit).
 CURRENT_STAGE="Stage 2: uv run pre-commit run --all-files"
 printf "\n%b\n" "${CYAN}--> [2/3] Running curated pre-commit hooks on all files...${RESET}"
-uv run pre-commit run --all-files --show-diff-on-failure
+PRE_COMMIT_SKIP="no-commit-to-branch"
+if [[ -n "${SKIP:-}" ]]; then
+    PRE_COMMIT_SKIP="${SKIP},${PRE_COMMIT_SKIP}"
+fi
+SKIP="${PRE_COMMIT_SKIP}" uv run pre-commit run --all-files --show-diff-on-failure
 printf "%b\n" "${GREEN}✓ All pre-commit hooks passed${RESET}"
 
 # Stage 3: Comprehensive test suite
