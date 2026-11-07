@@ -56,3 +56,7 @@ mcp_config.local.json
 # Antigravity ephemeral runtime / teamwork scratch directories
 .agents/teamwork/
 .gemini/
+/TEST_INFRA.md
+/TEST_READY.md
+/ORIGINAL_REQUEST.md
+/PROJECT.md
