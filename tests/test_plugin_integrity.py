@@ -19,6 +19,7 @@ EXPECTED_SKILLS = {
     'cpp-pro',
     'github-flow-lifecycle',
     'jupyter-pro',
+    'marimo-pro',
     'python-pro',
     'rust-pro',
 }
