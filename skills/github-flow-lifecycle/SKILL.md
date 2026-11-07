@@ -25,7 +25,6 @@ This skill governs the complete software delivery lifecycle from initial task in
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`, `clang-tidy`, `clang-format`, CERT C / MISRA C, sanitizers) systems and robotics safety standards.
 - **`/cpp-pro`**: Modern C++23 (`clang-tidy`, `clang-format`, Google Test, Google Benchmark, sanitizers) standards.
 - **`/jupyter-pro`**: Interactive Jupyter Notebook and Google Colab workflows and clean-output hygiene.
-- **`/accidental-data-loss-prevention`**: Mandatory user consent before any destructive data or branch deletion operations.
 
 ---
 

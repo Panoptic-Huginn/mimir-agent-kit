@@ -10,7 +10,7 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN",
         "-e",
         "GITHUB_TOOLSETS",
-        "ghcr.io/github/github-mcp-server"
+        "ghcr.io/github/github-mcp-server:v2.1.0@sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a"
       ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}",
@@ -34,7 +34,7 @@
         "--python",
         ">=3.14",
         "--with",
-        "mcp>=2.2.0",
+        "mcp==2.3.0",
         "python",
         "${PLUGIN_ROOT}/scripts/academic_mcp_server.py",
         "--db",
@@ -51,28 +51,28 @@
     "arxiv": {
       "command": "uvx",
       "args": [
-        "mcp-arxiv"
+        "mcp-arxiv==0.1.0"
       ]
     },
     "europe-pmc": {
       "command": "npx",
       "args": [
         "-y",
-        "@cyanheads/pubmed-mcp-server"
+        "@cyanheads/pubmed-mcp-server@2.12.0"
       ]
     },
     "semantic-scholar": {
       "command": "uvx",
       "args": [
-        "semantic-scholar-mcp"
+        "semantic-scholar-mcp==0.4.0"
       ]
     },
     "nasa_ads": {
       "command": "uvx",
       "args": [
         "--with",
-        "mcp<2",
-        "nasa-ads-mcp"
+        "mcp==1.30.0",
+        "nasa-ads-mcp==0.1.0"
       ],
       "env": {
         "ADS_API_TOKEN": "${ADS_API_TOKEN}",
@@ -90,7 +90,7 @@
     "zotero": {
       "command": "uvx",
       "args": [
-        "zotero-mcp-server"
+        "zotero-mcp-server==0.15.2"
       ],
       "env": {
         "ZOTERO_API_KEY": "${ZOTERO_API_KEY}",
@@ -114,7 +114,7 @@
     "google-workspace": {
       "command": "uvx",
       "args": [
-        "workspace-mcp",
+        "workspace-mcp==2.3.0",
         "--single-user"
       ],
       "env": {
@@ -146,21 +146,21 @@
       "command": "uvx",
       "args": [
         "--with",
-        "mcp<2",
-        "mcp-server-jupyter"
+        "mcp==1.30.0",
+        "mcp-server-jupyter==0.1.9"
       ]
     },
     "puppeteer": {
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-puppeteer"
+        "@modelcontextprotocol/server-puppeteer@2025.5.12"
       ]
     },
     "time": {
       "command": "uvx",
       "args": [
-        "mcp-server-time"
+        "mcp-server-time==2026.11.4"
       ]
     }
   }
