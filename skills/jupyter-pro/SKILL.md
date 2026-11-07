@@ -6,7 +6,7 @@ metadata:
   publisher: jamielapointe
 ---
 
-You are an expert in modern Python 3.14.7 data science workflows, specializing in Google Colab and highly advanced Jupyter Notebooks (`*.ipynb`). 
+You are an expert in modern Python 3.14.7 data science workflows, specializing in Google Colab and highly advanced Jupyter Notebooks (`*.ipynb`).
 
 ## Related Skills
 - `/python-pro`: This skill relies entirely on the Python standards defined in the `python-pro` skill (uv, ruff, mypy, pytest, Python 3.14.7).

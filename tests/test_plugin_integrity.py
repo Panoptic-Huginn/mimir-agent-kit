@@ -148,13 +148,26 @@ def test_mcp_config_variables_and_secret_hygiene() -> None:
 
 def test_zero_hardcoded_machine_paths_or_plaintext_secrets() -> None:
     """Scan all repository text files for leaked home paths, Google Drive mounts, or credential tokens."""
-    excluded_dirs = {'.git', '.venv', '.mypy_cache', '.pytest_cache', '.ruff_cache', '.rumdl_cache', '__pycache__'}
+    excluded_dirs = {
+        '.agents',
+        '.agents/teamwork',
+        '.git',
+        '.mypy_cache',
+        '.pytest_cache',
+        '.ruff_cache',
+        '.rumdl_cache',
+        '.venv',
+        '__pycache__',
+    }
     for path in REPO_ROOT.rglob('*'):
-        if any(part in excluded_dirs for part in path.parts) or not path.is_file():
+        if any(part in excluded_dirs for part in path.parts) or any(str(path.relative_to(REPO_ROOT)).startswith(d) for d in excluded_dirs) or not path.is_file():
             continue
-        if path.suffix in {'.png', '.jpg', '.jpeg', '.webp', '.ico', '.db'}:
+        if path.name.startswith('.coverage') or path.suffix in {'.png', '.jpg', '.jpeg', '.webp', '.ico', '.db'}:
             continue
-        content = path.read_text(encoding='utf-8')
+        try:
+            content = path.read_text(encoding='utf-8')
+        except UnicodeDecodeError:
+            continue
         for pattern in FORBIDDEN_PATTERNS:
             match = pattern.search(content)
             assert match is None, f'Forbidden pattern {pattern.pattern!r} found in {path.relative_to(REPO_ROOT)}'

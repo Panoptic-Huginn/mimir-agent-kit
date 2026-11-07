@@ -1,0 +1,115 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  // Renovate configuration for mimir-agent-kit.
+  // Maintains immutable 40-char commit SHA pins on GitHub Actions and pre-commit
+  // hooks, SHA-256 digests on MCP container images, exact versions on MCP PyPI/npm
+  // runners, and weekly uv lockfile upgrades.
+  "description": "Renovate configuration for mimir-agent-kit",
+  "extends": [
+    "config:best-practices",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "timezone": "America/Los_Angeles",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "minimumReleaseAge": "3 days",
+  "dependencyDashboard": true,
+  "labels": [
+    "dependencies"
+  ],
+  "pre-commit": {
+    "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track SHA-256 digest-pinned container images in mcp_config.json",
+      "managerFilePatterns": [
+        "/^mcp_config\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>(?:ghcr\\.io|docker\\.io)/[a-z0-9._/-]+):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Track exact-pinned PyPI packages for uv/uvx MCP servers in mcp_config.json",
+      "managerFilePatterns": [
+        "/^mcp_config\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>[a-zA-Z0-9][a-zA-Z0-9._-]*)==(?<currentValue>[0-9][a-zA-Z0-9._+-]*)\""
+      ],
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "Track exact-pinned npm packages for npx MCP servers in mcp_config.json",
+      "managerFilePatterns": [
+        "/^mcp_config\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>(?:@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*)@(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+[a-zA-Z0-9._+-]*)\""
+      ],
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Pin Python to 3.14.x (< 3.15) until ecosystem wheels fully support Python 3.15",
+      "matchManagers": [
+        "github-actions",
+        "pep621"
+      ],
+      "matchPackageNames": [
+        "actions/python-versions",
+        "python"
+      ],
+      "allowedVersions": ">=3.14 <3.15"
+    },
+    {
+      "description": "Group all GitHub Actions SHA updates into a single weekly pull request",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions",
+      "groupSlug": "github-actions"
+    },
+    {
+      "description": "Group all pre-commit hook SHA updates into a single weekly pull request",
+      "matchManagers": [
+        "pre-commit"
+      ],
+      "groupName": "pre-commit hooks",
+      "groupSlug": "pre-commit-hooks"
+    },
+    {
+      "description": "Group MCP server runtime updates in mcp_config.json into a single weekly pull request",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "groupName": "mcp server dependencies",
+      "groupSlug": "mcp-servers"
+    },
+    {
+      "description": "Group uv / PEP 621 minor and patch dependency updates into a single weekly pull request",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "uv python dependencies",
+      "groupSlug": "uv-dependencies"
+    }
+  ]
+}

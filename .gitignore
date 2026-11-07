@@ -31,7 +31,14 @@ Thumbs.db
 .env.*
 *.env
 !*example*.env
-*secret*
+*secret*.txt
+*secret*.json
+*secret*.env
+*secret*.key
+*secret*.token
+*secret*.yaml
+*secret*.yml
+!scripts/validation/secret_hygiene_validator.py
 *credentials*.json
 *token*.json
 *.pem
