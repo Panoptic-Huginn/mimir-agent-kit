@@ -1,0 +1,71 @@
+# Cargo Configuration for Cross-Platform & Cross-Architecture Builds
+# Supports x86_64, aarch64, and RISC-V RVA23 on Linux and macOS.
+
+[build]
+# Default build flags applied across targets
+rustflags = [
+    "-Dwarnings",
+    "-Cforce-frame-pointers=yes",
+]
+
+# ------------------------------------------------------------------------------
+# RISC-V 64-bit RVA23 Profile (Linux GNU)
+# ------------------------------------------------------------------------------
+[target.riscv64a23-unknown-linux-gnu]
+linker = "riscv64-linux-gnu-gcc"
+rustflags = [
+    "-C", "target-feature=+rva23u64,+v,+zba,+zbb,+zbs",
+    "-C", "link-arg=-Wl,-z,relro,-z,now",
+]
+runner = "qemu-riscv64 -cpu rv64,v=true,vext_spec=v1.0,zba=true,zbb=true,zbs=true -L /usr/riscv64-linux-gnu"
+
+[target.riscv64gc-unknown-linux-gnu]
+linker = "riscv64-linux-gnu-gcc"
+rustflags = [
+    "-C", "target-cpu=generic-rv64",
+    "-C", "target-feature=+m,+a,+f,+d,+c",
+]
+runner = "qemu-riscv64 -cpu rv64 -L /usr/riscv64-linux-gnu"
+
+# ------------------------------------------------------------------------------
+# RISC-V 64-bit Bare-Metal (Embedded ELF)
+# ------------------------------------------------------------------------------
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+    "-C", "target-cpu=generic-rv64",
+    "-C", "target-feature=+m,+a,+f,+d,+c",
+    "-C", "link-arg=-Tlink.x",
+    "-C", "panic=abort",
+]
+runner = "qemu-system-riscv64 -machine virt -nographic -bios none -kernel"
+
+# ------------------------------------------------------------------------------
+# Linux x86_64 and AArch64 (Robotics Host / Edge compute)
+# ------------------------------------------------------------------------------
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "link-arg=-Wl,-z,relro,-z,now",
+]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+rustflags = [
+    "-C", "target-cpu=neoverse-n1",
+    "-C", "target-feature=+neon,+crypto",
+    "-C", "link-arg=-Wl,-z,relro,-z,now",
+]
+runner = "qemu-aarch64 -L /usr/aarch64-linux-gnu"
+
+# ------------------------------------------------------------------------------
+# macOS Apple Silicon and Intel Darwin
+# ------------------------------------------------------------------------------
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=apple-m1",
+]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+]

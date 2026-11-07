@@ -1,0 +1,46 @@
+# Production Pixi Workspace Configuration for Rust 1.99.1+ Systems Engineering
+# Supports Linux and macOS across x86_64, aarch64, and RISC-V RVA23 targets.
+
+[workspace]
+name = "rust-pro-template"
+version = "0.1.0"
+description = "Hermetic Rust 1.99.1+ workspace managed with Pixi"
+authors = ["Panoptic-Huginn <engineering@panoptic-huginn.org>"]
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64"]
+
+[dependencies]
+rust = "1.99.1.*"
+cargo-nextest = ">=0.9.150"
+cargo-audit = ">=0.22.0"
+cargo-deny = ">=0.20.0"
+cargo-llvm-cov = ">=0.9.0"
+cargo-zigbuild = ">=0.24.0"
+rust-analyzer = ">=2026.08.0"
+
+[target.linux-64.dependencies]
+gcc_linux-riscv64 = ">=16.2.0"
+gcc_linux-aarch64 = ">=16.2.0"
+qemu-execve-riscv64 = ">=11.0.0"
+
+[target.linux-aarch64.dependencies]
+gcc_linux-riscv64 = ">=16.2.0"
+qemu-execve-riscv64 = ">=11.0.0"
+
+[target.osx-arm64.dependencies]
+# macOS cross-compilation uses zig / cargo-zigbuild or host clang
+
+[tasks]
+check = { cmd = "cargo check --workspace --all-targets", description = "Typecheck all workspace crates" }
+test = { cmd = "cargo nextest run --workspace --all-targets", description = "Run test suite via cargo-nextest" }
+test-miri = { cmd = "cargo miri test --workspace", description = "Run tests under Miri interpreter for UB detection" }
+clippy = { cmd = "cargo clippy --workspace --all-targets -- -D warnings", description = "Enforce strict Clippy lints" }
+fmt = { cmd = "cargo fmt --all -- --check", description = "Verify code formatting against rustfmt.toml" }
+fmt-fix = { cmd = "cargo fmt --all", description = "Automatically format all code" }
+deny = { cmd = "cargo deny check bans licenses sources", description = "Verify dependency supply chain and licenses" }
+audit = { cmd = "cargo audit", description = "Check cargo dependencies for known security vulnerabilities" }
+coverage = { cmd = "cargo llvm-cov --workspace --html --output-dir target/llvm-cov", description = "Generate HTML source coverage report" }
+build-release = { cmd = "cargo build --workspace --release", description = "Build optimized host release binaries" }
+build-riscv = { cmd = "cargo build --target riscv64a23-unknown-linux-gnu --release", description = "Cross-compile for RISC-V RVA23 Linux target" }
+test-riscv = { cmd = "cargo test --target riscv64a23-unknown-linux-gnu", description = "Execute RISC-V unit tests under QEMU user emulation" }
+ci = { depends-on = ["fmt", "clippy", "deny", "test"], description = "Run complete local pre-commit verification pipeline" }

@@ -550,7 +550,7 @@ def test_f8_prompt_cross_skill_links_resolve() -> None:
         content = skill_file.read_text(encoding='utf-8')
         for match in skill_ref_pattern.finditer(content):
             ref = match.group(1)
-            if ref in {'github-flow-lifecycle', 'python-pro', 'c-pro', 'cpp-pro', 'ada-spark-pro', 'cmake-pro', 'jupyter-pro'}:
+            if ref in {'github-flow-lifecycle', 'python-pro', 'c-pro', 'cpp-pro', 'ada-spark-pro', 'cmake-pro', 'jupyter-pro', 'rust-pro'}:
                 assert ref in discovered, f"Referenced skill '{ref}' does not exist in skills/"
 
 
