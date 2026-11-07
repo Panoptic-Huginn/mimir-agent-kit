@@ -111,4 +111,4 @@ repos:
         entry: uv run python scripts/validate_agentic_settings.py --strict
         language: system
         pass_filenames: false
-        files: ^(plugin\.json|hooks\.json|mcp_config\.json|renovate\.jsonc|\.pre-commit-config\.yaml|\.github/.*|rules/.*|skills/.*|\.agents/.*|scripts/validate_agentic_settings\.py|scripts/validation/.*)$
+        files: ^(plugin\.json|hooks\.json|mcp_config\.json|renovate\.json[c5]?|\.renovaterc(\.json[c5]?)?|\.pre-commit-config\.yaml|\.github/.*|rules/.*|skills/.*|\.agents/.*|scripts/ci/.*|scripts/validate_agentic_settings\.py|scripts/validation/.*)$

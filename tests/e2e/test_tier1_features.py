@@ -22,6 +22,7 @@ from scripts.validation.codes import ErrorCode
 from scripts.validation.models import Severity
 from scripts.validation.models import ValidationIssue
 from scripts.validation.models import ValidationReport
+from scripts.validation.supply_chain_validator import strip_jsonc_comments
 from tests.e2e.conftest import ALLOWED_HOOK_EVENTS
 from tests.e2e.conftest import ALLOWED_RULE_TRIGGERS
 from tests.e2e.conftest import ALLOWED_SKILL_SUBDIRECTORIES
@@ -791,10 +792,64 @@ def test_f11_actionlint_and_zizmor_pass_on_workflows() -> None:
 def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
     """Verify renovate.jsonc and .github/dependabot.yml exist and configure digest updates."""
     renovate_path = REPO_ROOT / 'renovate.jsonc'
+    shadow_renovate_path = REPO_ROOT / 'renovate.json'
     dependabot_path = REPO_ROOT / '.github' / 'dependabot.yml'
     assert renovate_path.is_file()
+    assert not shadow_renovate_path.exists(), 'Duplicate renovate.json must not shadow renovate.jsonc'
     assert dependabot_path.is_file()
+
+    renovate_data = json.loads(strip_jsonc_comments(renovate_path.read_text(encoding='utf-8')))
+    pkg_rules = renovate_data.get('packageRules', [])
+    ubuntu_rules = [r for r in pkg_rules if 'github-runners' in r.get('matchDatasources', []) and 'ubuntu' in r.get('matchPackageNames', [])]
+    assert len(ubuntu_rules) == 1
+    assert ubuntu_rules[0].get('allowedVersions') == '<=24.04'
 
     dependabot_data = yaml.safe_load(dependabot_path.read_text(encoding='utf-8'))
     ecosystems = {u['package-ecosystem'] for u in dependabot_data['updates']}
     assert {'github-actions', 'uv'}.issubset(ecosystems)
+
+
+def test_f11_post_merge_main_pre_commit_skips_no_commit_to_branch(tmp_path: Path) -> None:
+    """Verify CI and run_local_ci.sh skip no-commit-to-branch on main while git commit stays guarded."""
+    ci_data = yaml.safe_load(CI_WORKFLOW_FILE.read_text(encoding='utf-8'))
+    steps = ci_data['jobs']['validate-and-test']['steps']
+    pc_steps = [s for s in steps if 'pre-commit run' in str(s.get('run', ''))]
+    assert len(pc_steps) == 1
+    skip_env = str(pc_steps[0].get('env', {}).get('SKIP', ''))
+    assert 'no-commit-to-branch' in {item.strip() for item in skip_env.split(',')}
+
+    run_local_text = RUN_LOCAL_CI_FILE.read_text(encoding='utf-8')
+    assert 'no-commit-to-branch' in run_local_text
+
+    git_bin = shutil.which('git')
+    pre_commit_bin = shutil.which('pre-commit')
+    assert git_bin is not None
+    assert pre_commit_bin is not None
+
+    subprocess.run([git_bin, 'init', '-b', 'main'], cwd=tmp_path, check=True, capture_output=True)
+    pc_cfg = tmp_path / '.pre-commit-config.yaml'
+    pc_cfg.write_text(PRE_COMMIT_FILE.read_text(encoding='utf-8'), encoding='utf-8')
+    (tmp_path / 'sample.txt').write_text('clean line\n', encoding='utf-8')
+    subprocess.run([git_bin, 'add', '.pre-commit-config.yaml', 'sample.txt'], cwd=tmp_path, check=True, capture_output=True)
+
+    # Without SKIP on branch 'main', no-commit-to-branch exits 1 (guarding git commit on main)
+    res_commit_guard = subprocess.run(
+        [pre_commit_bin, 'run', 'no-commit-to-branch', '--all-files'],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res_commit_guard.returncode == 1
+
+    # With SKIP=no-commit-to-branch on branch 'main' (as in ci.yml and run_local_ci.sh), exits 0
+    env_with_skip = {**os.environ, 'SKIP': 'no-commit-to-branch'}
+    res_ci_skip = subprocess.run(
+        [pre_commit_bin, 'run', 'no-commit-to-branch', '--all-files'],
+        cwd=tmp_path,
+        env=env_with_skip,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res_ci_skip.returncode == 0

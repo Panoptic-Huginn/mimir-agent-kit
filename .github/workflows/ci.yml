@@ -61,6 +61,8 @@ jobs:
             pre-commit-${{ runner.os }}-
 
       - name: Run pre-commit checks
+        env:
+          SKIP: no-commit-to-branch
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
       - name: Run pytest suite

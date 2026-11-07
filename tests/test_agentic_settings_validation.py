@@ -1635,3 +1635,96 @@ def test_sup004_renovate_jsonc_and_dependabot_validation(tmp_path: Path) -> None
     rep_dep = ValidationReport()
     validate_supply_chain(tmp_path, rep_dep)
     assert any(i.code == ErrorCode.SUP004 and 'github-actions' in i.message for i in rep_dep.issues)
+
+
+def test_sup004_rejects_shadowing_renovate_json_alongside_renovate_jsonc(tmp_path: Path) -> None:
+    """SUP004: Reject duplicate renovate.json or .renovaterc files shadowing renovate.jsonc."""
+    valid_jsonc = json.dumps({
+        'extends': ['config:best-practices', 'helpers:pinGitHubActionDigestsToSemver'],
+        'pre-commit': {'enabled': True},
+    })
+    (tmp_path / 'renovate.jsonc').write_text(valid_jsonc, encoding='utf-8')
+    (tmp_path / 'renovate.json').write_text('{"extends": ["config:recommended"]}\n', encoding='utf-8')
+    (tmp_path / '.renovaterc').write_text('{}\n', encoding='utf-8')
+
+    rep_bad = ValidationReport()
+    validate_supply_chain(tmp_path, rep_bad)
+    sup004_issues = [i for i in rep_bad.issues if i.code == ErrorCode.SUP004]
+    assert len(sup004_issues) == 2
+    assert any('renovate.json' in i.message for i in sup004_issues)
+    assert any('.renovaterc' in i.message for i in sup004_issues)
+
+    (tmp_path / 'renovate.json').unlink()
+    (tmp_path / '.renovaterc').unlink()
+    rep_good = ValidationReport()
+    validate_supply_chain(tmp_path, rep_good)
+    assert rep_good.is_clean
+
+
+def test_sup003_rejects_push_workflow_pre_commit_without_skip_no_commit_to_branch(tmp_path: Path) -> None:
+    """SUP003: Reject push-to-main workflows running pre-commit without SKIP=no-commit-to-branch."""
+    sha_pc = '3e8a8703264a2f4a69428a0aa4dcb512790b2c8c'
+    sha_co = '3d3c42e5aac5ba805825da76410c181273ba90b1'
+    (tmp_path / '.pre-commit-config.yaml').write_text(
+        f"""repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: {sha_pc}
+    hooks:
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+""",
+        encoding='utf-8',
+    )
+    wf_dir = tmp_path / '.github' / 'workflows'
+    wf_dir.mkdir(parents=True)
+    ci_file = wf_dir / 'ci.yml'
+    ci_file.write_text(
+        f"""name: CI
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@{sha_co} # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run pre-commit checks
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+""",
+        encoding='utf-8',
+    )
+
+    rep_bad = ValidationReport()
+    validate_supply_chain(tmp_path, rep_bad)
+    sup003_issues = [i for i in rep_bad.issues if i.code == ErrorCode.SUP003]
+    assert len(sup003_issues) == 1
+    assert 'no-commit-to-branch' in sup003_issues[0].message
+
+    ci_file.write_text(
+        f"""name: CI
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@{sha_co} # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run pre-commit checks
+        env:
+          SKIP: no-commit-to-branch
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+""",
+        encoding='utf-8',
+    )
+    rep_good = ValidationReport()
+    validate_supply_chain(tmp_path, rep_good)
+    assert rep_good.is_clean

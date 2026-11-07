@@ -76,6 +76,16 @@
       "allowedVersions": ">=3.14 <3.15"
     },
     {
+      "description": "Pin GitHub Actions Ubuntu runner to <= 24.04 until actionlint and repository ruleset 26711811 adopt ubuntu-26.04",
+      "matchDatasources": [
+        "github-runners"
+      ],
+      "matchPackageNames": [
+        "ubuntu"
+      ],
+      "allowedVersions": "<=24.04"
+    },
+    {
       "description": "Group all GitHub Actions SHA updates into a single weekly pull request",
       "matchManagers": [
         "github-actions"

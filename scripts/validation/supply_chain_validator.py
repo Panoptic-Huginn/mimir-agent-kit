@@ -25,6 +25,19 @@ USES_LINE_PATTERN = re.compile(
     r'^\s*(?:-\s*)?uses:\s*(?P<target>[^\s#]+)(?:\s+#\s*(?P<comment>\S.*))?\s*$',
 )
 VERSION_COMMENT_PATTERN = re.compile(r'^v?\d+(?:\.\d+)*')
+PRE_COMMIT_RUN_PATTERN = re.compile(r'\bpre-commit\s+run\b')
+INLINE_SKIP_PATTERN = re.compile(r'\bSKIP=([^\s]+)')
+SHADOWING_RENOVATE_PATHS: tuple[str, ...] = (
+    'renovate.json',
+    'renovate.json5',
+    '.renovaterc',
+    '.renovaterc.json',
+    '.renovaterc.jsonc',
+    '.renovaterc.json5',
+    '.github/renovate.json',
+    '.github/renovate.jsonc',
+    '.github/renovate.json5',
+)
 
 
 def strip_jsonc_comments(raw_text: str) -> str:
@@ -392,6 +405,190 @@ def validate_dependabot_file(dependabot_file: Path, report: ValidationReport) ->
         )
 
 
+def validate_no_conflicting_renovate_configs(repo_root: Path, report: ValidationReport) -> None:
+    """Reject duplicate or shadowing Renovate configuration files alongside renovate.jsonc.
+
+    Args:
+        repo_root: Root directory of repository.
+        report: Aggregating ValidationReport.
+    """
+    canonical = repo_root / 'renovate.jsonc'
+    if not canonical.is_file():
+        return
+
+    for rel_path in SHADOWING_RENOVATE_PATHS:
+        candidate = repo_root / rel_path
+        if candidate.is_file():
+            report.add(
+                code=ErrorCode.SUP004,
+                message=(f"Conflicting Renovate configuration '{rel_path}' coexists with canonical 'renovate.jsonc' and shadows or overrides curated settings."),
+                severity=Severity.ERROR,
+                path=candidate,
+                suggestion=f"Remove '{rel_path}' so Renovate loads 'renovate.jsonc' exclusively.",
+            )
+
+
+def _extract_no_commit_protected_branches(pre_commit_file: Path) -> set[str]:
+    """Extract branch names protected by no-commit-to-branch in .pre-commit-config.yaml.
+
+    Args:
+        pre_commit_file: Path to .pre-commit-config.yaml.
+
+    Returns:
+        Set of protected branch names, or empty set if hook is not configured.
+    """
+    try:
+        data: Any = yaml.safe_load(pre_commit_file.read_text(encoding='utf-8'))
+    except OSError, UnicodeDecodeError, yaml.YAMLError:
+        return set()
+
+    if not isinstance(data, dict):
+        return set()
+
+    repos = data.get('repos', [])
+    if not isinstance(repos, list):
+        return set()
+
+    protected: set[str] = set()
+    for repo_entry in repos:
+        if not isinstance(repo_entry, dict):
+            continue
+        hooks = repo_entry.get('hooks', [])
+        if not isinstance(hooks, list):
+            continue
+        for hook in hooks:
+            if not isinstance(hook, dict) or hook.get('id') != 'no-commit-to-branch':
+                continue
+            args = hook.get('args', [])
+            if not isinstance(args, list) or not args:
+                protected.update({'main', 'master'})
+                continue
+            idx = 0
+            found_explicit = False
+            while idx < len(args):
+                token = str(args[idx])
+                if token in {'--branch', '-b'} and idx + 1 < len(args):
+                    protected.add(str(args[idx + 1]))
+                    found_explicit = True
+                    idx += 2
+                    continue
+                if token.startswith('--branch='):
+                    protected.add(token.split('=', 1)[1])
+                    found_explicit = True
+                idx += 1
+            if not found_explicit:
+                protected.update({'main', 'master'})
+    return protected
+
+
+def _workflow_matches_protected_push(workflow_data: dict[object, Any], protected_branches: set[str]) -> bool:
+    """Determine whether a workflow triggers on push to any protected branch.
+
+    Args:
+        workflow_data: Parsed workflow YAML mapping.
+        protected_branches: Set of branch names guarded by no-commit-to-branch.
+
+    Returns:
+        True if a push to a protected branch triggers this workflow.
+    """
+    triggers: Any = workflow_data.get('on') if 'on' in workflow_data else workflow_data.get(True)
+    if triggers == 'push':
+        return True
+    if isinstance(triggers, list):
+        return 'push' in triggers
+    if not isinstance(triggers, dict) or 'push' not in triggers:
+        return False
+
+    push_cfg: Any = triggers['push']
+    if push_cfg is None:
+        return True
+    if not isinstance(push_cfg, dict):
+        return False
+
+    branches = push_cfg.get('branches')
+    if isinstance(branches, list):
+        branch_set = {str(b) for b in branches}
+        return bool(branch_set & protected_branches) or bool(branch_set & {'*', '**'})
+
+    return 'tags' not in push_cfg
+
+
+def _step_skips_hook(hook_id: str, wf_env: object, job_env: object, step: dict[str, Any]) -> bool:
+    """Check whether a workflow step configures SKIP containing hook_id.
+
+    Args:
+        hook_id: Pre-commit hook identifier to check (e.g., 'no-commit-to-branch').
+        wf_env: Top-level workflow env mapping, if any.
+        job_env: Job-level env mapping, if any.
+        step: Step dictionary containing 'run' and optional 'env'.
+
+    Returns:
+        True if SKIP includes hook_id via step/job/workflow env or inline shell assignment.
+    """
+    for env_candidate in (step.get('env'), job_env, wf_env):
+        if isinstance(env_candidate, dict) and 'SKIP' in env_candidate:
+            skip_items = {item.strip() for item in str(env_candidate['SKIP']).split(',') if item.strip()}
+            return hook_id in skip_items
+
+    run_cmd = str(step.get('run', ''))
+    for match in INLINE_SKIP_PATTERN.finditer(run_cmd):
+        raw_val = match.group(1).strip('\'"')
+        skip_items = {item.strip() for item in raw_val.split(',') if item.strip()}
+        if hook_id in skip_items:
+            return True
+    return False
+
+
+def validate_pre_commit_ci_branch_guard(repo_root: Path, report: ValidationReport) -> None:
+    """Verify push workflows running pre-commit skip no-commit-to-branch on protected branches.
+
+    Args:
+        repo_root: Root directory of repository.
+        report: Aggregating ValidationReport.
+    """
+    pre_commit_file = repo_root / '.pre-commit-config.yaml'
+    workflows_dir = repo_root / '.github' / 'workflows'
+    if not pre_commit_file.is_file() or not workflows_dir.is_dir():
+        return
+
+    protected_branches = _extract_no_commit_protected_branches(pre_commit_file)
+    if not protected_branches:
+        return
+
+    workflow_files = sorted(p for p in workflows_dir.iterdir() if p.is_file() and p.suffix in {'.yml', '.yaml'})
+    for wf_file in workflow_files:
+        try:
+            data: Any = yaml.safe_load(wf_file.read_text(encoding='utf-8'))
+        except OSError, UnicodeDecodeError, yaml.YAMLError:
+            continue
+        if not isinstance(data, dict) or not _workflow_matches_protected_push(data, protected_branches):
+            continue
+
+        jobs = data.get('jobs', {})
+        if not isinstance(jobs, dict):
+            continue
+        wf_env = data.get('env')
+        for job_id, job_cfg in jobs.items():
+            if not isinstance(job_cfg, dict):
+                continue
+            steps = job_cfg.get('steps', [])
+            if not isinstance(steps, list):
+                continue
+            job_env = job_cfg.get('env')
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                run_cmd = step.get('run')
+                if isinstance(run_cmd, str) and PRE_COMMIT_RUN_PATTERN.search(run_cmd) and not _step_skips_hook('no-commit-to-branch', wf_env, job_env, step):
+                    report.add(
+                        code=ErrorCode.SUP003,
+                        message=(f"Step in job '{job_id}' ({wf_file.name}) runs 'pre-commit run' on push to {sorted(protected_branches)} without skipping 'no-commit-to-branch'."),
+                        severity=Severity.ERROR,
+                        path=wf_file,
+                        suggestion="Add 'env: { SKIP: no-commit-to-branch }' to the 'pre-commit run' step so post-merge branch checkouts do not fail.",
+                    )
+
+
 def validate_supply_chain(repo_root: Path, report: ValidationReport) -> None:
     """Validate supply-chain pinning across workflows, pre-commit, Renovate, and Dependabot.
 
@@ -409,9 +606,12 @@ def validate_supply_chain(repo_root: Path, report: ValidationReport) -> None:
     if pre_commit_file.is_file():
         validate_pre_commit_file(pre_commit_file, report)
 
+    validate_pre_commit_ci_branch_guard(repo_root, report)
+
     renovate_file = repo_root / 'renovate.jsonc'
     if renovate_file.is_file():
         validate_renovate_file(renovate_file, report)
+        validate_no_conflicting_renovate_configs(repo_root, report)
 
     dependabot_file = repo_root / '.github' / 'dependabot.yml'
     if dependabot_file.is_file():
