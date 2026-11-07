@@ -51,6 +51,7 @@ flowchart TD
 | `github-flow-lifecycle` | 6-stage Git & GitHub Flow protocol: issue tracking, `<type>/<N>-<slug>` branch isolation, mandatory pre-commit local CI gate, PR self-healing | Paired with `rules/AGENTS.md` & `hooks.json` |
 | `jupyter-pro` | Reproducible Jupyter Notebook & Google Colab engineering workflows (`uv`, Python 3.14+, clean-output hygiene) | — |
 | `python-pro` | Production Python 3.14+ (`uv`, `pixi`, `ruff`, `mypy --strict`, `pydantic`, `pytest`, `rumdl`, Google docstrings) | `examples/pyproject.toml` |
+| `rust-pro` | Deterministic Rust 1.99.1+ (`std`, `no_std`, bare-metal), Pixi orchestration, NVIDIA Halos safety kernels, Google Rust Styleguide, RISC-V RVA23 | `examples/{pixi.toml,Cargo.toml,clippy.toml,rustfmt.toml}`, `references/` |
 
 > [!NOTE]
 > First-party Google skills (such as BigQuery, Dataflow, Dataproc/Spark, Cloud Databases, and `google-agents-cli-*`) are intentionally excluded from this repository. Install those per machine from **Customizations > Marketplace** inside Antigravity so Google updates them automatically.

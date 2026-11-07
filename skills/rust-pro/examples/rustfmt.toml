@@ -1,0 +1,25 @@
+# Rustfmt Configuration
+# Enforces official Google Rust Styleguide code formatting standards.
+
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Unix"
+use_field_init_shorthand = true
+use_try_shorthand = true
+reorder_imports = true
+reorder_modules = true
+edition = "2024"
+
+# Google Rust Styleguide: Single module per use statement
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
+
+# Google Rust Styleguide: Lowercase hex literals (0x1f instead of 0x1F)
+hex_literal_case = "Lower"
+
+# Formatting macro matchers cleanly
+format_macro_matchers = true
+format_strings = true
+wrap_comments = true
+comment_width = 100

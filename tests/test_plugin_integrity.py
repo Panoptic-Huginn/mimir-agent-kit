@@ -20,6 +20,7 @@ EXPECTED_SKILLS = {
     'github-flow-lifecycle',
     'jupyter-pro',
     'python-pro',
+    'rust-pro',
 }
 
 EXPECTED_MCP_SERVERS = {
