@@ -1,0 +1,37 @@
+# Production Pixi Workspace Configuration for Marimo Reactive Notebooks
+# Managed environment supporting Python 3.14+ and Python 3.15 across Linux and macOS.
+
+[workspace]
+name = "mimir-marimo-science"
+version = "0.1.0"
+description = "Hermetic Pixi workspace for Marimo reactive data science, astrophysics, robotics, and systems telemetry"
+authors = ["Panoptic-Huginn <engineering@panoptic-huginn.org>"]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64", "linux-aarch64", "win-64"]
+
+[dependencies]
+python = ">=3.14"
+numpy = ">=2.0.0"
+scipy = ">=1.15.0"
+polars = ">=1.20.0"
+pytest = ">=8.3.0"
+
+[pypi-dependencies]
+marimo = ">=0.25.2"
+plotly = ">=5.24.0"
+altair = ">=5.4.0"
+
+[feature.py315.dependencies]
+python = ">=3.15.0rc1"
+
+[environments]
+default = []
+py315 = ["py315"]
+
+[tasks]
+edit = { cmd = "marimo edit astro_transit_photometry.py", description = "Launch interactive Marimo reactive editor" }
+run = { cmd = "marimo run astro_transit_photometry.py", description = "Serve read-only production dashboard" }
+check = { cmd = "marimo check .", description = "Run static DAG integrity and syntax linter" }
+export = { cmd = "marimo export html astro_transit_photometry.py -o dist/report.html", description = "Export static HTML report" }
+export-wasm = { cmd = "marimo export html-wasm astro_transit_photometry.py -o dist/app.html", description = "Export standalone WebAssembly Pyodide app" }
+test = { cmd = "pytest", description = "Run embedded pytest test cells and validation suite" }
