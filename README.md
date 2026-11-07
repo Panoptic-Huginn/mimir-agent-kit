@@ -69,17 +69,17 @@ flowchart TD
 
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
-| `github-mcp-server` | `docker run ... ghcr.io/github/github-mcp-server` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`) | `GITHUB_PERSONAL_ACCESS_TOKEN` |
-| `academic-mcp` | `uv run --isolated --no-project ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
-| `arxiv` | `uvx mcp-arxiv` | arXiv preprint search and metadata retrieval | None |
-| `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server` | PubMed / Europe PMC biomedical & life-science literature search | None |
-| `semantic-scholar` | `uvx semantic-scholar-mcp` | Semantic Scholar paper graph, citations, and author lookup | None |
-| `nasa_ads` | `uvx --with "mcp<2" nasa-ads-mcp` | NASA Astrophysics Data System (ADS) astrodynamics & physics literature | `ADS_API_TOKEN` |
-| `zotero` | `uvx zotero-mcp-server` | Zotero library search, collections, annotations, and BibTeX export | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` |
-| `google-workspace` | `uvx workspace-mcp --single-user` | Gmail, Google Drive, Docs, Sheets, Slides, and Calendar | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `USER_GOOGLE_EMAIL` |
-| `jupyter` | `uvx --with "mcp<2" mcp-server-jupyter` | Local Jupyter notebook cell inspection and execution | None |
-| `puppeteer` | `npx -y @modelcontextprotocol/server-puppeteer` | Headless browser navigation, DOM inspection, and screenshots | None |
-| `time` | `uvx mcp-server-time` | Timezone-aware clock and timestamp conversion | None |
+| `github-mcp-server` | `docker run ... ghcr.io/github/github-mcp-server:v2.1.0@sha256:...` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`) | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
+| `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
+| `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.0` | PubMed / Europe PMC biomedical & life-science literature search | None |
+| `semantic-scholar` | `uvx semantic-scholar-mcp==0.4.0` | Semantic Scholar paper graph, citations, and author lookup | None |
+| `nasa_ads` | `uvx --with mcp==1.30.0 nasa-ads-mcp==0.1.0` | NASA Astrophysics Data System (ADS) astrodynamics & physics literature | `ADS_API_TOKEN` |
+| `zotero` | `uvx zotero-mcp-server==0.15.2` | Zotero library search, collections, annotations, and BibTeX export | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` |
+| `google-workspace` | `uvx workspace-mcp==2.3.0 --single-user` | Gmail, Google Drive, Docs, Sheets, Slides, and Calendar | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `USER_GOOGLE_EMAIL` |
+| `jupyter` | `uvx --with mcp==1.30.0 mcp-server-jupyter==0.1.9` | Local Jupyter notebook cell inspection and execution | None |
+| `puppeteer` | `npx -y @modelcontextprotocol/server-puppeteer@2025.5.12` | Headless browser navigation, DOM inspection, and screenshots | None |
+| `time` | `uvx mcp-server-time==2026.11.4` | Timezone-aware clock and timestamp conversion | None |
 
 ---
 

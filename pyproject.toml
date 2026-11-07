@@ -6,11 +6,12 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.14"
 dependencies = [
-    "mcp>=2.2.0",
+    "mcp>=2.3.0",
 ]
 
 [dependency-groups]
 dev = [
+    "actionlint-py>=1.7.12.25",
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
     "pytest>=8.3.0",
@@ -19,6 +20,7 @@ dev = [
     "ruff>=0.16.9",
     "rumdl>=0.2.77",
     "types-pyyaml>=6.0.12.20260815",
+    "zizmor>=1.32.0",
 ]
 
 [tool.uv]

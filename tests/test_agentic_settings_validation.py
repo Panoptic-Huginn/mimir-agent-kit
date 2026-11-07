@@ -32,6 +32,11 @@ from scripts.validation.rules_validator import validate_rules
 from scripts.validation.secret_hygiene_validator import validate_secret_hygiene
 from scripts.validation.skills_validator import validate_skill_directory
 from scripts.validation.skills_validator import validate_skills
+from scripts.validation.supply_chain_validator import strip_jsonc_comments
+from scripts.validation.supply_chain_validator import validate_pre_commit_file
+from scripts.validation.supply_chain_validator import validate_renovate_file
+from scripts.validation.supply_chain_validator import validate_supply_chain
+from scripts.validation.supply_chain_validator import validate_workflow_file
 from scripts.validation.tool_schema_validator import validate_tool_parameter_schema
 from scripts.validation.tool_schema_validator import validate_tool_schemas
 
@@ -1433,3 +1438,200 @@ def test_local_ci_foreign_working_directory_handling() -> None:
         )
         assert res.returncode == 0
         assert 'Usage:' in res.stdout
+
+
+# ============================================================================
+# 11. Supply-Chain & MCP Pinning Validator Tests (MCP009, SUP001 - SUP004)
+# ============================================================================
+
+
+def test_mcp009_rejects_unpinned_docker_uv_uvx_and_npx_servers(tmp_path: Path) -> None:
+    """MCP009: Reject floating container tags, unpinned uv/uvx packages, and unpinned npx packages."""
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(
+        json.dumps({
+            'mcpServers': {
+                'docker-unpinned': {
+                    'command': 'docker',
+                    'args': ['run', '-i', '--rm', '-e', 'FOO=1', 'ghcr.io/github/github-mcp-server:v2.1.0'],
+                },
+                'docker-dashdash-unpinned': {
+                    'command': 'docker',
+                    'args': ['run', '--rm', '--', 'ghcr.io/github/github-mcp-server'],
+                },
+                'uv-range': {
+                    'command': 'uv',
+                    'args': ['run', '--with', 'mcp>=2.2.0', '--with=pyyaml>=6.0', 'python', 'srv.py'],
+                },
+                'uvx-unpinned': {
+                    'command': 'uvx',
+                    'args': ['--isolated', '--python', '3.14', '--from=mcp-arxiv', 'mcp-arxiv'],
+                },
+                'uvx-positional-unpinned': {
+                    'command': 'uvx',
+                    'args': ['mcp-server-time'],
+                },
+                'npx-unpinned': {
+                    'command': 'npx',
+                    'args': ['-y', '@cyanheads/pubmed-mcp-server@latest'],
+                },
+                'npx-pkg-flag-unpinned': {
+                    'command': 'npx',
+                    'args': ['--package=@modelcontextprotocol/server-puppeteer', '-c', 'run'],
+                },
+            }
+        }),
+        encoding='utf-8',
+    )
+    report = ValidationReport()
+    validate_mcp_config_file(config_file, report)
+    mcp009_issues = [i for i in report.issues if i.code == ErrorCode.MCP009]
+    assert len(mcp009_issues) == 8
+
+
+def test_mcp009_accepts_pinned_docker_uv_uvx_and_npx_servers(tmp_path: Path) -> None:
+    """MCP009: Accept SHA-256 digest-pinned Docker images and exact ==/@ version pins."""
+    digest = 'f' * 64
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(
+        json.dumps({
+            'mcpServers': {
+                'docker-pinned': {
+                    'command': 'docker',
+                    'args': ['run', '-i', '--rm', f'ghcr.io/github/github-mcp-server:v2.1.0@sha256:{digest}'],
+                },
+                'uv-pinned': {
+                    'command': 'uv',
+                    'args': ['run', '--with', 'mcp==2.3.0', 'python', '${PLUGIN_ROOT}/srv.py'],
+                },
+                'uvx-from-pinned': {
+                    'command': 'uvx',
+                    'args': ['--from=mcp-arxiv==0.1.0', 'mcp-arxiv'],
+                },
+                'npx-pinned': {
+                    'command': 'npx',
+                    'args': ['-y', '-p', '@cyanheads/pubmed-mcp-server@2.12.0', '--registry', 'https://registry.npmjs.org'],
+                },
+            }
+        }),
+        encoding='utf-8',
+    )
+    report = ValidationReport()
+    validate_mcp_config_file(config_file, report)
+    assert report.is_clean, f'Unexpected issues: {report.issues}'
+
+
+def test_sup001_and_sup002_workflow_pinning_and_permissions(tmp_path: Path) -> None:
+    """SUP001/SUP002: Reject unpinned actions, missing version comments, missing permissions, and unsafe checkout."""
+    wf_dir = tmp_path / '.github' / 'workflows'
+    wf_dir.mkdir(parents=True)
+    bad_wf = wf_dir / 'bad.yml'
+    sha = '3d3c42e5aac5ba805825da76410c181273ba90b1'
+    bad_wf.write_text(
+        f"""name: Bad Workflow
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: ./local-action
+      - uses: actions/checkout@v4
+      - uses: actions/cache@{sha}
+      - uses: docker://alpine:3.20
+      - uses: org/no-at-sign
+""",
+        encoding='utf-8',
+    )
+    report = ValidationReport()
+    validate_workflow_file(bad_wf, report)
+    sup001 = [i for i in report.issues if i.code == ErrorCode.SUP001]
+    sup002 = [i for i in report.issues if i.code == ErrorCode.SUP002]
+    assert len(sup001) == 4  # @v4, missing # vX.Y.Z comment, unpinned docker://, missing @
+    assert len(sup002) == 2  # missing permissions + checkout without persist-credentials: false
+
+
+def test_sup001_malformed_and_non_mapping_workflow(tmp_path: Path) -> None:
+    """SUP001: Malformed YAML or non-mapping workflow file emits SUP001."""
+    bad_yaml = tmp_path / 'corrupt.yml'
+    bad_yaml.write_text('jobs: [unclosed', encoding='utf-8')
+    rep1 = ValidationReport()
+    validate_workflow_file(bad_yaml, rep1)
+    assert any(i.code == ErrorCode.SUP001 for i in rep1.issues)
+
+    list_yaml = tmp_path / 'list.yml'
+    list_yaml.write_text('- item1\n- item2\n', encoding='utf-8')
+    rep2 = ValidationReport()
+    validate_workflow_file(list_yaml, rep2)
+    assert any(i.code == ErrorCode.SUP001 for i in rep2.issues)
+
+    missing_wf = tmp_path / 'missing.yml'
+    rep3 = ValidationReport()
+    validate_workflow_file(missing_wf, rep3)
+    assert any(i.code == ErrorCode.SUP001 for i in rep3.issues)
+
+
+def test_sup003_pre_commit_sha_pinning_validation(tmp_path: Path) -> None:
+    """SUP003: Reject mutable tags in .pre-commit-config.yaml and accept 40-char commit SHAs."""
+    pc_file = tmp_path / '.pre-commit-config.yaml'
+    pc_file.write_text(
+        """repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check
+        language: system
+""",
+        encoding='utf-8',
+    )
+    rep_bad = ValidationReport()
+    validate_pre_commit_file(pc_file, rep_bad)
+    assert any(i.code == ErrorCode.SUP003 for i in rep_bad.issues)
+
+    pc_file.write_text(
+        """repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    hooks:
+      - id: check-yaml
+""",
+        encoding='utf-8',
+    )
+    rep_good = ValidationReport()
+    validate_pre_commit_file(pc_file, rep_good)
+    assert rep_good.is_clean
+
+
+def test_sup004_renovate_jsonc_and_dependabot_validation(tmp_path: Path) -> None:
+    """SUP004: Validate JSONC comment stripping, Renovate digest presets, and Dependabot ecosystems."""
+    sample_jsonc = """{
+  // Line comment with https://url.example/test
+  /* Block comment
+     spanning lines */
+  "url": "https://docs.renovatebot.com/renovate-schema.json",
+  "escaped": "value with \\"quote\\" // not a comment",
+  "extends": ["config:best-practices"],
+  "pre-commit": {"enabled": false}
+}"""
+    parsed = json.loads(strip_jsonc_comments(sample_jsonc))
+    assert parsed['url'] == 'https://docs.renovatebot.com/renovate-schema.json'
+    assert '// not a comment' in parsed['escaped']
+
+    renovate_file = tmp_path / 'renovate.jsonc'
+    renovate_file.write_text(sample_jsonc, encoding='utf-8')
+    rep_ren = ValidationReport()
+    validate_renovate_file(renovate_file, rep_ren)
+    sup004_ren = [i for i in rep_ren.issues if i.code == ErrorCode.SUP004]
+    assert len(sup004_ren) == 2
+
+    dependabot_dir = tmp_path / '.github'
+    dependabot_dir.mkdir(parents=True)
+    dep_file = dependabot_dir / 'dependabot.yml'
+    dep_file.write_text('version: 2\nupdates:\n  - package-ecosystem: "uv"\n    directory: "/"\n', encoding='utf-8')
+    rep_dep = ValidationReport()
+    validate_supply_chain(tmp_path, rep_dep)
+    assert any(i.code == ErrorCode.SUP004 and 'github-actions' in i.message for i in rep_dep.issues)

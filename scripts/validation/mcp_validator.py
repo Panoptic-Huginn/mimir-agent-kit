@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Any
 
 from scripts.validation.codes import ErrorCode
 from scripts.validation.models import Severity
 
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from scripts.validation.models import ValidationReport
 
 
@@ -21,6 +21,268 @@ VAR_PLACEHOLDER_PATTERN = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
 TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 SERVER_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 MAX_TOOL_IDENTIFIER_LENGTH = 64
+
+DOCKER_DIGEST_IMAGE_PATTERN = re.compile(r'^[a-z0-9._/-]+(?::[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$')
+PYPI_EXACT_PIN_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9_,.-]+\])?==[0-9][A-Za-z0-9._+-]*$')
+NPM_EXACT_PIN_PATTERN = re.compile(r'^(?:@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*@[0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9._+-]*$')
+
+DOCKER_RUN_VALUE_FLAGS = frozenset({
+    '-e',
+    '--env',
+    '--env-file',
+    '-v',
+    '--volume',
+    '--mount',
+    '-p',
+    '--publish',
+    '-w',
+    '--workdir',
+    '-u',
+    '--user',
+    '--name',
+    '--network',
+    '--net',
+    '--platform',
+    '--entrypoint',
+    '--hostname',
+    '-h',
+    '--label',
+    '-l',
+    '--memory',
+    '-m',
+    '--cpus',
+    '--pull',
+    '--restart',
+    '--log-driver',
+    '--log-opt',
+})
+
+UV_VALUE_FLAGS = frozenset({
+    '-w',
+    '--with',
+    '--from',
+    '-p',
+    '--python',
+    '--index-url',
+    '--extra-index-url',
+    '-c',
+    '--constraints',
+    '-b',
+    '--build-constraints',
+    '--overrides',
+    '--env-file',
+    '--with-requirements',
+    '--with-editable',
+    '--directory',
+    '--project',
+})
+
+NPX_VALUE_FLAGS = frozenset({
+    '-p',
+    '--package',
+    '-c',
+    '--call',
+    '--cache',
+    '--userconfig',
+    '--registry',
+})
+
+
+def _validate_docker_pinning(
+    server_name: str,
+    args: list[str],
+    report: ValidationReport,
+    path: Path,
+) -> None:
+    """Verify docker run MCP servers pin container images by @sha256:<64-hex> digest.
+
+    Args:
+        server_name: Name of the MCP server.
+        args: Argument list passed to the docker command.
+        report: Aggregating ValidationReport.
+        path: Path to mcp_config.json.
+    """
+    if 'run' not in args:
+        return
+    idx = args.index('run') + 1
+    image_ref: str | None = None
+    while idx < len(args):
+        arg_val = args[idx]
+        if arg_val == '--':
+            if idx + 1 < len(args):
+                image_ref = args[idx + 1]
+            break
+        if arg_val in DOCKER_RUN_VALUE_FLAGS:
+            idx += 2
+            continue
+        if arg_val.startswith('-'):
+            idx += 1
+            continue
+        image_ref = arg_val
+        break
+
+    if not image_ref or not DOCKER_DIGEST_IMAGE_PATTERN.match(image_ref):
+        report.add(
+            code=ErrorCode.MCP009,
+            message=(f"Docker MCP server '{server_name}' uses unpinned image '{image_ref or '<missing>'}'. Must pin an immutable '@sha256:<64-hex>' digest."),
+            severity=Severity.ERROR,
+            path=path,
+            suggestion='Pin the container image as <registry>/<repo>:<tag>@sha256:<64-char-digest>.',
+        )
+
+
+def _validate_uv_pinning(
+    server_name: str,
+    cmd_name: str,
+    args: list[str],
+    report: ValidationReport,
+    path: Path,
+) -> None:
+    """Verify uv and uvx MCP servers use exact ==X.Y.Z package version pins.
+
+    Args:
+        server_name: Name of the MCP server.
+        cmd_name: Normalized command basename ('uv' or 'uvx').
+        args: Argument list passed to uv/uvx.
+        report: Aggregating ValidationReport.
+        path: Path to mcp_config.json.
+    """
+    is_tool_runner = cmd_name == 'uvx' or args[:2] == ['tool', 'run']
+    start_idx = 2 if (cmd_name == 'uv' and args[:2] == ['tool', 'run']) else 0
+    has_from_pkg = False
+    first_positional: str | None = None
+
+    idx = start_idx
+    while idx < len(args):
+        arg_val = args[idx]
+        pkg_val: str | None = None
+        is_from_flag = False
+
+        if arg_val in {'-w', '--with', '--from'}:
+            is_from_flag = arg_val == '--from'
+            if idx + 1 < len(args):
+                pkg_val = args[idx + 1]
+            idx += 2
+        elif arg_val.startswith('--with='):
+            pkg_val = arg_val.split('=', 1)[1]
+            idx += 1
+        elif arg_val.startswith('--from='):
+            is_from_flag = True
+            pkg_val = arg_val.split('=', 1)[1]
+            idx += 1
+        elif arg_val in UV_VALUE_FLAGS:
+            idx += 2
+            continue
+        elif arg_val.startswith('-'):
+            idx += 1
+            continue
+        else:
+            if first_positional is None:
+                first_positional = arg_val
+            idx += 1
+            continue
+
+        if is_from_flag:
+            has_from_pkg = True
+        if not pkg_val or not PYPI_EXACT_PIN_PATTERN.match(pkg_val):
+            report.add(
+                code=ErrorCode.MCP009,
+                message=(f"MCP server '{server_name}' passes unpinned PyPI requirement '{pkg_val or '<missing>'}' to {cmd_name}. Exact '==X.Y.Z' version pinning is required."),
+                severity=Severity.ERROR,
+                path=path,
+                suggestion="Replace floating or range specifiers with an exact 'package==X.Y.Z' pin.",
+            )
+
+    if is_tool_runner and not has_from_pkg and first_positional is not None:
+        if '/' not in first_positional and '$' not in first_positional and not PYPI_EXACT_PIN_PATTERN.match(first_positional):
+            report.add(
+                code=ErrorCode.MCP009,
+                message=(f"MCP server '{server_name}' invokes '{cmd_name} {first_positional}' without an exact '==X.Y.Z' version pin."),
+                severity=Severity.ERROR,
+                path=path,
+                suggestion=f"Pin the tool package version explicitly as '{first_positional}==X.Y.Z'.",
+            )
+
+
+def _validate_npx_pinning(
+    server_name: str,
+    args: list[str],
+    report: ValidationReport,
+    path: Path,
+) -> None:
+    """Verify npx MCP servers pin npm packages to an exact @X.Y.Z SemVer release.
+
+    Args:
+        server_name: Name of the MCP server.
+        args: Argument list passed to npx.
+        report: Aggregating ValidationReport.
+        path: Path to mcp_config.json.
+    """
+    explicit_packages: list[str] = []
+    first_positional: str | None = None
+
+    idx = 0
+    while idx < len(args):
+        arg_val = args[idx]
+        if arg_val in {'-p', '--package'}:
+            if idx + 1 < len(args):
+                explicit_packages.append(args[idx + 1])
+            idx += 2
+            continue
+        if arg_val.startswith('--package='):
+            explicit_packages.append(arg_val.split('=', 1)[1])
+            idx += 1
+            continue
+        if arg_val in NPX_VALUE_FLAGS:
+            idx += 2
+            continue
+        if arg_val.startswith('-'):
+            idx += 1
+            continue
+        if first_positional is None:
+            first_positional = arg_val
+        idx += 1
+
+    targets = explicit_packages if explicit_packages else ([first_positional] if first_positional is not None else [])
+    for pkg_spec in targets:
+        if not pkg_spec or not NPM_EXACT_PIN_PATTERN.match(pkg_spec):
+            report.add(
+                code=ErrorCode.MCP009,
+                message=(f"npx MCP server '{server_name}' uses unpinned npm package '{pkg_spec or '<missing>'}'. Exact '@X.Y.Z' version pinning is required."),
+                severity=Severity.ERROR,
+                path=path,
+                suggestion="Pin the npm package to an exact SemVer version (e.g., '@scope/pkg@1.2.3').",
+            )
+
+
+def validate_mcp_server_pinning(
+    server_name: str,
+    spec: dict[str, Any],
+    report: ValidationReport,
+    path: Path,
+) -> None:
+    """Validate supply-chain version/digest pinning for stdio MCP server launchers.
+
+    Args:
+        server_name: Name of the MCP server.
+        spec: Server configuration dictionary.
+        report: Aggregating ValidationReport.
+        path: Path to mcp_config.json.
+    """
+    command = spec.get('command')
+    raw_args = spec.get('args', [])
+    if not isinstance(command, str) or not isinstance(raw_args, list):
+        return
+    if not all(isinstance(item, str) for item in raw_args):
+        return
+
+    cmd_name = Path(command.strip()).name
+    if cmd_name == 'docker':
+        _validate_docker_pinning(server_name, raw_args, report, path)
+    elif cmd_name in {'uv', 'uvx'}:
+        _validate_uv_pinning(server_name, cmd_name, raw_args, report, path)
+    elif cmd_name == 'npx':
+        _validate_npx_pinning(server_name, raw_args, report, path)
 
 
 def validate_namespaced_tool_name(
@@ -244,6 +506,9 @@ def validate_mcp_config_file(
         if known_tools and server_name in known_tools:
             for tname in known_tools[server_name]:
                 validate_namespaced_tool_name(server_name, tname, report, config_file)
+
+        # MCP009: Supply-chain digest & version pinning for container/package launchers
+        validate_mcp_server_pinning(server_name, spec, report, config_file)
 
 
 def validate_mcp_config(

@@ -17,6 +17,7 @@ class ErrorCode(enum.StrEnum):
     - PRM: Prompt & Reference Consistency
     - TLS: Tool Schemas & Parameter Definitions
     - SEC: Secret Hygiene & Workspace Isolation
+    - SUP: Supply-Chain Pinning & Workflow Security
     """
 
     # Skills (SKL001-SKL008)
@@ -52,6 +53,7 @@ class ErrorCode(enum.StrEnum):
     MCP006 = 'MCP006'  # Declared variable in variables array not referenced in config
     MCP007 = 'MCP007'  # Variable declaration missing required title or description
     MCP008 = 'MCP008'  # Namespaced tool identifier mcp_<server>_<tool> exceeds 64 characters
+    MCP009 = 'MCP009'  # Unpinned container image digest or package version in mcp_config.json
 
     # Plugin Manifest (PLG001-PLG006)
     PLG001 = 'PLG001'  # Malformed JSON in plugin.json
@@ -73,6 +75,12 @@ class ErrorCode(enum.StrEnum):
     # Secret Hygiene & Isolation (SEC001-SEC002)
     SEC001 = 'SEC001'  # Leaked absolute home path (/Users/..., /home/...) in repository file
     SEC002 = 'SEC002'  # Leaked authentication token (ghp_*, AIzaSy*, bearer secret)
+
+    # Supply-Chain Pinning & Workflow Security (SUP001-SUP004)
+    SUP001 = 'SUP001'  # GitHub Actions external uses not pinned to 40-char commit SHA with version comment
+    SUP002 = 'SUP002'  # GitHub Actions workflow missing permissions or persist-credentials: false
+    SUP003 = 'SUP003'  # Pre-commit external repo rev not pinned to 40-char commit SHA
+    SUP004 = 'SUP004'  # Malformed or non-compliant Renovate / Dependabot supply-chain config
 
 
 CODE_DESCRIPTIONS: dict[ErrorCode, str] = {
@@ -102,6 +110,7 @@ CODE_DESCRIPTIONS: dict[ErrorCode, str] = {
     ErrorCode.MCP006: 'Declared variable in variables array not referenced in config',
     ErrorCode.MCP007: 'Variable declaration missing required title or description',
     ErrorCode.MCP008: 'Namespaced tool identifier mcp_<server>_<tool> exceeds 64 characters',
+    ErrorCode.MCP009: 'Unpinned container image digest or package version in mcp_config.json',
     ErrorCode.PLG001: 'Malformed JSON in plugin.json',
     ErrorCode.PLG002: 'Name does not match ^[a-z0-9]+(-[a-z0-9]+)*$',
     ErrorCode.PLG003: 'Version string violates Semantic Versioning (X.Y.Z)',
@@ -115,4 +124,8 @@ CODE_DESCRIPTIONS: dict[ErrorCode, str] = {
     ErrorCode.TLS002: 'Item in required array not present under properties',
     ErrorCode.SEC001: 'Leaked absolute home path in repository file',
     ErrorCode.SEC002: 'Leaked authentication token in repository file',
+    ErrorCode.SUP001: 'GitHub Actions external action not pinned to 40-char commit SHA with version comment',
+    ErrorCode.SUP002: 'GitHub Actions workflow missing explicit permissions or persist-credentials: false',
+    ErrorCode.SUP003: 'Pre-commit external repository rev not pinned to 40-char commit SHA',
+    ErrorCode.SUP004: 'Malformed or non-compliant Renovate / Dependabot supply-chain configuration',
 }

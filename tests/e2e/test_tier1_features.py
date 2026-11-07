@@ -78,7 +78,7 @@ def test_f1_pre_commit_mandates_14_hygiene_hooks() -> None:
         'repos': [
             {
                 'repo': 'https://github.com/pre-commit/pre-commit-hooks',
-                'rev': 'v6.0.0',
+                'rev': '3e8a8703264a2f4a69428a0aa4dcb512790b2c8c',
                 'hooks': [{'id': h_id} for h_id in MANDATORY_PRE_COMMIT_HYGIENE_HOOKS],
             }
         ]
@@ -567,7 +567,7 @@ def test_f8_prompt_no_contradictory_safety_invariants() -> None:
 
 def test_f9_standardized_error_codes_defined() -> None:
     """Verify ErrorCode enum defines canonical codes across all categories."""
-    prefixes = {'SKL', 'RUL', 'HOK', 'MCP', 'PLG', 'PRM', 'TLS', 'SEC'}
+    prefixes = {'SKL', 'RUL', 'HOK', 'MCP', 'PLG', 'PRM', 'TLS', 'SEC', 'SUP'}
     for code_val in ErrorCode:
         prefix = code_val.value[:3]
         assert prefix in prefixes, f"Unexpected error code prefix in '{code_val.value}'"
@@ -720,3 +720,81 @@ def test_f10_local_ci_script_executable_if_present() -> None:
         check=False,
     )
     assert res.returncode == 0, f'Syntax error in run_local_ci.sh: {res.stderr}'
+
+
+# ==============================================================================
+# Feature 11: Supply-Chain SHA Pinning & Workflow Security Enforcement
+# ==============================================================================
+
+
+def test_f11_all_workflows_sha_pinned_and_persist_credentials_false() -> None:
+    """Verify all GitHub Actions workflows use 40-char commit SHAs and persist-credentials: false."""
+    workflows_dir = REPO_ROOT / '.github' / 'workflows'
+    wf_files = sorted(workflows_dir.glob('*.yml'))
+    assert {p.name for p in wf_files} >= {'ci.yml', 'scorecard.yml'}
+
+    sha_line_re = re.compile(r'^\s*(?:-\s*)?uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+)@([0-9a-f]{40})\s+#\s*v\d+')
+    for wf_file in wf_files:
+        content = wf_file.read_text(encoding='utf-8')
+        for line in content.splitlines():
+            if 'uses:' in line and not line.lstrip().startswith('#'):
+                assert sha_line_re.match(line), f'Unpinned or uncommented action in {wf_file.name}: {line}'
+
+        parsed = yaml.safe_load(content)
+        for job_cfg in parsed.get('jobs', {}).values():
+            for step in job_cfg.get('steps', []):
+                uses_val = step.get('uses', '')
+                if isinstance(uses_val, str) and uses_val.startswith('actions/checkout@'):
+                    assert step.get('with', {}).get('persist-credentials') is False
+
+
+def test_f11_pre_commit_external_repos_sha_frozen_and_security_hooks_configured() -> None:
+    """Verify .pre-commit-config.yaml freezes external repos by SHA and runs actionlint + zizmor."""
+    data = yaml.safe_load(PRE_COMMIT_FILE.read_text(encoding='utf-8'))
+    sha_re = re.compile(r'^[0-9a-f]{40}$')
+    local_hook_ids: set[str] = set()
+
+    for entry in data.get('repos', []):
+        repo_url = entry.get('repo', '')
+        if repo_url not in {'local', 'meta'}:
+            assert sha_re.match(str(entry.get('rev', ''))), f'Unpinned pre-commit repo {repo_url}: {entry.get("rev")}'
+        else:
+            for hook in entry.get('hooks', []):
+                local_hook_ids.add(str(hook.get('id', '')))
+
+    assert {'actionlint', 'zizmor', 'agentic-settings-validation'}.issubset(local_hook_ids)
+
+
+def test_f11_actionlint_and_zizmor_pass_on_workflows() -> None:
+    """Verify actionlint and zizmor report zero findings across .github/workflows/."""
+    uv_bin = shutil.which('uv')
+    assert uv_bin is not None
+    res_lint = subprocess.run(
+        [uv_bin, 'run', 'actionlint'],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res_lint.returncode == 0, f'actionlint failed: {res_lint.stdout}\n{res_lint.stderr}'
+
+    res_zizmor = subprocess.run(
+        [uv_bin, 'run', 'zizmor', '--strict-collection', '--min-severity=low', '.github/workflows/'],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res_zizmor.returncode == 0, f'zizmor failed: {res_zizmor.stdout}\n{res_zizmor.stderr}'
+
+
+def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
+    """Verify renovate.jsonc and .github/dependabot.yml exist and configure digest updates."""
+    renovate_path = REPO_ROOT / 'renovate.jsonc'
+    dependabot_path = REPO_ROOT / '.github' / 'dependabot.yml'
+    assert renovate_path.is_file()
+    assert dependabot_path.is_file()
+
+    dependabot_data = yaml.safe_load(dependabot_path.read_text(encoding='utf-8'))
+    ecosystems = {u['package-ecosystem'] for u in dependabot_data['updates']}
+    assert {'github-actions', 'uv'}.issubset(ecosystems)

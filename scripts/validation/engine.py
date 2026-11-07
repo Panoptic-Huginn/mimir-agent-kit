@@ -12,6 +12,7 @@ from scripts.validation.prompt_validator import validate_prompts
 from scripts.validation.rules_validator import validate_rules
 from scripts.validation.secret_hygiene_validator import validate_secret_hygiene
 from scripts.validation.skills_validator import validate_skills
+from scripts.validation.supply_chain_validator import validate_supply_chain
 from scripts.validation.tool_schema_validator import validate_tool_schemas
 
 
@@ -43,5 +44,6 @@ def validate_all(
     validate_prompts(root, report)
     validate_tool_schemas(root, report)
     validate_secret_hygiene(root, report)
+    validate_supply_chain(root, report)
 
     return report

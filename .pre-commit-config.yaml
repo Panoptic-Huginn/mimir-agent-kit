@@ -8,10 +8,10 @@ exclude: '^\.agents/teamwork/|^\.gemini/|^\.venv/|build/|dist/'
 
 repos:
   # ---------------------------------------------------------------------------
-  # 1. Repository & File Hygiene (pre-commit/pre-commit-hooks)
+  # 1. Repository & File Hygiene (pre-commit/pre-commit-hooks, SHA-frozen)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
@@ -19,7 +19,7 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-json
-        exclude: '(^|/)tsconfig.*\.json$'
+        exclude: '(^|/)tsconfig.*\.json$|\.jsonc$'
       - id: check-merge-conflict
       - id: check-added-large-files
         args: ["--maxkb=1000"]
@@ -81,13 +81,34 @@ repos:
         pass_filenames: true
 
   # ---------------------------------------------------------------------------
-  # 5. AntiGravity 2.29.0 Agentic Settings & Schema Validation
+  # 5. GitHub Actions Workflow Linting & Security Audit (actionlint & zizmor)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: actionlint
+        name: actionlint workflow check (uv)
+        entry: uv run actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        types: [yaml]
+        pass_filenames: true
+      - id: zizmor
+        name: zizmor workflow security audit (uv)
+        entry: uv run zizmor
+        args: [--strict-collection, --min-severity=low, .github/workflows/]
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        types: [yaml]
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # 6. AntiGravity 2.29.0 Agentic Settings & Supply-Chain Pinning Validation
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
       - id: agentic-settings-validation
-        name: AntiGravity 2.29.0 Agentic Settings Validation (uv)
+        name: AntiGravity 2.29.0 Agentic Settings & Supply-Chain Validation (uv)
         entry: uv run python scripts/validate_agentic_settings.py --strict
         language: system
         pass_filenames: false
-        files: ^(plugin\.json|hooks\.json|mcp_config\.json|rules/.*|skills/.*|\.agents/.*|scripts/validate_agentic_settings\.py|scripts/validation/.*)$
+        files: ^(plugin\.json|hooks\.json|mcp_config\.json|renovate\.jsonc|\.pre-commit-config\.yaml|\.github/.*|rules/.*|skills/.*|\.agents/.*|scripts/validate_agentic_settings\.py|scripts/validation/.*)$
