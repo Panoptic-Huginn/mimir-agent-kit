@@ -10,13 +10,24 @@ You are an expert in modern reactive Python computational notebooks using **Mari
 
 ## Related Skills
 
+- **`/marimo-pair`**: Interactive live pair programming with running marimo notebook kernels, ephemeral scratchpad execution, AST-checked `marimo._code_mode` mutations, and streamable HTTP MCP tool orchestration.
 - **`/python-pro`**: Master Python 3.14+ engineering standards, pure-Python uv package workflows, strict ruff formatting/linting, mypy static typing, and production-grade software patterns.
 - **`/jupyter-pro`**: Traditional linear Jupyter notebook workflows, Google Colab environments, `*.ipynb` JSON conversions, and migration strategies to reactive Marimo `.py` notebooks.
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI gates, and remote CI self-healing).
 
+## ⚠️ Runtime Source of Truth Guardrail: Live Kernel vs. Disk Authoring
+
+> **CRITICAL RUNTIME INVARIANT**:
+>
+> When a marimo session is actively running (`marimo edit`), the **in-memory kernel runtime is the sole authoritative source of truth**.
+>
+> **DO NOT** edit the notebook's underlying `.py` file directly on disk using filesystem tools (`replace_file_content`, `write_to_file`) while a pairing session is active. Direct filesystem edits fail to reach the live kernel, corrupt in-memory graph state, and **will be silently overwritten and erased** the next time marimo auto-saves or executes.
+>
+> When a live pairing session is active, switch to **`/marimo-pair`** to inspect state via scratchpads and apply transactional cell mutations via `marimo._code_mode` or the HTTP MCP server.
+
 ## Use this skill when
 
-- Authoring, editing, refactoring, or reviewing pure-Python reactive Marimo notebooks (`*.py`) structured around Directed Acyclic Graph (DAG) cell execution.
+- Authoring, editing, refactoring, or reviewing static pure-Python reactive Marimo notebook files (`*.py`) on disk structured around Directed Acyclic Graph (DAG) cell execution (when no live pairing kernel session is active).
 - Developing interactive data exploration interfaces, dashboards, and parameter-tuning tools using the `marimo.ui` component catalog (`slider`, `dropdown`, `table`, `dataframe`, `button`).
 - Implementing reactive workflows requiring explicit state persistence (`mo.state`), conditional execution gating (`mo.stop`), or atomic form submissions (`mo.ui.form`, `mo.ui.batch`).
 - Designing scientific workflows for astrophysics transit modeling (`heimdall-astro`), robotics Kalman filtering (`talos-robotics`), or microkernel IPC latency telemetry (`microkernel-labs`).
@@ -26,6 +37,7 @@ You are an expert in modern reactive Python computational notebooks using **Mari
 
 ## Do not use this skill when
 
+- Interactively pairing with a live, running marimo kernel session or mutating an active notebook in-memory (use `/marimo-pair` instead; see Runtime Source of Truth Guardrail above).
 - Working on legacy linear Jupyter notebooks (`*.ipynb`) or Google Colab environments where Marimo reactive DAG semantics are not desired (use `/jupyter-pro` instead).
 - Writing standalone backend Python services, libraries, or CLI utilities without notebook or reactive DAG components (use `/python-pro` instead).
 - Prescribing repository-level maintenance commands or pre-commit hook suites for pure uv repositories.
