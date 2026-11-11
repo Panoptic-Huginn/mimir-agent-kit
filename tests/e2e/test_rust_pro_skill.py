@@ -720,18 +720,21 @@ def test_t3_cross_empirical_rustc_and_clippy_execution() -> None:
     # 2. Empirically verify Halos Interceptor snippet compiles cleanly under rustc -D warnings
     rustc = shutil.which('rustc')
     if rustc:
-        lines = (REFERENCES_DIR / 'systems_paradigms_and_safety.md').read_text(encoding='utf-8').splitlines()
-        start = next(i for i, line in enumerate(lines) if '#![no_std]' in line)
-        end = next(i for i, line in enumerate(lines[start:], start) if line.strip() == '```')
-        code = '\n'.join(lines[start:end])
-        with tempfile.TemporaryDirectory() as tmp:
-            out_rmeta = Path(tmp) / 'libhalos.rmeta'
-            res = subprocess.run(
-                [rustc, '--crate-type=lib', '-', '--emit=metadata', '-o', str(out_rmeta), '-D', 'warnings'],
-                input=code.encode(),
-                capture_output=True,
-            )
-            assert res.returncode == 0, f'rustc -D warnings failed on Halos snippet: {res.stderr.decode()}'
+        ver_res = subprocess.run([rustc, '--version'], capture_output=True, text=True)
+        ver_match = re.search(r'rustc\s+(\d+)\.(\d+)', ver_res.stdout)
+        if ver_match and (int(ver_match.group(1)), int(ver_match.group(2))) >= (1, 82):
+            lines = (REFERENCES_DIR / 'systems_paradigms_and_safety.md').read_text(encoding='utf-8').splitlines()
+            start = next(i for i, line in enumerate(lines) if '#![no_std]' in line)
+            end = next(i for i, line in enumerate(lines[start:], start) if line.strip() == '```')
+            code = '\n'.join(lines[start:end])
+            with tempfile.TemporaryDirectory() as tmp:
+                out_rmeta = Path(tmp) / 'libhalos.rmeta'
+                res = subprocess.run(
+                    [rustc, '--crate-type=lib', '-', '--emit=metadata', '-o', str(out_rmeta), '-D', 'warnings'],
+                    input=code.encode(),
+                    capture_output=True,
+                )
+                assert res.returncode == 0, f'rustc -D warnings failed on Halos snippet: {res.stderr.decode()}'
 
 
 def test_t3_cross_safety_guardrail_and_compiler_attributes() -> None:

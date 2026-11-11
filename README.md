@@ -1,6 +1,6 @@
 # Mimir Agent Kit (`mimir-agent-kit`)
 
-Custom **Google Antigravity 2.29.0+** engineering plugin, skill suite, GitHub Flow mechanical safety hooks, and portable research Model Context Protocol (MCP) bundle shared across **Ubuntu Linux 24.04**, **macOS**, and **Cloud Remote Projects (`remote-agents`)**.
+Custom **Google Antigravity 2.29.0+** engineering plugin, skill suite, GitHub Flow lifecycle rules, and portable research Model Context Protocol (MCP) bundle shared across **Ubuntu Linux 24.04**, **macOS**, and **Cloud Remote Projects (`remote-agents`)**.
 
 Named after **Mimir** (Norse keeper of the well of wisdom and advisor to Odin, complementing `Panoptic-Huginn` and `heimdall-astro`), this repository contains **exclusively custom first-party customizations**—zero duplicated Google Marketplace or Data Cloud skills and **zero plaintext secrets**.
 
@@ -48,7 +48,7 @@ flowchart TD
 | `c-pro` | Deterministic ISO C23 (`-std=c23`), LLVM Clang 23.1+ / Apple Clang 21.0+, NVIDIA Halos real-time safety kernels, CERT C / MISRA C | `examples/.clang-format`, `examples/.clang-tidy` |
 | `cmake-pro` | Modern CMake 4.4.3+ target-based `cmake/` modules, ISA/SIMD compile probes, Vcpkg manifest mode, `CMakePresets.json` v10+, `gersemi` | `references/canonical_templates.md` |
 | `cpp-pro` | High-performance ISO C++23, RAII, Google Style + C++ Core Guidelines, Google Test, Google Benchmark, ASan/TSan/UBSan | `examples/.clang-format`, `examples/.clang-tidy` |
-| `github-flow-lifecycle` | 6-stage Git & GitHub Flow protocol: issue tracking, `<type>/<N>-<slug>` branch isolation, mandatory pre-commit local CI gate, PR self-healing | Paired with `rules/AGENTS.md` & `hooks.json` |
+| `github-flow-lifecycle` | 6-stage Git & GitHub Flow protocol: issue tracking, `<type>/<N>-<slug>` branch isolation, mandatory pre-commit local CI gate, PR self-healing | Paired with `rules/AGENTS.md` |
 | `jupyter-pro` | Reproducible Jupyter Notebook & Google Colab engineering workflows (`uv`, Python 3.14+, clean-output hygiene) | — |
 | `python-pro` | Production Python 3.14+ (`uv`, `pixi`, `ruff`, `mypy --strict`, `pydantic`, `pytest`, `rumdl`, Google docstrings) | `examples/pyproject.toml` |
 | `rust-pro` | Deterministic Rust 1.99.1+ (`std`, `no_std`, bare-metal), Pixi orchestration, NVIDIA Halos safety kernels, Google Rust Styleguide, RISC-V RVA23 | `examples/{pixi.toml,Cargo.toml,clippy.toml,rustfmt.toml}`, `references/` |
@@ -56,15 +56,9 @@ flowchart TD
 > [!NOTE]
 > First-party Google skills (such as BigQuery, Dataflow, Dataproc/Spark, Cloud Databases, and `google-agents-cli-*`) are intentionally excluded from this repository. Install those per machine from **Customizations > Marketplace** inside Antigravity so Google updates them automatically.
 
-### 2. Always-On Rules & Mechanical Safety Hook
+### 2. Always-On Rules
 
 - **`rules/AGENTS.md`**: Always-on Git & GitHub Flow mandate enforcing branch isolation, `github-mcp-server` remote operations, local CI verification before `git commit`, remote GitHub Actions polling, and human-only PR merges.
-- **`hooks.json` + `scripts/git_github_guard.py`**: Synchronous `PreToolUse` guard (`"enabled": true`) that mechanically blocks:
-  - Autonomous PR merges (`merge_pull_request` and `gh pr merge`) across both global (`github-mcp-server`) and plugin-namespaced (`mimir-agent-kit_github-mcp-server`) servers.
-  - Remote file mutations (`push_files`, `create_or_update_file`, `delete_file`) that bypass local working trees and pre-commit hooks.
-  - `git commit --no-verify` / `git commit -n`.
-  - Force-pushes (`--force` / `-f`) targeting `main` or `master`.
-  - Direct `git commit` while on `main`, `master`, or detached `HEAD`.
 
 ### 3. Portable Research & Developer MCP Suite (`mcp_config.json`)
 
@@ -204,7 +198,7 @@ Because `~/.gemini/config/plugins/mimir-agent-kit` is a symlink to `~/developmen
 git -C ~/development/mimir-agent-kit pull --ff-only origin main
 ```
 
-*(Restart Antigravity only if `plugin.json`, `mcp_config.json`, or newly added skill directories changed; edits to existing `SKILL.md` bodies or `scripts/git_github_guard.py` apply immediately.)*
+*(Restart Antigravity only if `plugin.json`, `mcp_config.json`, or newly added skill directories changed; edits to existing `SKILL.md` bodies apply immediately.)*
 
 ### Local CI & Validation Gate
 

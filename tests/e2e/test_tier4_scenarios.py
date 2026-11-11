@@ -55,9 +55,10 @@ def test_t4_clean_repo_checkout_full_verification() -> None:
         report.add_issue(issue)
 
     # 3. Audit hooks
-    hooks_data = json.loads(HOOKS_FILE.read_text(encoding='utf-8'))
-    for issue in oracle_validate_hooks(hooks_data, HOOKS_FILE):
-        report.add_issue(issue)
+    if HOOKS_FILE.is_file():
+        hooks_data = json.loads(HOOKS_FILE.read_text(encoding='utf-8'))
+        for issue in oracle_validate_hooks(hooks_data, HOOKS_FILE):
+            report.add_issue(issue)
 
     # 4. Audit MCP config
     mcp_data = json.loads(MCP_CONFIG_FILE.read_text(encoding='utf-8'))
@@ -173,7 +174,6 @@ def test_t4_full_simulated_ci_pipeline_execution() -> None:
             pytest_bin,
             'tests/test_plugin_integrity.py',
             'tests/test_academic_mcp_server.py',
-            'tests/test_git_github_guard.py',
             '-v',
         ],
         capture_output=True,

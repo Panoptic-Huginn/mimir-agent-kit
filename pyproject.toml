@@ -1,7 +1,7 @@
 [project]
 name = "mimir-agent-kit"
 version = "1.0.0"
-description = "Cross-platform Google Antigravity plugin bundling custom systems engineering skills, GitHub Flow safety hooks, and portable research MCP servers."
+description = "Cross-platform Google Antigravity plugin bundling custom systems engineering skills, GitHub Flow lifecycle rules, and portable research MCP servers."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.14"
