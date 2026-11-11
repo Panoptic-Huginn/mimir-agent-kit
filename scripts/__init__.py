@@ -1,1 +1,1 @@
-"""Standalone lifecycle hook guards and MCP server entrypoints for Mimir Agent Kit."""
+"""Standalone MCP server entrypoints and lifecycle utilities for Mimir Agent Kit."""

@@ -114,22 +114,11 @@ def test_all_custom_skills_valid_and_within_plugin_byte_limit() -> None:
             assert resolved.exists(), f'Broken relative link {rel_target} in {skill_name}/SKILL.md'
 
 
-def test_hooks_and_executable_scripts() -> None:
-    """Validate `hooks.json` structure and executable permissions on bundled Python scripts."""
-    hooks = json.loads((REPO_ROOT / 'hooks.json').read_text(encoding='utf-8'))
-    guard = hooks['github-flow-lifecycle-guard']
-    assert guard['enabled'] is True
-    pre_tool_use = guard['PreToolUse']
-    assert len(pre_tool_use) == 1
-    assert 'mimir-agent-kit_github-mcp-server_merge_pull_request' and re.match(
-        pre_tool_use[0]['matcher'],
-        'mcp_mimir-agent-kit_github-mcp-server_merge_pull_request',
-    )
-
-    for script_name in ('git_github_guard.py', 'academic_mcp_server.py'):
-        script_path = REPO_ROOT / 'scripts' / script_name
-        assert script_path.is_file()
-        assert os.access(script_path, os.X_OK), f'{script_path} must be executable (+x)'
+def test_bundled_executable_scripts() -> None:
+    """Validate executable permissions on bundled Python scripts."""
+    script_path = REPO_ROOT / 'scripts' / 'academic_mcp_server.py'
+    assert script_path.is_file()
+    assert os.access(script_path, os.X_OK), f'{script_path} must be executable (+x)'
 
 
 def test_mcp_config_variables_and_secret_hygiene() -> None:

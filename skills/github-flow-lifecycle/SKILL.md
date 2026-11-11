@@ -38,7 +38,6 @@ During your internal reasoning pass before every tool invocation, verify the fol
    - Use **local workspace file tools and local `git` CLI** for all file edits, staging (`git add`), committing (`git commit`), and pushing (`git push`). **NEVER** use `github-mcp-server` remote file-mutation tools (`create_or_update_file`, `push_files`, `delete_file`), as they bypass the local working tree, `.pre-commit-config.yaml` hooks, and local CI gates.
 3. **Verification-Before-Commit:** Never execute `git commit` (and never pass `--no-verify` or `-n`) until the full local CI suite—matching all applicable local tooling and `.github/workflows/*.yml` PR checks—has executed on the current working tree and exited with code `0`.
 4. **No Autonomous Merge:** Your authority terminates once the Pull Request is open, all review threads are addressed, and all remote GitHub CI checks report `SUCCESS` (`conclusion == "success"`). Merging to `main` is strictly reserved for the human user.
-5. **Mechanical Hook Enforcement:** The companion `PreToolUse` hook ([scripts/git_github_guard.py](../../scripts/git_github_guard.py), bundled via `hooks.json` at the plugin root) mechanically blocks `merge_pull_request`, `gh pr merge`, remote MCP file mutations (`push_files`, `create_or_update_file`, `delete_file`) across both global (`github-mcp-server`) and plugin-namespaced (`<plugin>_github-mcp-server`) servers, `git commit --no-verify`, force-pushes to `main`/`master`, and `git commit` while on `main`/`master`.
 
 ---
 

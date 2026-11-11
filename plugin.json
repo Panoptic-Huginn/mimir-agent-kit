@@ -3,7 +3,7 @@
   "name": "mimir-agent-kit",
   "displayName": "Mimir Agent Kit",
   "version": "1.0.0",
-  "description": "Systems engineering skills (C23, C++23, SPARK Ada, CMake, Python), GitHub Flow safety hooks, and portable research MCP servers.",
+  "description": "Systems engineering skills (C23, C++23, SPARK Ada, CMake, Python), GitHub Flow lifecycle rules, and portable research MCP servers.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Start a feature branch and GitHub issue workflow using /github-flow-lifecycle",
