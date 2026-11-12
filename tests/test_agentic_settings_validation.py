@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -1659,6 +1660,36 @@ def test_sup004_rejects_shadowing_renovate_json_alongside_renovate_jsonc(tmp_pat
     rep_good = ValidationReport()
     validate_supply_chain(tmp_path, rep_good)
     assert rep_good.is_clean
+
+
+def test_sup004_renovate_runner_rule_requires_pep440_versioning(tmp_path: Path) -> None:
+    """SUP004: Ensure github-runners ubuntu rule with allowedVersions specifies pep440 versioning."""
+    bad_config: dict[str, Any] = {
+        'extends': ['config:best-practices', 'helpers:pinGitHubActionDigestsToSemver'],
+        'pre-commit': {'enabled': True},
+        'packageRules': [
+            {
+                'matchDatasources': ['github-runners'],
+                'matchPackageNames': ['ubuntu'],
+                'allowedVersions': '<=24.04',
+            }
+        ],
+    }
+    renovate_file = tmp_path / 'renovate.jsonc'
+    renovate_file.write_text(json.dumps(bad_config), encoding='utf-8')
+    rep = ValidationReport()
+    validate_renovate_file(renovate_file, rep)
+    sup004 = [i for i in rep.issues if i.code == ErrorCode.SUP004]
+    assert len(sup004) == 1
+    assert 'versioning' in sup004[0].message
+    assert 'pep440' in sup004[0].message
+
+    # Fixing with versioning: pep440 resolves the issue
+    bad_config['packageRules'][0]['versioning'] = 'pep440'
+    renovate_file.write_text(json.dumps(bad_config), encoding='utf-8')
+    rep_fixed = ValidationReport()
+    validate_renovate_file(renovate_file, rep_fixed)
+    assert rep_fixed.is_clean
 
 
 def test_sup003_rejects_push_workflow_pre_commit_without_skip_no_commit_to_branch(tmp_path: Path) -> None:

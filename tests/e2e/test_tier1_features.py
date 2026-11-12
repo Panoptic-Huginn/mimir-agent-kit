@@ -809,6 +809,7 @@ def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
     pkg_rules = renovate_data.get('packageRules', [])
     ubuntu_rules = [r for r in pkg_rules if 'github-runners' in r.get('matchDatasources', []) and 'ubuntu' in r.get('matchPackageNames', [])]
     assert len(ubuntu_rules) == 1
+    assert ubuntu_rules[0].get('versioning') == 'pep440'
     assert ubuntu_rules[0].get('allowedVersions') == '<=24.04'
 
     dependabot_data = yaml.safe_load(dependabot_path.read_text(encoding='utf-8'))

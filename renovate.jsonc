@@ -14,7 +14,9 @@
     "before 6am on monday"
   ],
   "minimumReleaseAge": "3 days",
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "labels": [
     "dependencies"
   ],
@@ -83,6 +85,7 @@
       "matchPackageNames": [
         "ubuntu"
       ],
+      "versioning": "pep440",
       "allowedVersions": "<=24.04"
     },
     {
