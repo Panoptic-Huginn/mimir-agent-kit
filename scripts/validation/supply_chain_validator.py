@@ -355,6 +355,24 @@ def validate_renovate_file(renovate_file: Path, report: ValidationReport) -> Non
             suggestion='Enable Renovate pre-commit hook digest updates in renovate.jsonc.',
         )
 
+    # Verify runner package rules with range filtering specify compatible versioning (pep440)
+    package_rules = data.get('packageRules', [])
+    if isinstance(package_rules, list):
+        for rule in package_rules:
+            if not isinstance(rule, dict):
+                continue
+            datasources = rule.get('matchDatasources', [])
+            pkg_names = rule.get('matchPackageNames', [])
+            if 'github-runners' in datasources and 'ubuntu' in pkg_names:
+                if 'allowedVersions' in rule and rule.get('versioning') != 'pep440':
+                    report.add(
+                        code=ErrorCode.SUP004,
+                        message=(f"{renovate_file.name} packageRule for github-runners ubuntu must specify 'versioning': 'pep440' to support '{rule.get('allowedVersions')}' range filtering."),
+                        severity=Severity.ERROR,
+                        path=renovate_file,
+                        suggestion="Set 'versioning': 'pep440' in the github-runners ubuntu packageRule in renovate.jsonc.",
+                    )
+
 
 def validate_dependabot_file(dependabot_file: Path, report: ValidationReport) -> None:
     """Validate .github/dependabot.yml syntax and ecosystem coverage.
