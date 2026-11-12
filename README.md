@@ -64,7 +64,7 @@ flowchart TD
 
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
-| `github` | `docker run ... ghcr.io/github/github-mcp-server:v2.1.0@sha256:...` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`, minus `GITHUB_EXCLUDE_TOOLS`) | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| `github` | `sh -c '… gh auth token … exec docker run … ghcr.io/github/github-mcp-server:v2.1.0@sha256:…'` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`, minus `GITHUB_EXCLUDE_TOOLS`) across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
 | `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
 | `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.0` | PubMed / Europe PMC biomedical & life-science literature search | None |
@@ -89,7 +89,8 @@ flowchart TD
    - **macOS**: Encrypted inside **macOS Login Keychain** (`Keychain Access.app`).
    - **Headless Linux Fallback**: Only if D-Bus Secret Service is absent does Antigravity fall back to a `0600` local credential store under `~/.gemini/`.
 2. **In-Memory Runtime Injection**: Whenever Antigravity spawns an MCP child process (`docker`, `uvx`, `uv`, `npx`), the Language Server reads the secret from the OS Keyring and injects it directly into the child process's environment in memory. Your Git working tree (`~/development/mimir-agent-kit`) stays 100% clean across `git status` and `git pull`.
-3. **Safe First-Boot Gating**: Because `mcp_config.json` declares `variables`, Antigravity automatically keeps `mimir-agent-kit` in a **Configure / Setup Required** state on a newly cloned machine until you fill in its variables once. (If enabled beforehand, `scripts/academic_mcp_server.py` safely falls back to `~/.local/share/mimir-agent-kit/academic_corpus.db`.)
+3. **GitHub uses the `gh` CLI's keyring token instead of a plugin variable**: The `github` server launches through `sh -c`. The wrapper reads `gh auth token --hostname github.com` (stored in the same OS keyring by `gh auth login`), exports it only to the `docker run` child via `-e GITHUB_PERSONAL_ACCESS_TOKEN`, so the token never appears in argv or on disk, and `exec`s the digest-pinned container. A single `gh` OAuth login covers your personal account and every organization you belong to. Fine-grained PATs are limited to one resource owner. If `gh` is missing or logged out, the server exits with an actionable error instead of falling back to the image's interactive OAuth mode.
+4. **Safe First-Boot Gating**: Because `mcp_config.json` declares `variables`, Antigravity automatically keeps `mimir-agent-kit` in a **Configure / Setup Required** state on a newly cloned machine until you fill in its variables once. (If enabled beforehand, `scripts/academic_mcp_server.py` safely falls back to `~/.local/share/mimir-agent-kit/academic_corpus.db`.)
 
 ---
 
@@ -102,6 +103,7 @@ Ensure these CLI runtimes are installed and on `PATH` on both Ubuntu 24.04 and m
 - **`git`** and **`uv`** (`>= 0.10`, provides both `uv` and `uvx`) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Node.js / `npx`** (`>= 22`, used by `europe-pmc`)
 - **Docker** (`docker` Engine on Ubuntu 24.04; Docker Desktop or OrbStack on macOS, used by the `github` server)
+- **GitHub CLI** (`gh`, authenticated once per machine with `gh auth login --hostname github.com` and scopes `repo` and `read:org`, used by the `github` server for its token). Optional extra scopes for project and notification tools: `gh auth refresh --hostname github.com --scopes project,notifications`.
 
 ### Step 1: Clone & Symlink into Antigravity's Global Plugins Directory
 
@@ -149,8 +151,7 @@ Next, inspect `~/.gemini/config/mcp_config.json` and remove server entries that 
    - **Antigravity Desktop / IDE**: Click **Additional Options (`...`) > Customizations > Plugins** (or open `customization://mimir-agent-kit`), then select **Mimir Agent Kit**.
    - **`agy` CLI**: Launch `agy` and run `/plugin` to open the interactive plugin manager.
 3. Click **Configure** (or fill in the **Variables** form) on **Mimir Agent Kit**:
-   - **`GITHUB_PERSONAL_ACCESS_TOKEN`**: Your GitHub PAT (`https://github.com/settings/tokens`).
-     - *Important for `Panoptic-Huginn`*: If using a Fine-Grained PAT, set **Resource owner** to `Panoptic-Huginn` and **Repository access** to **All repositories** (with Read/Write on *Actions*, *Administration*, *Contents*, *Issues*, *Metadata*, and *Pull requests*) so newly created org repositories work immediately without `403`/`404` scope errors.
+   - **GitHub**: no variable to enter. Run `gh auth login --hostname github.com` once per machine (verify with `gh auth status`); the `github` MCP server reads `gh auth token` at startup.
    - **`ACADEMIC_CORPUS_DB_PATH`**: Path to your local SQLite corpus DB:
      - Ubuntu / macOS with `heimdall-astro` checked out: `~/development/heimdall-astro/data/papers/academic_corpus.db`
      - Machine without `heimdall-astro`: `~/.local/share/mimir-agent-kit/academic_corpus.db` (auto-initialized on first launch).

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
@@ -256,6 +257,48 @@ def _validate_npx_pinning(
             )
 
 
+SHELL_WRAPPER_COMMANDS = frozenset({'sh', 'bash', 'zsh', 'dash'})
+SHELL_CONTROL_TOKENS = frozenset({';', '&&', '||', '|', '&', '(', ')', ';;', '{', '}', '!'})
+SHELL_ASSIGNMENT_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*=')
+
+
+def _shell_wrapper_launches(script: str) -> list[tuple[str, list[str]]]:
+    """Extract launcher invocations (docker, uv, uvx, npx) from a ``sh -c`` wrapper script.
+
+    The script is tokenized with POSIX shell rules, split into simple commands at
+    control operators, and stripped of leading ``exec`` keywords and ``VAR=value``
+    assignments so the underlying launcher and its arguments can be pinning-checked.
+
+    Args:
+        script: Shell script passed after ``-c``.
+
+    Returns:
+        List of ``(launcher_basename, args)`` tuples, in script order.
+    """
+    lexer = shlex.shlex(script, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return []
+
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token in SHELL_CONTROL_TOKENS:
+            segments.append([])
+        else:
+            segments[-1].append(token)
+
+    launches: list[tuple[str, list[str]]] = []
+    for segment in segments:
+        words = list(segment)
+        while words and (words[0] == 'exec' or SHELL_ASSIGNMENT_PATTERN.match(words[0])):
+            words.pop(0)
+        if words and Path(words[0]).name in {'docker', 'uv', 'uvx', 'npx'}:
+            launches.append((Path(words[0]).name, words[1:]))
+    return launches
+
+
 def validate_mcp_server_pinning(
     server_name: str,
     spec: dict[str, Any],
@@ -263,6 +306,9 @@ def validate_mcp_server_pinning(
     path: Path,
 ) -> None:
     """Validate supply-chain version/digest pinning for stdio MCP server launchers.
+
+    Launchers wrapped in ``sh -c '<script>'`` (e.g., to inject a credential from a
+    keyring-backed CLI at startup) are unwrapped and validated the same way.
 
     Args:
         server_name: Name of the MCP server.
@@ -278,12 +324,17 @@ def validate_mcp_server_pinning(
         return
 
     cmd_name = Path(command.strip()).name
-    if cmd_name == 'docker':
-        _validate_docker_pinning(server_name, raw_args, report, path)
-    elif cmd_name in {'uv', 'uvx'}:
-        _validate_uv_pinning(server_name, cmd_name, raw_args, report, path)
-    elif cmd_name == 'npx':
-        _validate_npx_pinning(server_name, raw_args, report, path)
+    launches: list[tuple[str, list[str]]] = [(cmd_name, raw_args)]
+    if cmd_name in SHELL_WRAPPER_COMMANDS and len(raw_args) >= 2 and raw_args[0] == '-c':
+        launches = _shell_wrapper_launches(raw_args[1])
+
+    for launcher, launcher_args in launches:
+        if launcher == 'docker':
+            _validate_docker_pinning(server_name, launcher_args, report, path)
+        elif launcher in {'uv', 'uvx'}:
+            _validate_uv_pinning(server_name, launcher, launcher_args, report, path)
+        elif launcher == 'npx':
+            _validate_npx_pinning(server_name, launcher_args, report, path)
 
 
 def namespaced_tool_prefix(server_name: str, plugin_name: str | None = None) -> str:

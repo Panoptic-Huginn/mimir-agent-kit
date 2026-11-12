@@ -1819,3 +1819,26 @@ def test_load_tool_manifest_tolerates_missing_or_malformed_files(tmp_path: Path)
     assert resolve_plugin_name(tmp_path) is None
     (tmp_path / 'plugin.json').write_text('{}', encoding='utf-8')
     assert resolve_plugin_name(tmp_path) == tmp_path.name
+
+
+def test_mcp009_unwraps_sh_c_launchers_for_pinning(tmp_path: Path) -> None:
+    """Regression (#24): `sh -c` credential-injecting wrappers must not bypass digest/version pinning checks."""
+    digest = 'a' * 64
+    preamble = 'GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token --hostname github.com 2>/dev/null)" && [ -n "$GITHUB_PERSONAL_ACCESS_TOKEN" ] || { echo fail >&2; exit 1; }; export GITHUB_PERSONAL_ACCESS_TOKEN; '
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(
+        json.dumps({
+            'mcpServers': {
+                'pinned': {'command': 'sh', 'args': ['-c', f'{preamble}exec docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server:v2.1.0@sha256:{digest}']},
+                'unpinned_docker': {'command': '/bin/sh', 'args': ['-c', f'{preamble}exec docker run -i --rm ghcr.io/github/github-mcp-server:latest']},
+                'unpinned_uvx': {'command': 'bash', 'args': ['-c', 'FOO=1 exec uvx some-mcp-server']},
+                'malformed': {'command': 'sh', 'args': ['-c', 'exec docker run "unterminated']},
+                'not_a_launcher': {'command': 'sh', 'args': ['-c', 'exec ./local-server --stdio']},
+            }
+        }),
+        encoding='utf-8',
+    )
+    report = ValidationReport()
+    validate_mcp_config_file(config_file, report)
+    flagged = {i.message.split("'")[1] for i in report.issues if i.code == ErrorCode.MCP009}
+    assert flagged == {'unpinned_docker', 'unpinned_uvx'}

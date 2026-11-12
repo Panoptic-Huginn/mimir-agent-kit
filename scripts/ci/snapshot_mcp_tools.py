@@ -9,8 +9,8 @@ stdio server from ``mcp_config.json``, performs the MCP ``initialize`` and
 ``scripts/validation/mcp_tool_manifest.json``. The offline validator
 (``MCP008``) then enforces the 64-character budget in CI without network access.
 
-Placeholders such as ``${GITHUB_PERSONAL_ACCESS_TOKEN}`` are resolved from the
-process environment. Servers whose variables are unset are skipped and keep
+Placeholders such as ``${ADS_API_TOKEN}`` are resolved from the process
+environment (the ``github`` server fetches its own token via ``gh auth token``). Servers whose variables are unset are skipped and keep
 their previous manifest entry.
 
 Usage:
