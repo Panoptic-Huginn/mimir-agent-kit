@@ -534,6 +534,7 @@ def test_f8_prompt_tool_boundary_matrix() -> None:
     """Verify rules/AGENTS.md mandates github-mcp-server for remote ops and Git CLI for local ops."""
     rules_text = (RULES_DIR / 'AGENTS.md').read_text(encoding='utf-8')
     assert 'github-mcp-server' in rules_text
+    assert '`mimir-agent-kit_github`' in rules_text
     assert 'local workspace file tools and local `git` CLI' in rules_text or 'local `git` CLI' in rules_text
 
 

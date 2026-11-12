@@ -64,17 +64,19 @@ flowchart TD
 
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
-| `github-mcp-server` | `docker run ... ghcr.io/github/github-mcp-server:v2.1.0@sha256:...` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`) | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| `github` | `docker run ... ghcr.io/github/github-mcp-server:v2.1.0@sha256:...` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`, minus `GITHUB_EXCLUDE_TOOLS`) | `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
 | `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.0` | PubMed / Europe PMC biomedical & life-science literature search | None |
-| `semantic-scholar` | `uvx semantic-scholar-mcp==0.4.0` | Semantic Scholar paper graph, citations, and author lookup | None |
+| `semscholar` | `uvx --with pydantic-settings==2.16.2 --with mcp[cli]==1.30.0 semantic-scholar-mcp==0.4.0` | Semantic Scholar paper graph, citations, and author lookup | None |
 | `nasa_ads` | `uvx --with mcp==1.30.0 nasa-ads-mcp==0.1.0` | NASA Astrophysics Data System (ADS) astrodynamics & physics literature | `ADS_API_TOKEN` |
 | `zotero` | `uvx zotero-mcp-server==0.15.2` | Zotero library search, collections, annotations, and BibTeX export | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` |
-| `google-workspace` | `uvx workspace-mcp==2.3.0 --single-user` | Gmail, Google Drive, Docs, Sheets, Slides, and Calendar | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `USER_GOOGLE_EMAIL` |
+| `workspace` | `uvx workspace-mcp==2.3.0 --single-user` | Gmail, Google Drive, Docs, Sheets, Slides, and Calendar | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `USER_GOOGLE_EMAIL` |
 | `jupyter` | `uvx --with mcp==1.30.0 mcp-server-jupyter==0.1.9` | Local Jupyter notebook cell inspection and execution | None |
-| `puppeteer` | `npx -y @modelcontextprotocol/server-puppeteer@2025.5.12` | Headless browser navigation, DOM inspection, and screenshots | None |
 | `time` | `uvx mcp-server-time==2026.11.4` | Timezone-aware clock and timestamp conversion | None |
+
+> [!IMPORTANT]
+> Antigravity registers plugin tools as `mcp_<plugin>_<server>_<tool>` and drops any identifier longer than 64 characters (`^[a-zA-Z0-9_-]{1,64}$`). With the 20-character prefix `mcp_mimir-agent-kit_`, server keys are kept short (`github`, `workspace`, `semscholar`), and GitHub tools that still don't fit are listed in `GITHUB_EXCLUDE_TOOLS`. After adding a server or bumping a pinned version, refresh the tool inventory with `uv run python scripts/ci/snapshot_mcp_tools.py`. Export the server's `${VAR}` secrets first. The script writes `scripts/validation/mcp_tool_manifest.json`, which `validate_agentic_settings.py --strict` (`MCP008`) and `pytest` enforce offline in CI.
 
 ---
 
@@ -98,8 +100,8 @@ flowchart TD
 Ensure these CLI runtimes are installed and on `PATH` on both Ubuntu 24.04 and macOS:
 
 - **`git`** and **`uv`** (`>= 0.10`, provides both `uv` and `uvx`) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Node.js / `npx`** (`>= 22`, used by `europe-pmc` and `puppeteer`)
-- **Docker** (`docker` Engine on Ubuntu 24.04; Docker Desktop or OrbStack on macOS, used by `github-mcp-server`)
+- **Node.js / `npx`** (`>= 22`, used by `europe-pmc`)
+- **Docker** (`docker` Engine on Ubuntu 24.04; Docker Desktop or OrbStack on macOS, used by the `github` server)
 
 ### Step 1: Clone & Symlink into Antigravity's Global Plugins Directory
 
@@ -138,7 +140,7 @@ rm -f ~/.gemini/config/AGENTS.md ~/.gemini/config/hooks.json
 rm -rf ~/.gemini/config/scripts
 ```
 
-Next, inspect `~/.gemini/config/mcp_config.json` and remove server entries that are now bundled inside `mimir-agent-kit` (`github-mcp-server`, `academic-mcp`, `arxiv`, `europe-pmc`, `semantic-scholar`, `nasa_ads`, `zotero`, `google-workspace`, `jupyter`, `puppeteer`, `time`) so Antigravity does not spawn duplicate MCP server processes. Keep any machine-specific or project-only global servers if desired.
+Next, inspect `~/.gemini/config/mcp_config.json` and remove server entries that are now bundled inside `mimir-agent-kit` (`github` / `github-mcp-server`, `academic-mcp`, `arxiv`, `europe-pmc`, `semscholar` / `semantic-scholar`, `nasa_ads`, `zotero`, `workspace` / `google-workspace`, `jupyter`, `time`) so Antigravity does not spawn duplicate MCP server processes. Keep any machine-specific or project-only global servers if desired.
 
 ### Step 3: Enter Secret Keys in Antigravity (Stored in OS Keyring)
 
@@ -154,7 +156,7 @@ Next, inspect `~/.gemini/config/mcp_config.json` and remove server entries that 
      - Machine without `heimdall-astro`: `~/.local/share/mimir-agent-kit/academic_corpus.db` (auto-initialized on first launch).
    - **`ADS_API_TOKEN`**: Your NASA ADS API token (`https://ui.adsabs.harvard.edu/user/settings/token`).
    - **`ZOTERO_API_KEY`** & **`ZOTERO_LIBRARY_ID`**: From `https://www.zotero.org/settings/keys`.
-   - **`GOOGLE_OAUTH_CLIENT_ID`**, **`GOOGLE_OAUTH_CLIENT_SECRET`**, **`USER_GOOGLE_EMAIL`**: Desktop OAuth 2.0 client credentials from Google Cloud Console (`https://console.cloud.google.com/apis/credentials`). On first `google-workspace` tool call, complete the one-time browser OAuth consent prompt.
+   - **`GOOGLE_OAUTH_CLIENT_ID`**, **`GOOGLE_OAUTH_CLIENT_SECRET`**, **`USER_GOOGLE_EMAIL`**: Desktop OAuth 2.0 client credentials from Google Cloud Console (`https://console.cloud.google.com/apis/credentials`). On first `workspace` tool call, complete the one-time browser OAuth consent prompt.
 4. Toggle **Mimir Agent Kit** **Enabled**. Verify active tools under **Additional Options (`...`) > MCP Servers**.
 
 ---

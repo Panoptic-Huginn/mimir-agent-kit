@@ -18,6 +18,8 @@ from scripts.validation.codes import ErrorCode
 from scripts.validation.engine import validate_all
 from scripts.validation.hooks_validator import validate_hooks
 from scripts.validation.hooks_validator import validate_hooks_file
+from scripts.validation.mcp_validator import load_tool_manifest
+from scripts.validation.mcp_validator import resolve_plugin_name
 from scripts.validation.mcp_validator import validate_mcp_config
 from scripts.validation.mcp_validator import validate_mcp_config_file
 from scripts.validation.mcp_validator import validate_namespaced_tool_name
@@ -1759,3 +1761,61 @@ jobs:
     rep_good = ValidationReport()
     validate_supply_chain(tmp_path, rep_good)
     assert rep_good.is_clean
+
+
+def test_mcp008_applies_plugin_namespace_to_tool_identifiers(tmp_path: Path) -> None:
+    """Regression (#24): plugin tools register as mcp_<plugin>_<server>_<tool>, so MCP008 must count the plugin prefix."""
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(json.dumps({'mcpServers': {'github-mcp-server': {'command': 'echo'}}}), encoding='utf-8')
+    tools = {'github-mcp-server': ['add_comment_to_pending_review']}
+
+    rep_global = ValidationReport()
+    validate_mcp_config_file(config_file, rep_global, known_tools=tools)
+    assert not any(i.code == ErrorCode.MCP008 for i in rep_global.issues), 'mcp_github-mcp-server_add_comment_to_pending_review is 51 chars'
+
+    rep_plugin = ValidationReport()
+    validate_mcp_config_file(config_file, rep_plugin, known_tools=tools, plugin_name='mimir-agent-kit')
+    assert any(i.code == ErrorCode.MCP008 and 'mcp_mimir-agent-kit_github-mcp-server_add_comment_to_pending_review' in i.message for i in rep_plugin.issues)
+
+
+def test_validate_mcp_config_loads_plugin_name_and_tool_manifest(tmp_path: Path) -> None:
+    """validate_mcp_config reads plugin.json for the namespace and merges scripts/validation/mcp_tool_manifest.json."""
+    (tmp_path / 'plugin.json').write_text(json.dumps({'name': 'mimir-agent-kit'}), encoding='utf-8')
+    (tmp_path / 'mcp_config.json').write_text(json.dumps({'mcpServers': {'workspace': {'command': 'echo'}}}), encoding='utf-8')
+    manifest_dir = tmp_path / 'scripts' / 'validation'
+    manifest_dir.mkdir(parents=True)
+    manifest_file = manifest_dir / 'mcp_tool_manifest.json'
+
+    # 'mcp_mimir-agent-kit_workspace_' (30) + 33 chars = 63 -> within budget.
+    manifest_file.write_text(json.dumps({'workspace': ['batch_modify_gmail_message_labels']}), encoding='utf-8')
+    rep_ok = ValidationReport()
+    validate_mcp_config(tmp_path, rep_ok)
+    assert not any(i.code == ErrorCode.MCP008 for i in rep_ok.issues)
+
+    # Adding a tool that pushes the identifier to 66 chars must fail.
+    manifest_file.write_text(json.dumps({'workspace': ['batch_modify_gmail_message_labels_xx']}), encoding='utf-8')
+    rep_long = ValidationReport()
+    validate_mcp_config(tmp_path, rep_long)
+    assert any(i.code == ErrorCode.MCP008 and '(66 chars)' in i.message for i in rep_long.issues)
+
+    # Explicit known_tools are merged with the manifest rather than replacing it.
+    manifest_file.write_text(json.dumps({'workspace': ['short']}), encoding='utf-8')
+    rep_merged = ValidationReport()
+    validate_mcp_config(tmp_path, rep_merged, known_tools={'workspace': ['x' * 40]})
+    assert sum(i.code == ErrorCode.MCP008 for i in rep_merged.issues) == 1
+
+
+def test_load_tool_manifest_tolerates_missing_or_malformed_files(tmp_path: Path) -> None:
+    """Malformed or absent manifests degrade to an empty inventory instead of crashing validation."""
+    assert load_tool_manifest(tmp_path / 'absent.json') == {}
+    bad = tmp_path / 'bad.json'
+    bad.write_text('{not json', encoding='utf-8')
+    assert load_tool_manifest(bad) == {}
+    bad.write_text('[1, 2]', encoding='utf-8')
+    assert load_tool_manifest(bad) == {}
+    bad.write_text(json.dumps({'srv': ['a'], 'ignored': 'not-a-list'}), encoding='utf-8')
+    assert load_tool_manifest(bad) == {'srv': ['a']}
+
+    assert resolve_plugin_name(tmp_path) is None
+    (tmp_path / 'plugin.json').write_text('{}', encoding='utf-8')
+    assert resolve_plugin_name(tmp_path) == tmp_path.name

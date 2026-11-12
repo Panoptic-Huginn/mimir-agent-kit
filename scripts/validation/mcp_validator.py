@@ -21,6 +21,7 @@ VAR_PLACEHOLDER_PATTERN = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
 TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 SERVER_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 MAX_TOOL_IDENTIFIER_LENGTH = 64
+TOOL_MANIFEST_RELATIVE_PATH = Path('scripts') / 'validation' / 'mcp_tool_manifest.json'
 
 DOCKER_DIGEST_IMAGE_PATTERN = re.compile(r'^[a-z0-9._/-]+(?::[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$')
 PYPI_EXACT_PIN_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9_,.-]+\])?==[0-9][A-Za-z0-9._+-]*$')
@@ -285,11 +286,67 @@ def validate_mcp_server_pinning(
         _validate_npx_pinning(server_name, raw_args, report, path)
 
 
+def namespaced_tool_prefix(server_name: str, plugin_name: str | None = None) -> str:
+    """Return the identifier prefix Antigravity prepends to an MCP server's tools.
+
+    Global servers register as ``mcp_<server>_<tool>``; plugin-bundled servers are
+    additionally namespaced by the plugin as ``mcp_<plugin>_<server>_<tool>``.
+
+    Args:
+        server_name: Name of the MCP server.
+        plugin_name: Plugin namespace, or None for a global ``mcp_config.json``.
+
+    Returns:
+        The prefix string including the trailing underscore.
+    """
+    return f'mcp_{plugin_name}_{server_name}_' if plugin_name else f'mcp_{server_name}_'
+
+
+def resolve_plugin_name(repo_root: Path) -> str | None:
+    """Return the plugin namespace for a repository root, or None if it is not a plugin.
+
+    Args:
+        repo_root: Root path of repository.
+
+    Returns:
+        The ``name`` field of ``plugin.json`` (falling back to the directory name), or None when no ``plugin.json`` exists.
+    """
+    manifest = repo_root / 'plugin.json'
+    if not manifest.is_file():
+        return None
+    try:
+        name = json.loads(manifest.read_text(encoding='utf-8')).get('name')
+    except OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError:
+        name = None
+    return name.strip() if isinstance(name, str) and name.strip() else repo_root.name
+
+
+def load_tool_manifest(manifest_file: Path) -> dict[str, list[str]]:
+    """Load a server-to-tool-names manifest produced by ``scripts/ci/snapshot_mcp_tools.py``.
+
+    Args:
+        manifest_file: Path to the JSON manifest.
+
+    Returns:
+        Mapping of server names to tool name lists (empty if the file is absent or malformed).
+    """
+    if not manifest_file.is_file():
+        return {}
+    try:
+        data = json.loads(manifest_file.read_text(encoding='utf-8'))
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(server): [str(tool) for tool in tools] for server, tools in data.items() if isinstance(tools, list)}
+
+
 def validate_namespaced_tool_name(
     server_name: str,
     tool_name: str,
     report: ValidationReport,
     path: Path,
+    plugin_name: str | None = None,
 ) -> None:
     """Validate that the namespaced MCP tool identifier adheres to ^[a-zA-Z0-9_-]{1,64}$.
 
@@ -298,15 +355,16 @@ def validate_namespaced_tool_name(
         tool_name: Name of the tool.
         report: Aggregating ValidationReport.
         path: Target file path.
+        plugin_name: Plugin namespace for plugin-bundled servers, or None for global servers.
     """
-    namespaced = f'mcp_{server_name}_{tool_name}'
+    namespaced = f'{namespaced_tool_prefix(server_name, plugin_name)}{tool_name}'
     if len(namespaced) > MAX_TOOL_IDENTIFIER_LENGTH or not TOOL_NAME_PATTERN.match(namespaced):
         report.add(
             code=ErrorCode.MCP008,
             message=(f"Namespaced tool identifier '{namespaced}' ({len(namespaced)} chars) exceeds {MAX_TOOL_IDENTIFIER_LENGTH} characters or violates ^[a-zA-Z0-9_-]{{1,64}}$."),
             severity=Severity.ERROR,
             path=path,
-            suggestion=(f"Shorten tool name '{tool_name}' or server name '{server_name}' so that 'mcp_{server_name}_{tool_name}' is <= 64 characters."),
+            suggestion=(f"Shorten tool name '{tool_name}' or server name '{server_name}' (or exclude the tool) so that '{namespaced}' is <= 64 characters."),
         )
 
 
@@ -314,6 +372,7 @@ def validate_mcp_config_file(
     config_file: Path,
     report: ValidationReport,
     known_tools: dict[str, list[str]] | None = None,
+    plugin_name: str | None = None,
 ) -> None:
     """Validate mcp_config.json against AntiGravity 2.29.0 specifications.
 
@@ -321,6 +380,7 @@ def validate_mcp_config_file(
         config_file: Path to mcp_config.json.
         report: Aggregating ValidationReport.
         known_tools: Optional mapping of server names to tool name lists to validate MCP008.
+        plugin_name: Plugin namespace applied to tool identifiers, or None for a global config.
     """
     try:
         content = config_file.read_text(encoding='utf-8')
@@ -375,10 +435,11 @@ def validate_mcp_config_file(
                 path=config_file,
             )
 
-        if len(f'mcp_{server_name}_') >= MAX_TOOL_IDENTIFIER_LENGTH:
+        prefix = namespaced_tool_prefix(server_name, plugin_name)
+        if len(prefix) >= MAX_TOOL_IDENTIFIER_LENGTH:
             report.add(
                 code=ErrorCode.MCP008,
-                message=(f"MCP server name '{server_name}' is too long ({len(server_name)} chars). Prefix 'mcp_{server_name}_' alone leaves no room for tool names under 64 characters."),
+                message=(f"MCP server name '{server_name}' is too long ({len(server_name)} chars). Prefix '{prefix}' alone leaves no room for tool names under 64 characters."),
                 severity=Severity.ERROR,
                 path=config_file,
             )
@@ -501,11 +562,11 @@ def validate_mcp_config_file(
             for tool_item in tools_in_spec:
                 tname = tool_item if isinstance(tool_item, str) else tool_item.get('name') if isinstance(tool_item, dict) else None
                 if isinstance(tname, str):
-                    validate_namespaced_tool_name(server_name, tname, report, config_file)
+                    validate_namespaced_tool_name(server_name, tname, report, config_file, plugin_name)
 
         if known_tools and server_name in known_tools:
             for tname in known_tools[server_name]:
-                validate_namespaced_tool_name(server_name, tname, report, config_file)
+                validate_namespaced_tool_name(server_name, tname, report, config_file, plugin_name)
 
         # MCP009: Supply-chain digest & version pinning for container/package launchers
         validate_mcp_server_pinning(server_name, spec, report, config_file)
@@ -518,6 +579,10 @@ def validate_mcp_config(
 ) -> None:
     """Validate mcp_config.json in the repository root.
 
+    When the repository is a plugin (``plugin.json`` present), tool identifiers are
+    validated with the plugin namespace, and the runtime tool inventory recorded in
+    ``scripts/validation/mcp_tool_manifest.json`` is merged into ``known_tools``.
+
     Args:
         repo_root: Root path of repository.
         report: Aggregating ValidationReport.
@@ -525,4 +590,7 @@ def validate_mcp_config(
     """
     config_file = repo_root / 'mcp_config.json'
     if config_file.is_file():
-        validate_mcp_config_file(config_file, report, known_tools=known_tools)
+        merged_tools = load_tool_manifest(repo_root / TOOL_MANIFEST_RELATIVE_PATH)
+        for server, tools in (known_tools or {}).items():
+            merged_tools[server] = sorted({*merged_tools.get(server, []), *tools})
+        validate_mcp_config_file(config_file, report, known_tools=merged_tools or None, plugin_name=resolve_plugin_name(repo_root))

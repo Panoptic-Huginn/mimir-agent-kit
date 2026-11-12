@@ -4,9 +4,9 @@ Whenever implementing features, fixing bugs, refactoring code, creating Git comm
 
 1. **Branch Isolation Mandate:**
    - **NEVER** commit directly to `main`, `master`, or a detached `HEAD`.
-   - Always resolve or create a tracking GitHub Issue via `github-mcp-server` (exposed globally as `github-mcp-server` or plugin-namespaced as `mimir-agent-kit_github-mcp-server`) using `search_issues`, `list_issues`, `issue_read`, and `issue_write`, and work on an isolated, remote-tracked feature branch named `<type>/<issue-number>-<short-kebab-slug>`.
+   - Always resolve or create a tracking GitHub Issue via `github-mcp-server` (the upstream GitHub MCP server, registered by this plugin as server `github` and exposed as `mimir-agent-kit_github`, or as a global `github` server) using `search_issues`, `list_issues`, `issue_read`, and `issue_write`, and work on an isolated, remote-tracked feature branch named `<type>/<issue-number>-<short-kebab-slug>`.
 2. **`github-mcp-server` Primary / Local Git Working-Tree Boundary:**
-   - Use **`github-mcp-server`** (`github-mcp-server` or `mimir-agent-kit_github-mcp-server`) as the primary mechanism for all remote GitHub operations (`get_me`, `repository_ruleset_read`, `issue_read`, `issue_write`, `pull_request_read`, `create_pull_request`, `update_pull_request`, `pull_request_review_write`, `actions_list`, `actions_get`, `get_job_logs`).
+   - Use **`github-mcp-server`** (`mimir-agent-kit_github` or a global `github` server) as the primary mechanism for all remote GitHub operations (`get_me`, `repository_ruleset_read`, `issue_read`, `issue_write`, `pull_request_read`, `create_pull_request`, `update_pull_request`, `pull_request_review_write`, `actions_list`, `actions_get`, `get_job_logs`).
    - Use **local workspace file tools and local `git` CLI** for all file edits, staging (`git add`), committing (`git commit`), and branch pushing (`git push`).
    - **NEVER** use `github-mcp-server` remote file-mutation tools (`push_files`, `create_or_update_file`, `delete_file`) that bypass the local working tree and pre-commit hooks.
 3. **Mandatory Pre-Commit Local CI Gate:**
