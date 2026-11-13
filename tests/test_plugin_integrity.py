@@ -18,6 +18,7 @@ EXPECTED_SKILLS = {
     'cmake-pro',
     'cpp-pro',
     'github-flow-lifecycle',
+    'github-ops',
     'jupyter-pro',
     'marimo-pair',
     'marimo-pro',
@@ -118,7 +119,11 @@ def test_all_custom_skills_valid_and_within_plugin_byte_limit() -> None:
 
 def test_bundled_executable_scripts() -> None:
     """Validate executable permissions on bundled Python scripts."""
-    for script_path in (REPO_ROOT / 'scripts' / 'academic_mcp_server.py', REPO_ROOT / 'scripts' / 'ci' / 'snapshot_mcp_tools.py'):
+    for script_path in (
+        REPO_ROOT / 'scripts' / 'academic_mcp_server.py',
+        REPO_ROOT / 'scripts' / 'github_mcp_launcher.py',
+        REPO_ROOT / 'scripts' / 'ci' / 'snapshot_mcp_tools.py',
+    ):
         assert script_path.is_file()
         assert os.access(script_path, os.X_OK), f'{script_path} must be executable (+x)'
 

@@ -1,14 +1,14 @@
-# GitHub CLI (`gh`) Degraded-Mode & Fallback Reference
+# GitHub CLI (`gh`) Partner & Cloud-Sandbox Reference
 
-Use this guide when **`mimir-agent-kit_github` is unavailable** — for example, when Docker is stopped while traveling on macOS, inside Antigravity Cloud Remote Agents (where local stdio Docker containers do not run and Antigravity's GitHub integration or `gh` handles auth), or when invoking one of the two org tools excluded to satisfy Antigravity's 64-character tool-name limit.
+Use this guide when pairing `gh` CLI with `mimir-agent-kit_github` (for custom REST/GraphQL endpoints or the two org/notification tools excluded to fit Antigravity's 64-character tool-name limit), or inside **Antigravity Cloud Remote Agents** where local `stdio` MCP binaries do not run.
 
-> **Invariant Reminder:** Even in `gh` CLI fallback mode, **never** run `gh pr merge`, **never** commit to `main`/`master`/detached `HEAD`, and **never** use remote file commits (`gh api` contents PUT) instead of local edits + `git commit` + local CI verification.
+> **Invariant Reminder:** Even when using `gh` CLI directly, **never** run `gh pr merge`, **never** commit to `main`/`master`/detached `HEAD`, and **never** use remote file commits (`gh api` contents PUT) instead of local edits + `git commit` + local CI verification.
 
 ---
 
-## 1. Preflight Auth & Multi-Owner Verification
+## 1. Preflight Auth, Scopes & Multi-Owner Verification
 
-A single `gh` OAuth login to `github.com` stored in the OS keyring (`libsecret` on Ubuntu, Keychain on macOS) spans both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`).
+A single `gh` OAuth login to `github.com` stored in the OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS) spans both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`).
 
 ```bash
 # 1. Verify active keyring session, hostname, and scopes
@@ -17,8 +17,11 @@ gh auth status
 # 2. If logged out or token expired, authenticate interactively once per machine
 gh auth login --hostname github.com --git-protocol ssh
 
-# 3. Verify Docker daemon if troubleshooting mimir-agent-kit_github startup
-docker info >/dev/null 2>&1 || echo "Docker stopped: use gh CLI fallback below"
+# 3. Recommended one-time scope upgrade for GHEC Org Owner + Actions triggers + Projects
+gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications
+
+# 4. Verify cached native github-mcp-server binary (zero Docker required)
+uv run --isolated --no-project --python ">=3.14" python scripts/github_mcp_launcher.py --print-binary-path
 ```
 
 ### Extracting `OWNER` and `REPO` Safely
@@ -55,13 +58,12 @@ EOF
 ### Stage 1: Rulesets, Issue Discovery & Issue Creation
 
 ```bash
-# Effective branch rules on main (works with default `repo` + `read:org` scopes)
+# Effective branch rules on main (works with baseline `repo` + `read:org` scopes)
 gh api "repos/${OWNER}/${REPO}/rules/branches/main"
 gh ruleset check main -R "${OWNER}/${REPO}"
 
-# Organization-level rulesets require `admin:org` (optional):
-# gh auth refresh -h github.com -s admin:org
-# gh ruleset list -o "${OWNER}"
+# Organization-level rulesets on Panoptic-Huginn (requires `admin:org` scope):
+gh api "orgs/${OWNER}/rulesets"
 
 # Search existing issues before creating a duplicate
 gh issue list -R "${OWNER}/${REPO}" --state open --search "<keywords>"

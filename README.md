@@ -48,8 +48,11 @@ flowchart TD
 | `c-pro` | Deterministic ISO C23 (`-std=c23`), LLVM Clang 23.1+ / Apple Clang 21.0+, NVIDIA Halos real-time safety kernels, CERT C / MISRA C | `examples/.clang-format`, `examples/.clang-tidy` |
 | `cmake-pro` | Modern CMake 4.4.3+ target-based `cmake/` modules, ISA/SIMD compile probes, Vcpkg manifest mode, `CMakePresets.json` v10+, `gersemi` | `references/canonical_templates.md` |
 | `cpp-pro` | High-performance ISO C++23, RAII, Google Style + C++ Core Guidelines, Google Test, Google Benchmark, ASan/TSan/UBSan | `examples/.clang-format`, `examples/.clang-tidy` |
-| `github-flow-lifecycle` | 6-stage Git & GitHub Flow protocol: issue tracking, `<type>/<N>-<slug>` branch isolation, mandatory pre-commit local CI gate, PR self-healing | Paired with `rules/AGENTS.md` |
+| `github-flow-lifecycle` | 6-stage Git & GitHub Flow code-delivery protocol: issue tracking, `<type>/<N>-<slug>` branch isolation, mandatory pre-commit local CI gate, PR self-healing | `references/`, paired with `rules/AGENTS.md` |
+| `github-ops` | Non-code GitHub & GHEC (`Panoptic-Huginn`) operations: repo provisioning/hardening, org & repo rulesets, custom properties, sub-issues/Projects v2, security triage, releases | `references/ghec-governance-and-recipes.md` |
 | `jupyter-pro` | Reproducible Jupyter Notebook & Google Colab engineering workflows (`uv`, Python 3.14+, clean-output hygiene) | — |
+| `marimo-pair` | Live marimo reactive kernel driving, in-memory DAG state inspection, and durable notebook commits via `marimo._code_mode` | `scripts/`, `references/` |
+| `marimo-pro` | Reactive marimo Python notebooks, `mo.ui` widgets, DAG execution, `mo.state`, and dual `pixi`/`uv` toolchains | `references/` |
 | `python-pro` | Production Python 3.14+ (`uv`, `pixi`, `ruff`, `mypy --strict`, `pydantic`, `pytest`, `rumdl`, Google docstrings) | `examples/pyproject.toml` |
 | `rust-pro` | Deterministic Rust 1.99.1+ (`std`, `no_std`, bare-metal), Pixi orchestration, NVIDIA Halos safety kernels, Google Rust Styleguide, RISC-V RVA23 | `examples/{pixi.toml,Cargo.toml,clippy.toml,rustfmt.toml}`, `references/` |
 
@@ -58,13 +61,13 @@ flowchart TD
 
 ### 2. Always-On Rules
 
-- **`rules/AGENTS.md`**: Always-on Git & GitHub Flow mandate enforcing branch isolation, `github-mcp-server` remote operations, local CI verification before `git commit`, remote GitHub Actions polling, and human-only PR merges.
+- **`rules/AGENTS.md`**: Always-on Git & GitHub governance mandate enforcing dual-owner routing (`jamielapointe` vs. `Panoptic-Huginn`), `github-mcp-server` remote operations, `/github-flow-lifecycle` code-delivery gates vs. `/github-ops` control-plane routing, destructive-action human consent, and human-only PR merges.
 
 ### 3. Portable Research & Developer MCP Suite (`mcp_config.json`)
 
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
-| `github` | `sh -c '… gh auth token … exec docker run … ghcr.io/github/github-mcp-server:v2.1.0@sha256:…'` | GitHub Issues, PRs, Rulesets, Check Runs, Job Logs (`GITHUB_TOOLSETS=all`, minus `GITHUB_EXCLUDE_TOOLS`) across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
+| `github` | `uv run --isolated --no-project ... scripts/github_mcp_launcher.py --cache-dir ${PLUGIN_DATA}` | SHA-256-verified native `github-mcp-server` `v2.1.0` binary (zero Docker) for Issues, PRs, Rulesets, Projects, Security & Logs across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
 | `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
 | `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.0` | PubMed / Europe PMC biomedical & life-science literature search | None |
@@ -88,8 +91,8 @@ flowchart TD
    - **Ubuntu 24.04**: Encrypted inside **GNOME Keyring / FreeDesktop Secret Service** (`libsecret` / `Passwords and Keys`).
    - **macOS**: Encrypted inside **macOS Login Keychain** (`Keychain Access.app`).
    - **Headless Linux Fallback**: Only if D-Bus Secret Service is absent does Antigravity fall back to a `0600` local credential store under `~/.gemini/`.
-2. **In-Memory Runtime Injection**: Whenever Antigravity spawns an MCP child process (`docker`, `uvx`, `uv`, `npx`), the Language Server reads the secret from the OS Keyring and injects it directly into the child process's environment in memory. Your Git working tree (`~/development/mimir-agent-kit`) stays 100% clean across `git status` and `git pull`.
-3. **GitHub uses the `gh` CLI's keyring token instead of a plugin variable**: The `github` server launches through `sh -c`. The wrapper reads `gh auth token --hostname github.com` (stored in the same OS keyring by `gh auth login`), exports it only to the `docker run` child via `-e GITHUB_PERSONAL_ACCESS_TOKEN`, so the token never appears in argv or on disk, and `exec`s the digest-pinned container. A single `gh` OAuth login covers your personal account and every organization you belong to. Fine-grained PATs are limited to one resource owner. If `gh` is missing or logged out, the server exits with an actionable error instead of falling back to the image's interactive OAuth mode.
+2. **In-Memory Runtime Injection**: Whenever Antigravity spawns an MCP child process (`uvx`, `uv`, `npx`), the Language Server reads the secret from the OS Keyring and injects it directly into the child process's environment in memory. Your Git working tree (`~/development/mimir-agent-kit`) stays 100% clean across `git status` and `git pull`.
+3. **GitHub uses a Docker-free SHA-256-pinned native binary + `gh` keyring token**: `scripts/github_mcp_launcher.py` downloads the official `github/github-mcp-server` `v2.1.0` release archive once into `${PLUGIN_DATA}`, verifies its 64-character SHA-256 digest in memory before extraction, reads `gh auth token --hostname github.com` from your OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS), and `exec`s `github-mcp-server stdio` directly with `GITHUB_PERSONAL_ACCESS_TOKEN` in memory (never in `argv` or on disk). One `gh` OAuth login covers both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`), with **zero Docker daemon required** on macOS or Linux.
 4. **Safe First-Boot Gating**: Because `mcp_config.json` declares `variables`, Antigravity automatically keeps `mimir-agent-kit` in a **Configure / Setup Required** state on a newly cloned machine until you fill in its variables once. (If enabled beforehand, `scripts/academic_mcp_server.py` safely falls back to `~/.local/share/mimir-agent-kit/academic_corpus.db`.)
 
 ---
@@ -98,12 +101,11 @@ flowchart TD
 
 ### Prerequisites
 
-Ensure these CLI runtimes are installed and on `PATH` on both Ubuntu 24.04 and macOS:
+Ensure these CLI runtimes are installed and on `PATH` on both Ubuntu 24.04 and macOS (**zero Docker daemon required**):
 
 - **`git`** and **`uv`** (`>= 0.10`, provides both `uv` and `uvx`) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Node.js / `npx`** (`>= 22`, used by `europe-pmc`)
-- **Docker** (`docker` Engine on Ubuntu 24.04; Docker Desktop or OrbStack on macOS, used by the `github` server)
-- **GitHub CLI** (`gh`, authenticated once per machine with `gh auth login --hostname github.com` and scopes `repo` and `read:org`, used by the `github` server for its token). Optional extra scopes for project and notification tools: `gh auth refresh --hostname github.com --scopes project,notifications`.
+- **GitHub CLI** (`gh`, authenticated once per machine with `gh auth login --hostname github.com --git-protocol ssh`). Recommended full-capability scope refresh for `Panoptic-Huginn` Enterprise Organization Owner + Actions + Projects: `gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications`.
 
 ### Step 1: Clone & Symlink into Antigravity's Global Plugins Directory
 
@@ -164,7 +166,7 @@ Next, inspect `~/.gemini/config/mcp_config.json` and remove server entries that 
 
 ## Using `mimir-agent-kit` in Cloud `remote-agents`
 
-Google Antigravity [Remote Agents](https://antigravity.google/docs/remote-agents) execute inside Google-managed cloud sandboxes attached to GitHub repositories rather than your laptop's `~/.gemini/config`. Because this repository ships `.agents/skills.json` and `.agents/rules.json` at its root, Remote Projects discover all 7 skills and `rules/AGENTS.md` natively.
+Google Antigravity [Remote Agents](https://antigravity.google/docs/remote-agents) execute inside Google-managed cloud sandboxes attached to GitHub repositories rather than your laptop's `~/.gemini/config`. Because this repository ships `.agents/skills.json` and `.agents/rules.json` at its root, Remote Projects discover all 11 skills and `rules/AGENTS.md` natively.
 
 ### Option A (Recommended): Native Multi-Repo Attachment in `Panoptic-Huginn`
 
@@ -186,7 +188,7 @@ git commit -m "chore(agents): attach mimir-agent-kit plugin submodule"
 
 ### Cloud Sandbox Notes & CLI Requirement
 
-- **Cloud MCP & Connectors**: Local `stdio` containers and host filesystems (`docker`, local Zotero/SQLite paths) do not run inside managed Remote Agent sandboxes. In Remote Projects, all **7 custom skills** and **`rules/AGENTS.md`** load automatically, while GitHub and Google Workspace access should use Antigravity's native cloud account connectors (**Settings > Integrations / Accounts**).
+- **Cloud MCP & Connectors**: Local `stdio` MCP binaries and host filesystems (such as local Zotero/SQLite paths) do not run inside managed Remote Agent sandboxes. In Remote Projects, all **11 custom skills** and **`rules/AGENTS.md`** load automatically, while GitHub and Google Workspace access use Antigravity's native cloud account connectors (**Settings > Integrations / Accounts**) or `gh` CLI.
 - **CLI Version for `--remote-agent`**: Launching or attaching to Remote Agent sessions from a terminal (`agy --remote-agent`) requires `agy >= 1.4.12`. Upgrade via `agy update` if `agy --version` reports `1.4.11` or earlier.
 
 ---

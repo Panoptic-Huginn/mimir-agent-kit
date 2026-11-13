@@ -1,10 +1,17 @@
 {
   "mcpServers": {
     "github": {
-      "command": "sh",
+      "command": "uv",
       "args": [
-        "-c",
-        "PATH=\"$PATH:/opt/homebrew/bin:/usr/local/bin\"; GITHUB_PERSONAL_ACCESS_TOKEN=\"$(gh auth token --hostname github.com 2>/dev/null)\" && [ -n \"$GITHUB_PERSONAL_ACCESS_TOKEN\" ] || { echo 'mimir-agent-kit github: gh auth token failed; run: gh auth login --hostname github.com' >&2; exit 1; }; export GITHUB_PERSONAL_ACCESS_TOKEN; exec docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_TOOLSETS -e GITHUB_EXCLUDE_TOOLS ghcr.io/github/github-mcp-server:v2.1.0@sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a"
+        "run",
+        "--isolated",
+        "--no-project",
+        "--python",
+        ">=3.14",
+        "python",
+        "${PLUGIN_ROOT}/scripts/github_mcp_launcher.py",
+        "--cache-dir",
+        "${PLUGIN_DATA}"
       ],
       "env": {
         "GITHUB_TOOLSETS": "all",

@@ -1,24 +1,29 @@
 ---
 name: github-flow-lifecycle
 description: >-
-  Enforces end-to-end Git and GitHub Flow best practices using github-mcp-server
-  and local Git/CI tools, including GitHub issue resolution/creation, ruleset
-  inspection, linked remote feature branching, mandatory pre-commit local CI
-  verification, pull request creation, review thread resolution, and autonomous
-  remote GitHub Actions CI monitoring and self-healing. Use whenever implementing
-  features, fixing bugs, refactoring code, creating commits, or opening and
-  updating pull requests.
+  Enforces the 6-stage Git and GitHub Flow code-delivery lifecycle using native
+  github-mcp-server (mimir-agent-kit_github), gh CLI, and local Git/CI tools,
+  including GitHub issue resolution/creation, branch ruleset inspection, linked
+  remote feature branching, mandatory pre-commit local CI verification, pull
+  request creation, review thread resolution, and autonomous remote GitHub
+  Actions CI monitoring and self-healing. Use whenever modifying repository
+  files, implementing features, fixing bugs, refactoring code, creating commits,
+  or opening and updating pull requests. For non-code repository, organization,
+  backlog, project, security, or release management, use /github-ops instead.
 metadata:
-  version: v1
+  version: v2
   publisher: jamielapointe
 ---
 
 # Git & GitHub Flow Lifecycle Protocol
 
-This skill governs the complete software delivery lifecycle from initial task intake through a fully verified, green Pull Request ready for human review and merge.
+This skill governs the complete software delivery lifecycle whenever repository files are created, modified, committed, or delivered via Pull Request—from initial task intake through a fully verified, green Pull Request ready for human review and merge.
+
+> **Scope Boundary:** If the request involves **non-code GitHub operations** (repository creation/settings, `Panoptic-Huginn` Enterprise or `jamielapointe` ruleset authoring, custom properties, backlog/sub-issue/Projects v2 planning, Dependabot/CodeQL/Secret Scanning triage, releases, or cross-repo searches) without modifying local repository files, activate **`/github-ops`** instead.
 
 ## Related Skills
 
+- **`/github-ops`**: Non-code GitHub & GitHub Enterprise Cloud (`Panoptic-Huginn`) repository, ruleset, backlog, Projects v2, security alert, and release administration.
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels and Silver/Gold deductive proofs.
 - **`/python-pro`**: Python 3.14+ (`pixi` and `uv`), `ruff`, `mypy`, `pytest`, and `rumdl` standards.
 - **`/rust-pro`**: Safety-critical Rust 1.99.1+ (`pixi`, `clippy`, `cargo fmt`, Google Rust Styleguide) systems software.
@@ -36,19 +41,19 @@ This skill governs the complete software delivery lifecycle from initial task in
 During your internal reasoning pass before every tool invocation, verify the following state invariants:
 
 1. **Branch Isolation Check:** Confirm the active local Git branch is **NEVER** `main`, `master`, or a detached `HEAD` before modifying, staging, or committing files.
-2. **MCP-First / Keyring-Backed Auth / Local-Git Boundary:**
+2. **Docker-Free Native MCP Primary / Keyring Auth / Local-Git Boundary:**
    - Use **`github-mcp-server`** (plugin-namespaced as lazy-loaded `mimir-agent-kit_github` via `call_mcp_tool`, or registered globally as `github`) as the primary interface for all remote GitHub operations.
-   - Authentication flows from `gh auth token --hostname github.com` (OS keyring: Ubuntu `libsecret` / macOS Keychain) into the container environment at launch, so one login spans both personal accounts (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`) without PATs on disk. Note two upstream org tools are excluded via `GITHUB_EXCLUDE_TOOLS` to fit Antigravity's 64-char limit (see [references/mcp-tool-reference.md](references/mcp-tool-reference.md)).
-   - **Degraded-Mode Fallback (`gh` CLI):** If `mimir-agent-kit_github` fails to start or is unavailable (e.g., Docker stopped while traveling on macOS, or inside Cloud Remote Agents where local stdio containers do not run), use the equivalent **Permitted Fallback** via `gh` CLI + `--body-file -` heredocs in [references/gh-cli-fallback.md](references/gh-cli-fallback.md). If `gh auth status` reports logged out, halt and ask the user to run `gh auth login --hostname github.com`.
+   - `mimir-agent-kit_github` runs natively without Docker via `scripts/github_mcp_launcher.py` (caching the official SHA-256-verified `v2.1.0` static binary in `${PLUGIN_DATA}` on Ubuntu Linux and macOS) and reads `gh auth token --hostname github.com` from the OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS). One keyring login spans both personal accounts (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`) with zero PATs on disk.
+   - **Partner & Cloud-Sandbox CLI (`gh` CLI):** Use `gh` CLI (`--body-file -` single-quoted heredocs) for GraphQL/REST endpoints not modeled by MCP, for the two org/notification tools excluded to fit Antigravity's 64-character tool-identifier limit, or inside Cloud Remote Agents where local stdio servers do not run (see [references/gh-cli-fallback.md](references/gh-cli-fallback.md)). If `gh auth status` reports logged out, halt and ask the user to run `gh auth login --hostname github.com`.
    - Use **local workspace file tools and local `git` CLI** for all file edits, staging (`git add`), committing (`git commit`), and pushing (`git push`). **NEVER** use remote file-mutation tools (`create_or_update_file`, `push_files`, `delete_file`), as they bypass `.pre-commit-config.yaml` hooks and local CI gates.
 3. **Verification-Before-Commit:** Never execute `git commit` (and never pass `--no-verify` or `-n`) until the full local CI suite—matching all applicable local tooling and `.github/workflows/*.yml` PR checks—has executed on the current working tree and exited with code `0`.
 4. **No Autonomous Merge:** Your authority terminates once the Pull Request is open, all review threads are resolved, and all remote GitHub CI checks report `SUCCESS` (`conclusion == "success"`). Merging to `main` is strictly reserved for the human user.
 
 ---
 
-## 2. Tool Boundary Matrix (`github-mcp-server` vs. `gh` Fallback & Local CLI)
+## 2. Tool Boundary Matrix (`github-mcp-server` vs. `gh` Partner & Local CLI)
 
-| Operation | Primary (`mimir-agent-kit_github`) | Permitted Fallback | Forbidden | Reason |
+| Operation | Primary (`mimir-agent-kit_github`) | Permitted `gh` Partner / Cloud Fallback | Forbidden | Reason |
 | :--- | :--- | :--- | :--- | :--- |
 | **User Context & Rulesets** | `get_me`; `repository_ruleset_read` (`level: "repository"`, `method: "get_rules_for_branch"`, `branch: "main"` — `[]`/404 = unprotected) | `gh api "repos/<o>/<r>/rules/branches/main"`, `gh ruleset check main -R <o>/<r>` | Guessing rulesets; `level: "organization"` without `admin:org` scope | Identifies linear history, squash rules, and required checks across personal & GHEC org repos |
 | **Issues & Labels** | `search_issues`, `list_issues` (`perPage: 10`); `issue_read`; `issue_write`; `sub_issue_write`; `list_label`; `list_issue_types` (`owner`+`repo`) | `gh issue list/view/create -R <o>/<r> --body-file -` | Inline `--body` on LaTeX/code; working without an issue | Preserves structured metadata and deterministic issue tracking |
@@ -88,7 +93,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
 1. **Inspect User Context, Owner Identity & Branch Rulesets:**
    - Parse repository `owner` and `repo` from `git remote get-url origin` (handles both `git@github.com:<owner>/<repo>.git` and `https://github.com/<owner>/<repo>.git`).
    - Call `get_me` to identify the acting `login` (`jamielapointe`). **Critical Dual-Owner Rule:** For organization repositories (e.g., `Panoptic-Huginn/*`), keep `owner: "<org>"` on all repo/issue/PR/Actions calls and pass `get_me.login` only to `assignees` or fork prefixes.
-   - Call `repository_ruleset_read` (`level: "repository"`, `method: "get_rules_for_branch"`, `owner`, `repo`, `branch: "main"`). Default `gh` OAuth scopes cover inherited rulesets here across both personal and GHEC org repos (whereas `level: "organization"` requires `admin:org`); treat `[]` or `404` on personal repos as unprotected. Check `required_linear_history`, `allowed_merge_methods`, `required_review_thread_resolution`, and required status check contexts.
+   - Call `repository_ruleset_read` (`level: "repository"`, `method: "get_rules_for_branch"`, `owner`, `repo`, `branch: "main"`). Default `gh` OAuth scopes (`repo`, `read:org`) evaluate inherited rulesets here across both personal and GHEC org repos (whereas `level: "organization"` requires `admin:org`); treat `[]` or `404` on personal repos as unprotected. Check `required_linear_history`, `allowed_merge_methods`, `required_review_thread_resolution`, and required status check contexts.
 2. **Search for Existing Open Issues:**
    - Query `search_issues` (`query: "repo:<owner>/<repo> is:issue is:open <keywords>"`, `perPage: 10`) or `list_issues` (`state: "OPEN"`, `perPage: 10`) to avoid duplicate issues.
 3. **Create Issue (If None Exists):**
@@ -113,7 +118,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
 
 2. **Create and Push Feature Branch:**
    - Format branch name as `<type>/<ISSUE_NUMBER>-<short-kebab-slug>` (e.g., `feat/131-rotational-factor-graph`, `fix/142-pit-calibration-bound`).
-   - **Option A (Local Git + Remote Tracking — Always Reliable):**
+   - **Option A (Local Git + Remote Tracking — Preferred):**
 
      ```bash
      git checkout -b "<type>/<ISSUE_NUMBER>-<short-kebab-slug>"
@@ -129,7 +134,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
      ```
 
    - **Option C (Optional `gh issue develop` Link):**
-     If `gh` CLI is authenticated and permitted in the shell, `gh issue develop <ISSUE_NUMBER> --checkout --name "<type>/<ISSUE_NUMBER>-<short-kebab-slug>"` may be used. *(Note: Including `Closes #<ISSUE_NUMBER>` in the Stage 4 PR body automatically links the PR and branch to the issue on GitHub even without `gh issue develop`.)*
+     `gh issue develop <ISSUE_NUMBER> -R "<owner>/<repo>" --checkout --name "<type>/<ISSUE_NUMBER>-<short-kebab-slug>"` may also be used. Including `Closes #<ISSUE_NUMBER>` in the Stage 4 PR body automatically links the PR and branch to the issue even without `gh issue develop`.
 3. **Verify Branch Isolation Invariant:**
 
    ```bash
@@ -143,17 +148,17 @@ Evaluate local workspace and remote GitHub state before modifying any repository
 ### Stage 3: Implementation & Mandatory Pre-Commit Local CI Gate
 
 1. **Implement Scoped Changes & Tests:**
-   - Implement the feature, bugfix, or refactor adhering to workspace rules (`AGENTS.md`) and language skills (`/python-pro`, `/rust-pro`, `/cmake-pro`, `/cpp-pro`, `/marimo-pro`).
+   - Implement the feature, bugfix, or refactor adhering to workspace rules (`AGENTS.md`) and language skills (`/python-pro`, `/rust-pro`, `/cmake-pro`, `/c-pro`, `/cpp-pro`, `/ada-spark-pro`, `/marimo-pro`).
    - Add or update unit/integration tests covering the new behavior or bugfix.
 2. **Inspect `.github/workflows/*.yml` for PR Job Parity:**
    - Check all workflows in `.github/workflows/` triggered by `pull_request` (e.g., `ci.yml`) so you know every check that remote GitHub Actions will execute.
 3. **Detect and Execute the Full Local CI Pipeline BEFORE `git commit`:**
    Inspect `.github/workflows/*.yml` and the repository root, then run all applicable checks until every step exits with code `0` cleanly (without further formatter edits). Quick reference (full ecosystem table in [references/local-ci-matrix.md](references/local-ci-matrix.md)):
 
-   - **Antigravity Plugin (`scripts/ci/run_local_ci.sh`):** `./scripts/ci/run_local_ci.sh`
+   - **Antigravity Plugin (`scripts/ci/run_local_ci.sh`):** `./scripts/ci/run_local_ci.sh` (plus `uv run rumdl check --no-exclude skills/<changed-skill>` when editing `skills/`)
    - **Pixi / Python / Cross-Ecosystem (`pixi.lock`):** `pixi run pre-commit run --all-files --show-diff-on-failure`, `pixi run ruff check` & `ruff format --check`, `pixi run mypy`, `pixi run pytest`, `pixi run build` (if defined)
    - **Pure `uv` Python (`uv.lock`):** `uv run pre-commit run --all-files`, `uv run ruff check .` & `ruff format --check .`, `uv run mypy .`, `uv run pytest`
-   - **C/C++23 (`CMakePresets.json`), Rust (`Cargo.toml`), Node, Go, Docs:** Run configured format/lint/test workflows per [references/local-ci-matrix.md](references/local-ci-matrix.md).
+   - **C/C++23 (`CMakePresets.json`), Rust (`Cargo.toml`), SPARK Ada (`alire.toml`), Node, Go, Docs:** Run configured format/lint/proof/test workflows per [references/local-ci-matrix.md](references/local-ci-matrix.md).
 
 ---
 
@@ -170,7 +175,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
    git commit -m "<type>(<scope>): <concise summary> (#<ISSUE_NUMBER>)"
    ```
 
-   *(Keep the subject line under 72 characters; include a structured multi-bullet body explaining the **what** and **why** so squash-merges preserve full architectural context.)*
+   Keep the subject line under 72 characters and include a structured multi-bullet body explaining the **what** and **why** so squash-merges preserve full architectural context.
 3. **Push Branch to Remote:**
 
    ```bash
@@ -212,7 +217,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
 
 ### Stage 5: Autonomous Remote CI Monitoring, Review Thread Resolution & Self-Healing Loop
 
-**Never hand off a Pull Request immediately after creation or push.** You must wait for all remote GitHub Actions workflows and check runs on the pushed `HEAD` commit SHA to complete and self-heal any failures.
+**Never hand off a Pull Request immediately after creation or push.** Wait for all remote GitHub Actions workflows and check runs on the pushed `HEAD` commit SHA to complete and self-heal any failures.
 
 1. **Wait & Poll Remote Check Runs (`github-mcp-server` Primary):**
    - Capture `HEAD_SHA=$(git rev-parse HEAD)`.
@@ -233,7 +238,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
    - **Any check run or workflow run reports `conclusion == "failure"` / `"cancelled"` / `"timed_out"` / `"action_required"`:** Enter the **Remote CI Remediation Loop** below.
 
 4. **Remote CI Remediation Loop (Max 5 Iterations):**
-   - **Step 5a — Extract Failure Logs:** Identify failing `run_id` via `actions_list` (`list_workflow_runs`, then `list_workflow_jobs` with `resource_id: "<run_id>"`), then call `get_job_logs` (`{"owner": "<owner>", "repo": "<repo>", "run_id": <FAILED_RUN_ID>, "failed_only": true, "return_content": true, "tail_lines": 500}`). *(Fallback: `gh run view <FAILED_RUN_ID> -R "<owner>/<repo>" --log-failed`.)*
+   - **Step 5a — Extract Failure Logs:** Identify failing `run_id` via `actions_list` (`list_workflow_runs`, then `list_workflow_jobs` with `resource_id: "<run_id>"`), then call `get_job_logs` (`{"owner": "<owner>", "repo": "<repo>", "run_id": <FAILED_RUN_ID>, "failed_only": true, "return_content": true, "tail_lines": 500}`). Fallback: `gh run view <FAILED_RUN_ID> -R "<owner>/<repo>" --log-failed`.
    - **Step 5b — Root-Cause Diagnosis:** Isolate code/test/typing/formatter differences, missing lockfile deps, OS/runner drift, workflow misconfiguration, or external GitHub/secret outages.
    - **Step 5c — Local Fix & Stage 3 Re-Verification:** Fix locally and re-run **Stage 3**. Never push speculative CI fixes without local verification.
    - **Step 5d — Commit, Push & Re-Poll:** Commit (`fix(ci): resolve remote <job-name> failure (#<ISSUE_NUMBER>)`), `git push origin HEAD`, and return to **Step 5.1** on the new `HEAD_SHA`.
@@ -253,6 +258,6 @@ Once local and remote CI pass (`0` failures) and all review threads are resolved
 
 ## References
 
-- [references/mcp-tool-reference.md](references/mcp-tool-reference.md): `mimir-agent-kit_github` (`v2.1.0`) schemas, dual-owner routing, JSON schema quirks, excluded tools.
-- [references/gh-cli-fallback.md](references/gh-cli-fallback.md): Keyring `gh` auth diagnostics, `--body-file -` LaTeX/Markdown safety, GraphQL `resolveReviewThread`, and full `gh` fallback recipes.
+- [references/mcp-tool-reference.md](references/mcp-tool-reference.md): `mimir-agent-kit_github` (`v2.1.0` native binary) schemas, dual-owner routing, JSON schema quirks, excluded tools.
+- [references/gh-cli-fallback.md](references/gh-cli-fallback.md): Keyring `gh` auth & scope diagnostics, `--body-file -` LaTeX/Markdown safety, GraphQL `resolveReviewThread`, and Cloud Remote Agent `gh` recipes.
 - [references/local-ci-matrix.md](references/local-ci-matrix.md): Full multi-ecosystem Stage 3 pre-commit CI detection and command matrix.

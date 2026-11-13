@@ -1,19 +1,24 @@
-# `github-mcp-server` (`mimir-agent-kit_github`) Reference (`v2.1.0`)
+# `github-mcp-server` (`mimir-agent-kit_github`) Reference (`v2.1.0` Native Binary)
 
-In Antigravity, all tools on `mimir-agent-kit_github` are **lazy-loaded** and invoked via `call_mcp_tool` with `ServerName: "mimir-agent-kit_github"` (or `"github"` if registered globally without plugin prefixing). Detailed JSON schemas reside on disk under the Antigravity MCP directory (`~/.gemini/antigravity/mcp/mimir-agent-kit_github/<tool>.json` on Unix hosts).
+In Google Antigravity `2.31+`, all 89 tools on `mimir-agent-kit_github` are **lazy-loaded** and invoked via `call_mcp_tool` with `ServerName: "mimir-agent-kit_github"` (or `"github"` if registered globally without plugin prefixing). Detailed JSON schemas reside on disk under the Antigravity MCP directory (`~/.gemini/antigravity/mcp/mimir-agent-kit_github/<tool>.json` on Unix hosts).
 
-Authentication is injected at container launch from `gh auth token --hostname github.com` into `GITHUB_PERSONAL_ACCESS_TOKEN`, so a single `gh` keyring login accesses both personal repositories (`jamielapointe/*`) and GitHub Enterprise Cloud organization repositories (`Panoptic-Huginn/*`) without stored PATs.
+`scripts/github_mcp_launcher.py` bootstraps the official SHA-256-pinned `github/github-mcp-server` `v2.1.0` static binary into `${PLUGIN_DATA}` on both Ubuntu Linux and macOS (**zero Docker requirement**) and injects `gh auth token --hostname github.com` into `GITHUB_PERSONAL_ACCESS_TOKEN` in memory before calling `os.execve("github-mcp-server", ["github-mcp-server", "stdio"])`. A single `gh` keyring login accesses both personal repositories (`jamielapointe/*`) and GitHub Enterprise Cloud organization repositories (`Panoptic-Huginn/*`) with zero stored PATs.
 
 ---
 
-## 1. Dual-Owner Routing Rules
+## 1. Dual-Owner Routing & Keyring Scopes
 
 1. **Always distinguish repository `owner` from `get_me.login`:**
    - Parse `owner` and `repo` from `git remote get-url origin`.
    - On organization repositories (e.g., `Panoptic-Huginn/mimir-agent-kit`), pass `owner: "Panoptic-Huginn"` for all issue, ruleset, PR, and Actions calls — pass `get_me.login` (`"jamielapointe"`) only to `assignees`, `reviewers`, or a personal fork prefix.
-2. **Query rulesets at `level: "repository"` first:**
-   - `repository_ruleset_read(level: "repository", method: "get_rules_for_branch", owner: "<owner>", repo: "<repo>", branch: "main")` works with default `gh` OAuth scopes (`repo`, `read:org`) and evaluates inherited rules.
-   - `level: "organization"` calls `GET /orgs/<org>/rulesets`, which requires `admin:org` (`404` under default `gh` scopes unless `gh auth refresh -h github.com -s admin:org` was run).
+2. **Query rulesets at `level: "repository"` during PR workflows:**
+   - `repository_ruleset_read(level: "repository", method: "get_rules_for_branch", owner: "<owner>", repo: "<repo>", branch: "main")` works with baseline `gh` OAuth scopes (`repo`, `read:org`) and evaluates org-inherited rulesets automatically.
+   - `level: "organization"` calls `GET /orgs/<org>/rulesets`, which requires `admin:org`. To unlock org-level rulesets and workflow triggers once per workstation, run:
+
+     ```bash
+     gh auth refresh --hostname github.com --scopes workflow,admin:org
+     ```
+
    - Unprotected personal repositories may return `[]` or `404` for rulesets; treat that as "no active branch rulesets" rather than an error.
 3. **Pass both `owner` and `repo` to `list_issue_types`:**
    - Works uniformly across org and user repositories that enable Issue Types. Only pass `type` to `issue_write` if `list_issue_types` returns matching enabled types; omit `type` otherwise.
@@ -47,4 +52,4 @@ To ensure every `mcp_mimir-agent-kit_github_<tool>` identifier satisfies Antigra
 - `list_org_repository_security_advisories`
 - `manage_repository_notification_subscription`
 
-Use the `gh api` equivalents in [gh-cli-fallback.md](./gh-cli-fallback.md#3-replacements-for-excluded-mcp-tools-64-char-cap) if either operation is required.
+Use the `gh api` equivalents in [gh-cli-fallback.md](./gh-cli-fallback.md#3-replacements-for-excluded-mcp-tools-64-char-cap) whenever either operation is required.

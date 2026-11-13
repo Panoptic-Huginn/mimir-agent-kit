@@ -1842,3 +1842,49 @@ def test_mcp009_unwraps_sh_c_launchers_for_pinning(tmp_path: Path) -> None:
     validate_mcp_config_file(config_file, report)
     flagged = {i.message.split("'")[1] for i in report.issues if i.code == ErrorCode.MCP009}
     assert flagged == {'unpinned_docker', 'unpinned_uvx'}
+
+
+def test_mcp009_validates_native_github_mcp_launcher_sha256_pins(tmp_path: Path) -> None:
+    """MCP009 enforces exact SemVer and 4-platform 64-hex SHA-256 pins on scripts/github_mcp_launcher.py."""
+    digest = 'b' * 64
+    scripts_dir = tmp_path / 'scripts'
+    scripts_dir.mkdir()
+    launcher = scripts_dir / 'github_mcp_launcher.py'
+    launcher.write_text(
+        f"GITHUB_MCP_SERVER_VERSION = '2.1.0'\nPLATFORM_ARCHIVE_SPECS = {{\n    ('Linux', 'x86_64'): ('a.tar.gz', '{digest}'),\n    ('Linux', 'aarch64'): ('b.tar.gz', '{digest}'),\n    ('Darwin', 'arm64'): ('c.tar.gz', '{digest}'),\n    ('Darwin', 'x86_64'): ('d.tar.gz', '{digest}'),\n}}\n",
+        encoding='utf-8',
+    )
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(
+        json.dumps({
+            'mcpServers': {
+                'github': {
+                    'command': 'uv',
+                    'args': ['run', '--isolated', '--no-project', 'python', '${PLUGIN_ROOT}/scripts/github_mcp_launcher.py', '--cache-dir', '${PLUGIN_DATA}'],
+                },
+            },
+        }),
+        encoding='utf-8',
+    )
+
+    rep_ok = ValidationReport()
+    validate_mcp_config_file(config_file, rep_ok)
+    assert not any(i.code == ErrorCode.MCP009 for i in rep_ok.issues)
+
+    # Drop Darwin/arm64 and SemVer pin -> must emit two MCP009 errors.
+    launcher.write_text(
+        f"GITHUB_MCP_SERVER_VERSION = 'latest'\nPLATFORM_ARCHIVE_SPECS = {{\n    ('Linux', 'x86_64'): ('a.tar.gz', '{digest}'),\n    ('Linux', 'aarch64'): ('b.tar.gz', '{digest}'),\n    ('Darwin', 'x86_64'): ('d.tar.gz', '{digest}'),\n}}\n",
+        encoding='utf-8',
+    )
+    rep_bad = ValidationReport()
+    validate_mcp_config_file(config_file, rep_bad)
+    mcp009_msgs = [i.message for i in rep_bad.issues if i.code == ErrorCode.MCP009]
+    assert len(mcp009_msgs) == 2
+    assert any('SemVer' in msg for msg in mcp009_msgs)
+    assert any('Darwin/arm64' in msg for msg in mcp009_msgs)
+
+    # Missing launcher script must also fail MCP009.
+    launcher.unlink()
+    rep_missing = ValidationReport()
+    validate_mcp_config_file(config_file, rep_missing)
+    assert any(i.code == ErrorCode.MCP009 and 'missing binary launcher' in i.message for i in rep_missing.issues)

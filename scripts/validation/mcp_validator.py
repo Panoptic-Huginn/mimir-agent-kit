@@ -27,6 +27,16 @@ TOOL_MANIFEST_RELATIVE_PATH = Path('scripts') / 'validation' / 'mcp_tool_manifes
 DOCKER_DIGEST_IMAGE_PATTERN = re.compile(r'^[a-z0-9._/-]+(?::[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$')
 PYPI_EXACT_PIN_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9_,.-]+\])?==[0-9][A-Za-z0-9._+-]*$')
 NPM_EXACT_PIN_PATTERN = re.compile(r'^(?:@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*@[0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9._+-]*$')
+LAUNCHER_SEMVER_PIN_PATTERN = re.compile(r"GITHUB_MCP_SERVER_VERSION(?:\s*:[^=]+)?\s*=\s*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"]")
+LAUNCHER_ARCHIVE_SHA256_PATTERN = re.compile(
+    r"\(\s*['\"](Linux|Darwin)['\"]\s*,\s*['\"](x86_64|aarch64|arm64)['\"]\s*\)\s*:\s*\(\s*['\"][^'\"]+['\"]\s*,\s*['\"]([0-9a-f]{64})['\"]",
+)
+REQUIRED_LAUNCHER_PLATFORMS = frozenset({
+    ('Linux', 'x86_64'),
+    ('Linux', 'aarch64'),
+    ('Darwin', 'arm64'),
+    ('Darwin', 'x86_64'),
+})
 
 DOCKER_RUN_VALUE_FLAGS = frozenset({
     '-e',
@@ -299,6 +309,57 @@ def _shell_wrapper_launches(script: str) -> list[tuple[str, list[str]]]:
     return launches
 
 
+def _validate_native_binary_launcher_pinning(
+    server_name: str,
+    args: list[str],
+    report: ValidationReport,
+    path: Path,
+) -> None:
+    """Verify native binary launcher scripts pin exact SemVer and per-OS SHA-256 digests.
+
+    Args:
+        server_name: Name of the MCP server.
+        args: Argument list passed to the launcher command.
+        report: Aggregating ValidationReport.
+        path: Path to mcp_config.json.
+    """
+    for arg_val in args:
+        if not arg_val.endswith('github_mcp_launcher.py'):
+            continue
+        rel_str = arg_val.removeprefix('${PLUGIN_ROOT}/').lstrip('/')
+        script_path = (path.parent / rel_str) if arg_val.startswith('${PLUGIN_ROOT}/') else Path(arg_val)
+        if not script_path.is_file():
+            report.add(
+                code=ErrorCode.MCP009,
+                message=f"MCP server '{server_name}' references missing binary launcher '{arg_val}'.",
+                severity=Severity.ERROR,
+                path=path,
+                suggestion='Ensure scripts/github_mcp_launcher.py exists and is referenced via ${PLUGIN_ROOT}/scripts/github_mcp_launcher.py.',
+            )
+            continue
+
+        script_text = script_path.read_text(encoding='utf-8')
+        if not LAUNCHER_SEMVER_PIN_PATTERN.search(script_text):
+            report.add(
+                code=ErrorCode.MCP009,
+                message=f"Native launcher '{script_path.name}' for '{server_name}' lacks an exact SemVer GITHUB_MCP_SERVER_VERSION pin.",
+                severity=Severity.ERROR,
+                path=script_path,
+                suggestion="Pin GITHUB_MCP_SERVER_VERSION = 'X.Y.Z' in scripts/github_mcp_launcher.py.",
+            )
+        pinned_platforms = {(m.group(1), m.group(2)) for m in LAUNCHER_ARCHIVE_SHA256_PATTERN.finditer(script_text)}
+        missing_platforms = REQUIRED_LAUNCHER_PLATFORMS - pinned_platforms
+        if missing_platforms:
+            formatted = ', '.join(f'{os_n}/{arch_n}' for os_n, arch_n in sorted(missing_platforms))
+            report.add(
+                code=ErrorCode.MCP009,
+                message=f"Native launcher '{script_path.name}' for '{server_name}' is missing 64-hex SHA-256 pins for: {formatted}.",
+                severity=Severity.ERROR,
+                path=script_path,
+                suggestion='Pin official 64-character lowercase SHA-256 digests for Linux (x86_64, aarch64) and Darwin (arm64, x86_64).',
+            )
+
+
 def validate_mcp_server_pinning(
     server_name: str,
     spec: dict[str, Any],
@@ -333,8 +394,11 @@ def validate_mcp_server_pinning(
             _validate_docker_pinning(server_name, launcher_args, report, path)
         elif launcher in {'uv', 'uvx'}:
             _validate_uv_pinning(server_name, launcher, launcher_args, report, path)
+            _validate_native_binary_launcher_pinning(server_name, launcher_args, report, path)
         elif launcher == 'npx':
             _validate_npx_pinning(server_name, launcher_args, report, path)
+        elif launcher in {'python', 'python3'}:
+            _validate_native_binary_launcher_pinning(server_name, launcher_args, report, path)
 
 
 def namespaced_tool_prefix(server_name: str, plugin_name: str | None = None) -> str:

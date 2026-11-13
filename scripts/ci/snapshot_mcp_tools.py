@@ -77,6 +77,9 @@ def _resolve(value: str, repo_root: Path) -> str:
         var = match.group(1)
         if var == 'PLUGIN_ROOT':
             return str(repo_root)
+        if var == 'PLUGIN_DATA':
+            plugin_data = os.environ.get('PLUGIN_DATA', '').strip()
+            return os.path.expanduser(plugin_data) if plugin_data else str((Path.home() / '.cache' / 'mimir-agent-kit' / 'plugin-data').resolve())
         resolved = os.environ.get(var)
         if not resolved:
             raise KeyError(var)
