@@ -2,7 +2,7 @@
 
 Use this guide when pairing `gh` CLI with `mimir-agent-kit_github` (for custom REST/GraphQL endpoints or the two org/notification tools excluded to fit Antigravity's 64-character tool-name limit), or inside **Antigravity Cloud Remote Agents** where local `stdio` MCP binaries do not run.
 
-> **Invariant Reminder:** Even when using `gh` CLI directly, **never** run `gh pr merge`, **never** commit to `main`/`master`/detached `HEAD`, and **never** use remote file commits (`gh api` contents PUT) instead of local edits + `git commit` + local CI verification.
+> **Invariant Reminder:** Even when using `gh` CLI directly, **never** run `gh pr merge` autonomously (only when the user explicitly requests merging a green PR), **never** commit to `main`/`master`/detached `HEAD`, and **never** use remote file commits (`gh api` contents PUT) instead of local edits + `git commit` + local CI verification.
 
 ---
 

@@ -12,7 +12,7 @@ Across all repositories (`jamielapointe/*` personal repositories and `Panoptic-H
    - Use **local workspace file tools and local `git` CLI** for all file edits, staging (`git add`), committing (`git commit`), and branch pushing (`git push`).
    - **NEVER** use `github-mcp-server` remote file-mutation tools (`push_files`, `create_or_update_file`, `delete_file`) that bypass the local working tree and pre-commit hooks.
 3. **No Autonomous Merge & Destructive-Action Consent Gate:**
-   - **NEVER** merge a Pull Request (`merge_pull_request` and `gh pr merge` are strictly forbidden). Hand off verified, green Pull Requests to the human user for final review and merge.
+   - **NEVER** merge a Pull Request (`merge_pull_request` or `gh pr merge`) **unless** the user explicitly asks you to perform this task (and only once all required CI checks and branch rulesets are satisfied). Autonomous PR merging without an explicit user request is strictly forbidden—by default, hand off verified, green Pull Requests to the human user for final review and merge.
    - **NEVER** execute destructive or governance-weakening GitHub operations (`delete_repository`, changing repository visibility between private and public, archiving/transferring repositories, deleting releases/tags, or relaxing branch rulesets) without explicit prior human confirmation.
 
 ## 2. Mandatory Skill Routing

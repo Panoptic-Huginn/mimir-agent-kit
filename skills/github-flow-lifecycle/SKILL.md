@@ -47,7 +47,7 @@ During your internal reasoning pass before every tool invocation, verify the fol
    - **Partner & Cloud-Sandbox CLI (`gh` CLI):** Use `gh` CLI (`--body-file -` single-quoted heredocs) for GraphQL/REST endpoints not modeled by MCP, for the two org/notification tools excluded to fit Antigravity's 64-character tool-identifier limit, or inside Cloud Remote Agents where local stdio servers do not run (see [references/gh-cli-fallback.md](references/gh-cli-fallback.md)). If `gh auth status` reports logged out, halt and ask the user to run `gh auth login --hostname github.com`.
    - Use **local workspace file tools and local `git` CLI** for all file edits, staging (`git add`), committing (`git commit`), and pushing (`git push`). **NEVER** use remote file-mutation tools (`create_or_update_file`, `push_files`, `delete_file`), as they bypass `.pre-commit-config.yaml` hooks and local CI gates.
 3. **Verification-Before-Commit:** Never execute `git commit` (and never pass `--no-verify` or `-n`) until the full local CI suite—matching all applicable local tooling and `.github/workflows/*.yml` PR checks—has executed on the current working tree and exited with code `0`.
-4. **No Autonomous Merge:** Your authority terminates once the Pull Request is open, all review threads are resolved, and all remote GitHub CI checks report `SUCCESS` (`conclusion == "success"`). Merging to `main` is strictly reserved for the human user.
+4. **No Autonomous Merge:** Unless the user explicitly asks you to merge the Pull Request, your authority terminates once the Pull Request is open, all review threads are resolved, and all remote GitHub CI checks report `SUCCESS` (`conclusion == "success"`). Autonomous merging to `main` is strictly forbidden.
 
 ---
 
@@ -63,7 +63,7 @@ During your internal reasoning pass before every tool invocation, verify the fol
 | **PR Creation & Sync** | `list_pull_requests` (`head: "<owner>:<branch>"`, omit `body`), `create_pull_request` (`head: "<branch>"`), `update_pull_request` | `gh pr create -R <o>/<r> --body-file -`, `gh pr edit`, `gh pr update-branch --rebase` | `update_pull_request_branch` on `required_linear_history`; pushing/merging to `main` | Enforces squash/linear-history rules and `Closes #<N>` linkage |
 | **PR Reviews & Threads** | `pull_request_read` (`get_reviews`, `get_review_comments`, `get_comments`); `add_reply_to_pull_request_comment`; `pull_request_review_write` (`resolve_thread` with `owner`, `repo`, `pullNumber`, `threadId`) | `gh api graphql` (`resolveReviewThread`, see [references/gh-cli-fallback.md](references/gh-cli-fallback.md)) | Leaving threads open under `required_review_thread_resolution` | Satisfies review-thread merge gates (`gh pr view --comments` cannot resolve) |
 | **Remote CI & Logs** | `pull_request_read` (`get_check_runs`, `get_status`), `actions_list`, `actions_get`, `get_job_logs` (`failed_only: true`, `return_content: true`) | `gh pr checks`, `gh run list -R <o>/<r>`, `gh run view <id> --log-failed` (no `--watch`) | Handing off before `HEAD_SHA` checks reach `completed` | Enables deterministic autonomous remote CI self-healing |
-| **Merge PR** | **HUMAN ONLY** | **NONE** | `merge_pull_request`, `gh pr merge`, `git merge` into `main` | Human review and merge sign-off is strictly mandatory |
+| **Merge PR** | **HUMAN DEFAULT** (`merge_pull_request` *only* on explicit user request) | `gh pr merge --squash` (*only* on explicit user request) | Autonomous `merge_pull_request` / `gh pr merge`, `git merge` into `main` | Autonomous PR merging is forbidden; merge only when explicitly requested after green CI |
 
 ---
 
@@ -251,7 +251,7 @@ Evaluate local workspace and remote GitHub state before modifying any repository
 Once local and remote CI pass (`0` failures) and all review threads are resolved:
 
 1. Verify `git status` is clean and `git rev-parse HEAD` matches `git rev-parse origin/<branch-name>`.
-2. **Do NOT merge the Pull Request** (`merge_pull_request` and `gh pr merge` are strictly forbidden) and **do NOT delete the branch**.
+2. **Do NOT autonomously merge the Pull Request** (call `merge_pull_request` or `gh pr merge` **only** if the user explicitly asked you to merge it) and **do NOT delete the branch** during handoff.
 3. Present a concise completion summary (updating `walkthrough.md` if in `/plan` mode) with: **Linked Issue** (`#<ISSUE_NUMBER>` URL), **Remote Branch** + `<HEAD_SHA>`, **Pull Request** (`#<PR_NUMBER>` URL), **Local CI Summary** (exact commands + pass/skip counts), **Remote CI Summary** (`SUCCESS` per job), and **Merge Readiness** confirmation (rulesets satisfied, ready for human Squash Merge).
 
 ---

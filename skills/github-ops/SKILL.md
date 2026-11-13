@@ -43,7 +43,7 @@ This skill governs **control-plane, metadata, governance, planning, security-tri
      - Changing repository visibility (`private` <-> `public` / `internal`)
      - Deleting or bypassing branch/organization rulesets, or removing required status checks
      - Deleting Git tags or published GitHub Releases
-   - **Never** merge Pull Requests (`merge_pull_request` and `gh pr merge` are strictly forbidden even during triage sweeps).
+   - **Never** merge Pull Requests (`merge_pull_request` or `gh pr merge`) autonomously—even during triage sweeps—**unless** the user explicitly asks you to merge a specific Pull Request whose required CI checks and rulesets pass.
 
 ---
 
