@@ -137,8 +137,8 @@ def test_ensure_binary_uses_warm_cache_and_reinstalls_on_stamp_mismatch(tmp_path
     assert len(calls) == 2
 
 
-def test_resolve_github_token_supports_env_and_gh_keyring(tmp_path: Path) -> None:
-    """resolve_github_token honors explicit env tokens, ignores placeholders, and invokes gh CLI."""
+def test_resolve_github_token_supports_env_and_gh_keyring(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """resolve_github_token honors explicit env tokens, ignores placeholders, searches Homebrew fallback dirs, and invokes gh CLI."""
     assert launcher.resolve_github_token(env={'GITHUB_PERSONAL_ACCESS_TOKEN': 'tok_explicit'}) == 'tok_explicit'
 
     fake_bin = tmp_path / 'bin'
@@ -147,12 +147,15 @@ def test_resolve_github_token_supports_env_and_gh_keyring(tmp_path: Path) -> Non
     fake_gh.write_text('#!/bin/sh\nif [ "$1" = "auth" ] && [ "$2" = "token" ]; then echo "tok_from_keyring"; exit 0; fi\nexit 1\n', encoding='utf-8')
     fake_gh.chmod(0o755)
 
+    # Also verifies macOS GUI fallback search when PATH omits Homebrew directories.
+    monkeypatch.setattr(launcher, 'MACOS_EXTRA_PATH_DIRS', (str(fake_bin),))
     resolved = launcher.resolve_github_token(
         hostname='github.com',
-        env={'GITHUB_PERSONAL_ACCESS_TOKEN': '${UNEXPANDED}', 'PATH': str(fake_bin)},
+        env={'GITHUB_PERSONAL_ACCESS_TOKEN': '${UNEXPANDED}', 'PATH': str(tmp_path / 'empty')},
     )
     assert resolved == 'tok_from_keyring'
 
+    monkeypatch.setattr(launcher, 'MACOS_EXTRA_PATH_DIRS', ())
     with pytest.raises(launcher.LauncherError, match="'gh' CLI not found"):
         launcher.resolve_github_token(env={'PATH': str(tmp_path / 'empty')})
 
