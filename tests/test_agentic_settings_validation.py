@@ -18,6 +18,8 @@ from scripts.validation.codes import ErrorCode
 from scripts.validation.engine import validate_all
 from scripts.validation.hooks_validator import validate_hooks
 from scripts.validation.hooks_validator import validate_hooks_file
+from scripts.validation.mcp_validator import load_tool_manifest
+from scripts.validation.mcp_validator import resolve_plugin_name
 from scripts.validation.mcp_validator import validate_mcp_config
 from scripts.validation.mcp_validator import validate_mcp_config_file
 from scripts.validation.mcp_validator import validate_namespaced_tool_name
@@ -1759,3 +1761,130 @@ jobs:
     rep_good = ValidationReport()
     validate_supply_chain(tmp_path, rep_good)
     assert rep_good.is_clean
+
+
+def test_mcp008_applies_plugin_namespace_to_tool_identifiers(tmp_path: Path) -> None:
+    """Regression (#24): plugin tools register as mcp_<plugin>_<server>_<tool>, so MCP008 must count the plugin prefix."""
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(json.dumps({'mcpServers': {'github-mcp-server': {'command': 'echo'}}}), encoding='utf-8')
+    tools = {'github-mcp-server': ['add_comment_to_pending_review']}
+
+    rep_global = ValidationReport()
+    validate_mcp_config_file(config_file, rep_global, known_tools=tools)
+    assert not any(i.code == ErrorCode.MCP008 for i in rep_global.issues), 'mcp_github-mcp-server_add_comment_to_pending_review is 51 chars'
+
+    rep_plugin = ValidationReport()
+    validate_mcp_config_file(config_file, rep_plugin, known_tools=tools, plugin_name='mimir-agent-kit')
+    assert any(i.code == ErrorCode.MCP008 and 'mcp_mimir-agent-kit_github-mcp-server_add_comment_to_pending_review' in i.message for i in rep_plugin.issues)
+
+
+def test_validate_mcp_config_loads_plugin_name_and_tool_manifest(tmp_path: Path) -> None:
+    """validate_mcp_config reads plugin.json for the namespace and merges scripts/validation/mcp_tool_manifest.json."""
+    (tmp_path / 'plugin.json').write_text(json.dumps({'name': 'mimir-agent-kit'}), encoding='utf-8')
+    (tmp_path / 'mcp_config.json').write_text(json.dumps({'mcpServers': {'workspace': {'command': 'echo'}}}), encoding='utf-8')
+    manifest_dir = tmp_path / 'scripts' / 'validation'
+    manifest_dir.mkdir(parents=True)
+    manifest_file = manifest_dir / 'mcp_tool_manifest.json'
+
+    # 'mcp_mimir-agent-kit_workspace_' (30) + 33 chars = 63 -> within budget.
+    manifest_file.write_text(json.dumps({'workspace': ['batch_modify_gmail_message_labels']}), encoding='utf-8')
+    rep_ok = ValidationReport()
+    validate_mcp_config(tmp_path, rep_ok)
+    assert not any(i.code == ErrorCode.MCP008 for i in rep_ok.issues)
+
+    # Adding a tool that pushes the identifier to 66 chars must fail.
+    manifest_file.write_text(json.dumps({'workspace': ['batch_modify_gmail_message_labels_xx']}), encoding='utf-8')
+    rep_long = ValidationReport()
+    validate_mcp_config(tmp_path, rep_long)
+    assert any(i.code == ErrorCode.MCP008 and '(66 chars)' in i.message for i in rep_long.issues)
+
+    # Explicit known_tools are merged with the manifest rather than replacing it.
+    manifest_file.write_text(json.dumps({'workspace': ['short']}), encoding='utf-8')
+    rep_merged = ValidationReport()
+    validate_mcp_config(tmp_path, rep_merged, known_tools={'workspace': ['x' * 40]})
+    assert sum(i.code == ErrorCode.MCP008 for i in rep_merged.issues) == 1
+
+
+def test_load_tool_manifest_tolerates_missing_or_malformed_files(tmp_path: Path) -> None:
+    """Malformed or absent manifests degrade to an empty inventory instead of crashing validation."""
+    assert load_tool_manifest(tmp_path / 'absent.json') == {}
+    bad = tmp_path / 'bad.json'
+    bad.write_text('{not json', encoding='utf-8')
+    assert load_tool_manifest(bad) == {}
+    bad.write_text('[1, 2]', encoding='utf-8')
+    assert load_tool_manifest(bad) == {}
+    bad.write_text(json.dumps({'srv': ['a'], 'ignored': 'not-a-list'}), encoding='utf-8')
+    assert load_tool_manifest(bad) == {'srv': ['a']}
+
+    assert resolve_plugin_name(tmp_path) is None
+    (tmp_path / 'plugin.json').write_text('{}', encoding='utf-8')
+    assert resolve_plugin_name(tmp_path) == tmp_path.name
+
+
+def test_mcp009_unwraps_sh_c_launchers_for_pinning(tmp_path: Path) -> None:
+    """Regression (#24): `sh -c` credential-injecting wrappers must not bypass digest/version pinning checks."""
+    digest = 'a' * 64
+    preamble = 'GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token --hostname github.com 2>/dev/null)" && [ -n "$GITHUB_PERSONAL_ACCESS_TOKEN" ] || { echo fail >&2; exit 1; }; export GITHUB_PERSONAL_ACCESS_TOKEN; '
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(
+        json.dumps({
+            'mcpServers': {
+                'pinned': {'command': 'sh', 'args': ['-c', f'{preamble}exec docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server:v2.1.0@sha256:{digest}']},
+                'unpinned_docker': {'command': '/bin/sh', 'args': ['-c', f'{preamble}exec docker run -i --rm ghcr.io/github/github-mcp-server:latest']},
+                'unpinned_uvx': {'command': 'bash', 'args': ['-c', 'FOO=1 exec uvx some-mcp-server']},
+                'malformed': {'command': 'sh', 'args': ['-c', 'exec docker run "unterminated']},
+                'not_a_launcher': {'command': 'sh', 'args': ['-c', 'exec ./local-server --stdio']},
+            }
+        }),
+        encoding='utf-8',
+    )
+    report = ValidationReport()
+    validate_mcp_config_file(config_file, report)
+    flagged = {i.message.split("'")[1] for i in report.issues if i.code == ErrorCode.MCP009}
+    assert flagged == {'unpinned_docker', 'unpinned_uvx'}
+
+
+def test_mcp009_validates_native_github_mcp_launcher_sha256_pins(tmp_path: Path) -> None:
+    """MCP009 enforces exact SemVer and 4-platform 64-hex SHA-256 pins on scripts/github_mcp_launcher.py."""
+    digest = 'b' * 64
+    scripts_dir = tmp_path / 'scripts'
+    scripts_dir.mkdir()
+    launcher = scripts_dir / 'github_mcp_launcher.py'
+    launcher.write_text(
+        f"GITHUB_MCP_SERVER_VERSION = '2.1.0'\nPLATFORM_ARCHIVE_SPECS = {{\n    ('Linux', 'x86_64'): ('a.tar.gz', '{digest}'),\n    ('Linux', 'aarch64'): ('b.tar.gz', '{digest}'),\n    ('Darwin', 'arm64'): ('c.tar.gz', '{digest}'),\n    ('Darwin', 'x86_64'): ('d.tar.gz', '{digest}'),\n}}\n",
+        encoding='utf-8',
+    )
+    config_file = tmp_path / 'mcp_config.json'
+    config_file.write_text(
+        json.dumps({
+            'mcpServers': {
+                'github': {
+                    'command': 'uv',
+                    'args': ['run', '--isolated', '--no-project', 'python', '${PLUGIN_ROOT}/scripts/github_mcp_launcher.py', '--cache-dir', '${PLUGIN_DATA}'],
+                },
+            },
+        }),
+        encoding='utf-8',
+    )
+
+    rep_ok = ValidationReport()
+    validate_mcp_config_file(config_file, rep_ok)
+    assert not any(i.code == ErrorCode.MCP009 for i in rep_ok.issues)
+
+    # Drop Darwin/arm64 and SemVer pin -> must emit two MCP009 errors.
+    launcher.write_text(
+        f"GITHUB_MCP_SERVER_VERSION = 'latest'\nPLATFORM_ARCHIVE_SPECS = {{\n    ('Linux', 'x86_64'): ('a.tar.gz', '{digest}'),\n    ('Linux', 'aarch64'): ('b.tar.gz', '{digest}'),\n    ('Darwin', 'x86_64'): ('d.tar.gz', '{digest}'),\n}}\n",
+        encoding='utf-8',
+    )
+    rep_bad = ValidationReport()
+    validate_mcp_config_file(config_file, rep_bad)
+    mcp009_msgs = [i.message for i in rep_bad.issues if i.code == ErrorCode.MCP009]
+    assert len(mcp009_msgs) == 2
+    assert any('SemVer' in msg for msg in mcp009_msgs)
+    assert any('Darwin/arm64' in msg for msg in mcp009_msgs)
+
+    # Missing launcher script must also fail MCP009.
+    launcher.unlink()
+    rep_missing = ValidationReport()
+    validate_mcp_config_file(config_file, rep_missing)
+    assert any(i.code == ErrorCode.MCP009 and 'missing binary launcher' in i.message for i in rep_missing.issues)

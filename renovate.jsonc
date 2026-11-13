@@ -32,6 +32,19 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Track pinned github-mcp-server release version in scripts/github_mcp_launcher.py",
+      "managerFilePatterns": [
+        "/^scripts/github_mcp_launcher\\.py$/"
+      ],
+      "matchStrings": [
+        "GITHUB_MCP_SERVER_VERSION:\\s*Final\\[str\\]\\s*=\\s*'(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)'"
+      ],
+      "depNameTemplate": "github/github-mcp-server",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
       "description": "Track SHA-256 digest-pinned container images in mcp_config.json",
       "managerFilePatterns": [
         "/^mcp_config\\.json$/"

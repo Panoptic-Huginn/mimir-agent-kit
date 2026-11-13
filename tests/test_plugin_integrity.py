@@ -18,6 +18,7 @@ EXPECTED_SKILLS = {
     'cmake-pro',
     'cpp-pro',
     'github-flow-lifecycle',
+    'github-ops',
     'jupyter-pro',
     'marimo-pair',
     'marimo-pro',
@@ -29,15 +30,17 @@ EXPECTED_MCP_SERVERS = {
     'academic-mcp',
     'arxiv',
     'europe-pmc',
-    'github-mcp-server',
-    'google-workspace',
+    'github',
     'jupyter',
     'nasa_ads',
-    'puppeteer',
-    'semantic-scholar',
+    'semscholar',
     'time',
+    'workspace',
     'zotero',
 }
+
+TOOL_MANIFEST_PATH = REPO_ROOT / 'scripts' / 'validation' / 'mcp_tool_manifest.json'
+MAX_NAMESPACED_TOOL_IDENTIFIER = 64
 
 BUILTIN_MCP_PLACEHOLDERS = {'PLUGIN_ROOT', 'PLUGIN_DATA'}
 VAR_PLACEHOLDER_RE = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
@@ -116,13 +119,32 @@ def test_all_custom_skills_valid_and_within_plugin_byte_limit() -> None:
 
 def test_bundled_executable_scripts() -> None:
     """Validate executable permissions on bundled Python scripts."""
-    script_path = REPO_ROOT / 'scripts' / 'academic_mcp_server.py'
-    assert script_path.is_file()
-    assert os.access(script_path, os.X_OK), f'{script_path} must be executable (+x)'
+    for script_path in (
+        REPO_ROOT / 'scripts' / 'academic_mcp_server.py',
+        REPO_ROOT / 'scripts' / 'github_mcp_launcher.py',
+        REPO_ROOT / 'scripts' / 'ci' / 'snapshot_mcp_tools.py',
+    ):
+        assert script_path.is_file()
+        assert os.access(script_path, os.X_OK), f'{script_path} must be executable (+x)'
+
+
+def test_mcp_tool_manifest_covers_servers_and_fits_namespace_budget() -> None:
+    """Every stdio server has a tool snapshot and every `mcp_<plugin>_<server>_<tool>` identifier is <= 64 chars."""
+    plugin_name = json.loads((REPO_ROOT / 'plugin.json').read_text(encoding='utf-8'))['name']
+    servers: dict[str, Any] = json.loads((REPO_ROOT / 'mcp_config.json').read_text(encoding='utf-8'))['mcpServers']
+    manifest: dict[str, list[str]] = json.loads(TOOL_MANIFEST_PATH.read_text(encoding='utf-8'))
+
+    stdio_servers = {name for name, spec in servers.items() if 'command' in spec}
+    assert set(manifest) == stdio_servers, 'Regenerate with scripts/ci/snapshot_mcp_tools.py'
+    for server_name, tools in manifest.items():
+        assert tools, f'Manifest entry for {server_name} is empty'
+        for tool_name in tools:
+            identifier = f'mcp_{plugin_name}_{server_name}_{tool_name}'
+            assert len(identifier) <= MAX_NAMESPACED_TOOL_IDENTIFIER, f'{identifier} is {len(identifier)} chars (> 64); Antigravity will drop it'
 
 
 def test_mcp_config_variables_and_secret_hygiene() -> None:
-    """Ensure all 11 MCP servers declare matching `variables` metadata for every `${VAR}` placeholder."""
+    """Ensure every bundled MCP server declares matching `variables` metadata for every `${VAR}` placeholder."""
     mcp_cfg = json.loads((REPO_ROOT / 'mcp_config.json').read_text(encoding='utf-8'))
     servers: dict[str, Any] = mcp_cfg['mcpServers']
     assert set(servers) == EXPECTED_MCP_SERVERS

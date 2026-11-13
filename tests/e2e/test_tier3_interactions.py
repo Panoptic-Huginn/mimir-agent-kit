@@ -191,8 +191,8 @@ def test_t3_hooks_matcher_aligns_with_mcp_tools() -> None:
     compiled = re.compile(matcher_regex)
     assert compiled.match('run_command')
     assert compiled.match('call_mcp_tool')
-    assert compiled.match('mcp_github-mcp-server_create_pull_request')
-    assert compiled.match('mcp_mimir-agent-kit_github-mcp-server_create_pull_request')
+    assert compiled.match('mcp_github_create_pull_request')
+    assert compiled.match('mcp_mimir-agent-kit_github_create_pull_request')
 
 
 def test_t3_lockfile_sync_and_pyproject_dependencies() -> None:

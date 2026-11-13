@@ -524,9 +524,10 @@ def test_f7_plugin_workspace_discovery_files() -> None:
 
 
 def test_f8_prompt_forbids_autonomous_pr_merge() -> None:
-    """Verify rules/AGENTS.md and skills forbid autonomous PR merge."""
+    """Verify rules/AGENTS.md forbids autonomous PR merge unless explicitly requested by the user."""
     rules_text = (RULES_DIR / 'AGENTS.md').read_text(encoding='utf-8')
-    assert 'NEVER merge a Pull Request' in rules_text or 'forbidden' in rules_text.lower()
+    assert '**NEVER** merge a Pull Request' in rules_text or 'NEVER merge a Pull Request' in rules_text
+    assert 'unless' in rules_text.lower()
     assert 'gh pr merge' in rules_text
 
 
@@ -534,6 +535,7 @@ def test_f8_prompt_tool_boundary_matrix() -> None:
     """Verify rules/AGENTS.md mandates github-mcp-server for remote ops and Git CLI for local ops."""
     rules_text = (RULES_DIR / 'AGENTS.md').read_text(encoding='utf-8')
     assert 'github-mcp-server' in rules_text
+    assert '`mimir-agent-kit_github`' in rules_text
     assert 'local workspace file tools and local `git` CLI' in rules_text or 'local `git` CLI' in rules_text
 
 
@@ -555,7 +557,7 @@ def test_f8_prompt_cross_skill_links_resolve() -> None:
         content = skill_file.read_text(encoding='utf-8')
         for match in skill_ref_pattern.finditer(content):
             ref = match.group(1)
-            if ref in {'github-flow-lifecycle', 'python-pro', 'c-pro', 'cpp-pro', 'ada-spark-pro', 'cmake-pro', 'jupyter-pro', 'rust-pro'}:
+            if ref in {'github-flow-lifecycle', 'github-ops', 'python-pro', 'c-pro', 'cpp-pro', 'ada-spark-pro', 'cmake-pro', 'jupyter-pro', 'rust-pro'}:
                 assert ref in discovered, f"Referenced skill '{ref}' does not exist in skills/"
 
 

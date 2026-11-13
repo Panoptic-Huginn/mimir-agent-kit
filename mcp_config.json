@@ -1,29 +1,22 @@
 {
   "mcpServers": {
-    "github-mcp-server": {
-      "command": "docker",
+    "github": {
+      "command": "uv",
       "args": [
         "run",
-        "-i",
-        "--rm",
-        "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "-e",
-        "GITHUB_TOOLSETS",
-        "ghcr.io/github/github-mcp-server:v2.1.0@sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a"
+        "--isolated",
+        "--no-project",
+        "--python",
+        ">=3.14",
+        "python",
+        "${PLUGIN_ROOT}/scripts/github_mcp_launcher.py",
+        "--cache-dir",
+        "${PLUGIN_DATA}"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}",
-        "GITHUB_TOOLSETS": "all"
-      },
-      "variables": [
-        {
-          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "title": "GitHub Personal Access Token",
-          "description": "GitHub fine-grained or classic PAT with repo, issues, pull_requests, and actions read/write scopes (stored in your OS Keyring).",
-          "link": "https://github.com/settings/tokens"
-        }
-      ]
+        "GITHUB_TOOLSETS": "all",
+        "GITHUB_EXCLUDE_TOOLS": "list_org_repository_security_advisories,manage_repository_notification_subscription"
+      }
     },
     "academic-mcp": {
       "command": "uv",
@@ -61,9 +54,13 @@
         "@cyanheads/pubmed-mcp-server@2.12.0"
       ]
     },
-    "semantic-scholar": {
+    "semscholar": {
       "command": "uvx",
       "args": [
+        "--with",
+        "pydantic-settings==2.16.2",
+        "--with",
+        "mcp[cli]==1.30.0",
         "semantic-scholar-mcp==0.4.0"
       ]
     },
@@ -111,7 +108,7 @@
         }
       ]
     },
-    "google-workspace": {
+    "workspace": {
       "command": "uvx",
       "args": [
         "workspace-mcp==2.3.0",
@@ -148,13 +145,6 @@
         "--with",
         "mcp==1.30.0",
         "mcp-server-jupyter==0.1.9"
-      ]
-    },
-    "puppeteer": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-puppeteer@2025.5.12"
       ]
     },
     "time": {
