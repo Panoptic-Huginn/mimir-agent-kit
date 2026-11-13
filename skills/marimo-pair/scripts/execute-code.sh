@@ -18,6 +18,7 @@ Options:
   --session ID        Target session ID (default: $MARIMO_SESSION_ID or auto-resolved)
   --file PATH         Notebook path used to resolve session ID
   --token TOKEN       Bearer auth token (default: $MARIMO_TOKEN)
+  --token-file FILE   Read bearer auth token from a file (newline-trimmed)
   -c, --code CODE     Inline Python code string to execute
   --code-file FILE    Path to Python file containing code to execute ('-' for stdin)
   -h, --help          Show this help message
@@ -81,6 +82,18 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       TOKEN="$2"
+      shift 2
+      ;;
+    --token-file)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: Option '$1' requires an argument." >&2
+        exit 2
+      fi
+      if [[ ! -f "$2" || ! -r "$2" ]]; then
+        echo "Error: Token file '$2' not found or unreadable." >&2
+        exit 2
+      fi
+      TOKEN="$(tr -d '\r\n' < "$2")"
       shift 2
       ;;
     -c|--code)
@@ -164,12 +177,27 @@ if [[ -z "$SESSION_ID" ]]; then
     exit 1
   fi
 
-  # Normalize session object/array
+  # Normalize session object/array (handles {id: {path, filename}}, {id: "path"}, {sessions: [...]}, or [...])
   normalized_sessions="$(echo "$sessions_raw" | jq -c '
+    def norm_item($sid; $val):
+      if ($val | type) == "object" then
+        {
+          session_id: ($val.session_id // $val.sessionId // $val.id // $sid),
+          path: ($val.path // $val.filename // $val.name // "")
+        }
+      else
+        {session_id: $sid, path: ($val | tostring)}
+      end;
     if type == "object" then
-      to_entries | map({session_id: .key, path: .value})
+      if has("sessions") and (.sessions | type) == "array" then
+        [.sessions[] | norm_item((.session_id // .sessionId // .id // ""); .)]
+      elif has("sessions") and (.sessions | type) == "object" then
+        [.sessions | to_entries[] | norm_item(.key; .value)]
+      else
+        [to_entries[] | norm_item(.key; .value)]
+      end
     elif type == "array" then
-      .
+      [.[] | norm_item((.session_id // .sessionId // .id // ""); .)]
     else
       []
     end

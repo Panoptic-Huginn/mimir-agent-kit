@@ -34,6 +34,7 @@ from tests.e2e.conftest import MAX_FILE_BYTES
 from tests.e2e.conftest import MIN_SKILL_DESCRIPTION_LENGTH
 from tests.e2e.conftest import SKILL_NAME_PATTERN
 from tests.e2e.conftest import SKILLS_DIR
+from tests.e2e.conftest import oracle_validate_mcp_config
 from tests.e2e.conftest import oracle_validate_skill
 from tests.e2e.conftest import split_skill_frontmatter
 from tests.test_plugin_integrity import EXPECTED_SKILLS
@@ -1255,5 +1256,114 @@ def test_t4_subprocess_discover_servers_live_mock_and_stale_cleanup(tmp_path: Pa
         # Confirm stale state file was deleted
         assert not stale_file.exists(), 'Expected stale file to be deleted by --clean-stale'
         assert active_file.exists(), 'Active server file should not be deleted'
+    finally:
+        server.stop()
+
+
+def test_t4_semantics_mcp_json_blocks_pass_oracle_validator() -> None:
+    """Tier 4: Verify all JSON mcpServers configs in mcp_bridge_configuration.md pass oracle validation."""
+    doc_path = REFERENCES_DIR / 'mcp_bridge_configuration.md'
+    content = doc_path.read_text(encoding='utf-8')
+    json_blocks = re.findall(r'```json\n(.*?)```', content, re.DOTALL)
+    assert len(json_blocks) >= 2, f'Expected at least 2 JSON config blocks, found {len(json_blocks)}'
+    for idx, block in enumerate(json_blocks, start=1):
+        cfg = json.loads(block)
+        assert isinstance(cfg, dict) and 'mcpServers' in cfg, f'JSON block {idx} missing mcpServers'
+        marimo_entry = cfg['mcpServers'].get('marimo', {})
+        assert 'transport' not in marimo_entry, f'JSON block {idx} must not contain legacy transport field'
+        issues = oracle_validate_mcp_config(cfg, doc_path)
+        errors = [i for i in issues if i.severity == Severity.ERROR]
+        assert not errors, f'JSON block {idx} failed oracle_validate_mcp_config: {errors}'
+
+
+def test_t4_subprocess_discover_servers_nested_session_object_and_token_file(tmp_path: Path) -> None:
+    """Tier 4 Subprocess: Verify nested object /api/sessions normalization and --token-file authentication."""
+
+    class NestedSessionHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            if self.path == '/health':
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"healthy": true}\n')
+            elif self.path == '/api/sessions':
+                if self.headers.get('Authorization', '') == 'Bearer file_secret_token':
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    payload = {'sess_nested': {'path': '/workspace/nested_nb.py', 'filename': 'nested_nb.py'}}
+                    self.wfile.write(json.dumps(payload).encode())
+                else:
+                    self.send_response(401)
+                    self.end_headers()
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self) -> None:
+            if self.path == '/api/kernel/execute' and self.headers.get('Authorization', '') == 'Bearer file_secret_token':
+                content_length = int(self.headers.get('Content-Length', '0'))
+                _ = self.rfile.read(content_length)
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/event-stream')
+                self.end_headers()
+                self.wfile.write(b'data: {"stdout": "token-file-ok\\n", "status": "idle"}\n\n')
+                self.wfile.flush()
+            else:
+                self.send_response(401)
+                self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    server = _MockMarimoServer(NestedSessionHandler).start()
+    try:
+        state_dir = tmp_path / 'state' / 'marimo' / 'servers'
+        state_dir.mkdir(parents=True)
+        (state_dir / 'server-nested.json').write_text(
+            json.dumps({
+                'pid': os.getpid(),
+                'port': server.port,
+                'host': '127.0.0.1',
+                'token': 'file_secret_token',
+                'version': '0.25.2',
+                'started_at': 1700000000,
+            }),
+            encoding='utf-8',
+        )
+        token_file = tmp_path / 'marimo.token'
+        token_file.write_text('file_secret_token\n', encoding='utf-8')
+        env = {**os.environ, 'XDG_STATE_HOME': str(tmp_path / 'state'), 'HOME': str(tmp_path / 'home')}
+
+        disc = subprocess.run(
+            [BASH_BIN, str(SCRIPTS_DIR / 'discover-servers.sh'), '--json'],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        assert disc.returncode == 0, f'discover-servers.sh failed: {disc.stderr}'
+        discovered = json.loads(disc.stdout)
+        assert len(discovered) == 1
+        assert discovered[0]['sessions'] == [{'session_id': 'sess_nested', 'path': '/workspace/nested_nb.py'}]
+
+        exec_res = subprocess.run(
+            [
+                BASH_BIN,
+                str(SCRIPTS_DIR / 'execute-code.sh'),
+                '--url',
+                server.url,
+                '--token-file',
+                str(token_file),
+                '--file',
+                'nested_nb.py',
+                '-c',
+                'print(1)',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert exec_res.returncode == 0, f'execute-code.sh failed: {exec_res.stderr}'
+        assert 'token-file-ok' in exec_res.stdout
     finally:
         server.stop()

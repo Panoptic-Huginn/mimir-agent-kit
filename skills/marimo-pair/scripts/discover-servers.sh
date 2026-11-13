@@ -141,12 +141,27 @@ for reg_dir in ${REGISTRY_DIRS[@]+"${REGISTRY_DIRS[@]}"}; do
 
     sessions_resp="$(curl -sf --max-time 2 "${AUTH_HEADER[@]+"${AUTH_HEADER[@]}"}" "${base_url}/api/sessions" 2>/dev/null || echo "{}")"
 
-    # Format session list
+    # Format session list (handles {id: {path, filename}}, {id: "path"}, {sessions: [...]}, or [...])
     sessions_json="$(echo "$sessions_resp" | jq -c '
+      def norm_item($sid; $val):
+        if ($val | type) == "object" then
+          {
+            session_id: ($val.session_id // $val.sessionId // $val.id // $sid),
+            path: ($val.path // $val.filename // $val.name // "")
+          }
+        else
+          {session_id: $sid, path: ($val | tostring)}
+        end;
       if type == "object" then
-        to_entries | map({session_id: .key, path: .value})
+        if has("sessions") and (.sessions | type) == "array" then
+          [.sessions[] | norm_item((.session_id // .sessionId // .id // ""); .)]
+        elif has("sessions") and (.sessions | type) == "object" then
+          [.sessions | to_entries[] | norm_item(.key; .value)]
+        else
+          [to_entries[] | norm_item(.key; .value)]
+        end
       elif type == "array" then
-        .
+        [.[] | norm_item((.session_id // .sessionId // .id // ""); .)]
       else
         []
       end

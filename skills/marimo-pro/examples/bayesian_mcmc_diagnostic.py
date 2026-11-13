@@ -45,6 +45,7 @@ def title_and_intro(mo):
         - **Embedded Pytest Discovery**: Test assertions embedded directly within notebook cells for continuous verification.
         """
     )
+    diagnostic_intro_md  # noqa: B018
     return (diagnostic_intro_md,)
 
 
@@ -78,6 +79,7 @@ def diagnostic_ui_controls(mo):
             chain_drift_slider,
         ]
     )
+    diagnostic_controls_panel  # noqa: B018
     return (
         chain_count_slider,
         chain_drift_slider,
@@ -268,7 +270,7 @@ def visualize_diagnostics(
         )
 
         _fig.update_layout(
-            template="plotly_white",
+            template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white",
             height=380,
             margin={"l": 40, "r": 40, "t": 50, "b": 40},
         )
@@ -278,6 +280,8 @@ def visualize_diagnostics(
             f"**Diagnostic Summary**: R-hat = `{gelman_rubin_r_hat:.4f}`, tau = `{integrated_autocorr_time:.2f}`"
         )
 
+    _mcmc_view = mo.vstack([diagnostic_kpi_cards, diagnostic_dashboard_plot])
+    _mcmc_view  # noqa: B018
     return diagnostic_dashboard_plot, diagnostic_kpi_cards
 
 
