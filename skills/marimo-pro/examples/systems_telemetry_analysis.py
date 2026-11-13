@@ -51,6 +51,7 @@ def render_telemetry_header(mo):
           TLB invalidation shootdowns, and microkernel call-stack traces.
         """
     )
+    telemetry_header_card  # noqa: B018
     return (telemetry_header_card,)
 
 
@@ -93,6 +94,7 @@ def build_telemetry_controls(mo):
             mo.hstack([workload_dropdown, tail_percentile_slider], justify="start"),
         ]
     )
+    controls_panel  # noqa: B018
     return (
         controls_panel,
         core_multiselect,
@@ -293,7 +295,7 @@ def analyze_telemetry_stream(
         title=f"High Dynamic Range (HDR) Tail Latency Log-Survival ({metric_dropdown.value})",
         xaxis_title="Recorded Microkernel Latency (µs)",
         yaxis_title="Log-Survival: -log10(1 - Percentile / 100)",
-        template="plotly_dark",
+        template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white",
         height=400,
     )
 
@@ -352,11 +354,11 @@ def analyze_telemetry_stream(
         annotation_position="bottom right",
     )
 
-    ipc_timeline_figure.update_layout(
+    _ = ipc_timeline_figure.update_layout(
         title="IPC Queue Transaction Timeline & Anomaly Detection",
         xaxis_title="Chronological Telemetry Event Sequence Index",
         yaxis_title="Execution Latency (µs)",
-        template="plotly_dark",
+        template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white",
         height=380,
     )
 
@@ -404,19 +406,15 @@ def inspect_outlier_event(mo, outlier_events_table):
 
 @app.cell
 def render_telemetry_dashboard(
-    controls_panel,
     hdr_survival_figure,
     ipc_timeline_figure,
     kpi_stat_cards,
     mo,
     outlier_events_table,
     outlier_inspector_card,
-    telemetry_header_card,
 ):
     telemetry_dashboard_layout = mo.vstack(
         [
-            telemetry_header_card,
-            controls_panel,
             kpi_stat_cards,
             mo.hstack(
                 [
@@ -433,6 +431,7 @@ def render_telemetry_dashboard(
             mo.ui.plotly(ipc_timeline_figure),
         ]
     )
+    telemetry_dashboard_layout  # noqa: B018
     return (telemetry_dashboard_layout,)
 
 

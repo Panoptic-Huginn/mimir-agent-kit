@@ -59,6 +59,7 @@ def render_header(mo):
           $$\pm 3\sigma_i(t) = \pm 3 \sqrt{\mathbf{P}_{ii, k|k}}$$
         """
     )
+    header_content  # noqa: B018
     return (header_content,)
 
 
@@ -104,6 +105,7 @@ def build_ekf_controls(mo):
             outlier_checkbox,
         ]
     )
+    controls_layout  # noqa: B018
     return (
         controls_layout,
         outlier_checkbox,
@@ -388,7 +390,7 @@ def run_ekf_simulation(
     trajectory_figure.update_layout(
         title="6-DoF EKF Trajectory Tracking & Dynamic Error Consistency Diagnostics",
         height=720,
-        template="plotly_dark",
+        template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white",
         legend={
             "orientation": "h",
             "yanchor": "bottom",
@@ -433,20 +435,17 @@ def run_ekf_simulation(
 
 @app.cell
 def render_dashboard_layout(
-    controls_layout,
-    header_content,
     mo,
     simulation_summary,
     trajectory_figure,
 ):
     dashboard_view = mo.vstack(
         [
-            header_content,
-            controls_layout,
             mo.ui.plotly(trajectory_figure),
             simulation_summary,
         ]
     )
+    dashboard_view  # noqa: B018
     return (dashboard_view,)
 
 

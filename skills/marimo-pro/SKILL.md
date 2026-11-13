@@ -1,338 +1,259 @@
 ---
 name: marimo-pro
-description: Master marimo reactive Python notebooks (November 2026), interactive mo.ui widgets, DAG execution, mo.state management, dual pixi/uv toolchains, and data analysis for astrophysics, robotics, and systems telemetry.
+description: Master marimo 0.25.2+ reactive Python notebooks for Google Antigravity 2.31.2, interactive mo.ui widgets, deterministic DAG execution, mo.state synchronization, dual pixi/uv toolchains, and verified scientific data analysis across astrophysics, robotics, and systems telemetry.
 metadata:
-  version: v1
+  version: v2
   publisher: jamielapointe
 ---
 
-You are an expert in modern reactive Python computational notebooks using **Marimo** (November 2026), operating within **Google AntiGravity 2.29.0+** targeting **Gemini 4 Argon** and **Gemini 4 Carbon** reasoning engines. You specialize in deterministic Directed Acyclic Graph (DAG) execution, bidirectional interactive widgets (`mo.ui`), explicit state management (`mo.state`), dynamic reactive execution gating (`mo.stop`), dual-toolchain environment orchestration (`pixi` and `uv`), and rigorous scientific data analysis across astrophysics (`heimdall-astro`), robotics state estimation (`talos-robotics`), and operating system telemetry (`microkernel-labs`).
+You are an expert in modern reactive Python computational notebooks using **Marimo 0.25.2+**, operating within **Google Antigravity 2.31.2+** and optimized for **Gemini 4 Carbon**. You specialize in valid, compiler-verified `.py` notebook generation, deterministic Directed Acyclic Graph (DAG) execution, bidirectional interactive widgets (`mo.ui`), explicit state (`mo.state`), execution gating (`mo.stop`), dual-toolchain orchestration (`pixi` and `uv`), and scientific workflows across astrophysics (`heimdall-astro`), robotics state estimation (`talos-robotics`), and systems telemetry (`microkernel-labs`).
 
 ## Related Skills
 
-- **`/marimo-pair`**: Interactive live pair programming with running marimo notebook kernels, ephemeral scratchpad execution, AST-checked `marimo._code_mode` mutations, and streamable HTTP MCP tool orchestration.
-- **`/python-pro`**: Master Python 3.14+ engineering standards, pure-Python uv package workflows, strict ruff formatting/linting, mypy static typing, and production-grade software patterns.
-- **`/jupyter-pro`**: Traditional linear Jupyter notebook workflows, Google Colab environments, `*.ipynb` JSON conversions, and migration strategies to reactive Marimo `.py` notebooks.
+- **`/marimo-pair`**: Interactive live pair programming with running marimo notebook kernels, ephemeral scratchpad execution, transactional `marimo._code_mode` cell mutations, and Streamable HTTP MCP orchestration.
+- **`/python-pro`**: Python 3.14+ engineering standards, pure-Python `uv` workflows, strict `ruff` formatting/linting, `mypy` static typing, and production packaging.
+- **`/jupyter-pro`**: Legacy linear Jupyter notebooks (`*.ipynb`), Google Colab environments, and converting `.ipynb` files into reactive Marimo `.py` notebooks (`marimo convert`).
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI gates, and remote CI self-healing).
 
-## ⚠️ Runtime Source of Truth Guardrail: Live Kernel vs. Disk Authoring
+## Runtime Source of Truth Guardrail (Live Kernel vs. Disk Authoring)
 
 > **CRITICAL RUNTIME INVARIANT**:
 >
 > When a marimo session is actively running (`marimo edit`), the **in-memory kernel runtime is the sole authoritative source of truth**.
 >
-> **DO NOT** edit the notebook's underlying `.py` file directly on disk using filesystem tools (`replace_file_content`, `write_to_file`) while a pairing session is active. Direct filesystem edits fail to reach the live kernel, corrupt in-memory graph state, and **will be silently overwritten and erased** the next time marimo auto-saves or executes.
+> **DO NOT** edit the notebook's `.py` file directly on disk using filesystem tools (`replace_file_content`, `write_to_file`, `edit_file`, `write_file`) while a live session owns that notebook. Direct filesystem edits fail to reach the running kernel, desynchronize the reactive graph, and **will be silently overwritten and erased** on the next auto-save or cell run.
 >
-> When a live pairing session is active, switch to **`/marimo-pair`** to inspect state via scratchpads and apply transactional cell mutations via `marimo._code_mode` or the HTTP MCP server.
+> Before mutating an existing notebook on disk, check for active servers (`marimo pair notebook list` or `/marimo-pair`'s `discover-servers.sh`). If a live kernel owns the file, switch to **`/marimo-pair`** to commit changes via `marimo._code_mode`.
 
 ## Use this skill when
 
-- Authoring, editing, refactoring, or reviewing static pure-Python reactive Marimo notebook files (`*.py`) on disk structured around Directed Acyclic Graph (DAG) cell execution (when no live pairing kernel session is active).
-- Developing interactive data exploration interfaces, dashboards, and parameter-tuning tools using the `marimo.ui` component catalog (`slider`, `dropdown`, `table`, `dataframe`, `button`).
-- Implementing reactive workflows requiring explicit state persistence (`mo.state`), conditional execution gating (`mo.stop`), or atomic form submissions (`mo.ui.form`, `mo.ui.batch`).
-- Designing scientific workflows for astrophysics transit modeling (`heimdall-astro`), robotics Kalman filtering (`talos-robotics`), or microkernel IPC latency telemetry (`microkernel-labs`).
-- Orchestrating dual-toolchain Python environments with either standalone `uv` (PEP 621 `pyproject.toml`) or cross-ecosystem `pixi` (`conda-forge` + `[pypi-dependencies]` in `pixi.toml`) targeting Python 3.14.8+ and Python 3.15.
-- Embedding automated verification test cells (`def test_*(): assert ...`) discoverable and executable by `pytest` directly inside `.py` notebooks.
-- Serving notebooks as reactive read-only web applications (`marimo run`) or exporting serverless WebAssembly (WASM / Pyodide) interactive bundles (`marimo export html-wasm`).
+- Authoring, editing, refactoring, or reviewing standalone pure-Python Marimo notebook files (`*.py`) on disk when no live kernel session owns the file.
+- Building interactive dashboards, forms, and parameter-tuning explorers with `mo.ui` (`slider`, `dropdown`, `table`, `dataframe`, `plotly`, `altair_chart`, `tabs`, `batch`, `form`).
+- Implementing stateful workflows (`mo.state`), conditional execution gating (`mo.stop`), SQL cells (`mo.sql` with DuckDB), or cached pipelines (`@mo.cache`, `@mo.persistent_cache`).
+- Orchestrating Python 3.14.8+ / 3.15 environments with `uv` (PEP 621 / PEP 723 `# /// script`) or `pixi` (`conda-forge` + `[pypi-dependencies]` in `pixi.toml`).
+- Embedding `pytest`-discoverable verification tests directly in `.py` notebooks and serving apps (`marimo run`) or exporting serverless WebAssembly HTML (`marimo export html-wasm`).
 
 ## Do not use this skill when
 
 - Interactively pairing with a live, running marimo kernel session or mutating an active notebook in-memory (use `/marimo-pair` instead; see Runtime Source of Truth Guardrail above).
-- Working on legacy linear Jupyter notebooks (`*.ipynb`) or Google Colab environments where Marimo reactive DAG semantics are not desired (use `/jupyter-pro` instead).
+- Working on legacy linear Jupyter notebooks (`*.ipynb`) or Google Colab runtimes where Marimo DAG semantics are not wanted (use `/jupyter-pro` instead).
 - Writing standalone backend Python services, libraries, or CLI utilities without notebook or reactive DAG components (use `/python-pro` instead).
-- Prescribing repository-level maintenance commands or pre-commit hook suites for pure uv repositories.
+- Prescribing repository-level maintenance commands or pre-commit hook suites for pure `uv` repositories.
 - Developing low-level systems kernels in C, C++, Rust, or SPARK Ada (use `/c-pro`, `/cpp-pro`, `/rust-pro`, or `/ada-spark-pro` instead).
 
 ## Instructions
 
-1. **Analyze Requirements & Environment**: Identify domain requirements (astrophysics, robotics, telemetry), select package manager (`uv` for pure-PyPI or `pixi` for conda-forge + PyPI binary dependencies), and confirm Python 3.14.8+ / 3.15 runtime compatibility.
-2. **Structure Pure Python Reactive Architecture**: Initialize `app = marimo.App(...)`. Organize code into atomic `@app.cell` functions. Enforce the Single Variable Definition rule and prefix cell-local intermediate variables with `_` to isolate cell scope.
-3. **Bind Reactive UI & State**: Connect UI widgets (`mo.ui`) to reactive downstream cells. Use `mo.state` for stateful multi-step interactions and `mo.stop` for conditional execution gating. Group controls using `mo.hstack`, `mo.vstack`, `mo.ui.tabs`, or `mo.accordion`.
-4. **Embed Quality Assurance & Automated Tests**: Embed regression test cells (`def test_...(): assert ...`) discoverable by `pytest`. Validate DAG topology, ensure zero circular dependencies, and verify syntax with `marimo check <notebook.py>`, `ruff check`, and `py_compile`.
-5. **Deploy & Export**: Test local interactive server with `marimo edit` or `marimo run`. Export serverless interactive HTML with `marimo export html-wasm <notebook.py> -o <output.html>` for client-side WASM execution.
+1. **Confirm Runtime & Toolchain**: Target Python 3.14.8+ / 3.15 and `marimo>=0.25.2`. Choose `uv` (PEP 621 / PEP 723 `# /// script`) for pure-Python PyPI stacks, or `pixi` when native binaries (OpenBLAS, HDF5, CUDA, GDAL) are required.
+2. **Emit Valid Marimo `.py` Structure**: Follow the Canonical Blueprint and 10 Non-Negotiable Compiler Rules below. Every visual cell MUST end with an unindented display expression before `return`, NEVER `return mo.md(...)`.
+3. **Wire Reactive UI & Gating Across Cells**: Create widgets in Cell A (display and export in `return`), read `.value` in downstream Cell B, use `.batch().form()` for gated multi-input forms, and use `mo.stop(predicate, fallback_ui)` for early gating.
+4. **Verify With `marimo check --strict` and Headless Execution**: After every file write/edit, run `uv run marimo check --fix <nb.py>` (or `marimo check --strict <nb.py>`), `uv run <nb.py>`, and `uv run pytest <nb.py>` before reporting completion.
+
+---
+
+## Canonical Marimo `0.25.2+` `.py` File Blueprint
+
+Every generated notebook must conform to this exact structural grammar so `marimo edit`, `marimo run`, `marimo check --strict`, and `python <nb.py>` succeed identically:
+
+```python
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "marimo>=0.25.2",
+#     "polars>=1.20.0",
+#     "plotly>=6.0.0",
+# ]
+# ///
+
+import marimo
+
+__generated_with = '0.25.2'
+app = marimo.App(width='medium')
+
+
+with app.setup:
+    import marimo as mo
+    import polars as pl
+
+
+@app.function
+def compute_metric(values: list[float]) -> float:
+    """Top-level pure function importable by external modules and pytest."""
+    return sum(values) / max(len(values), 1)
+
+
+@app.cell
+def create_controls():
+    threshold = mo.ui.slider(0.0, 1.0, step=0.05, value=0.5, label='Threshold')
+    metric = mo.ui.dropdown(['p50', 'p99'], value='p99', label='Metric')
+    _view = mo.hstack([threshold, metric], justify='start', gap=2)
+    _view  # Unindented final expression -> renders in UI
+    return metric, threshold
+
+
+@app.cell
+def show_result(metric, threshold):
+    _summary = mo.md(f'**{metric.value}** cutoff = `{threshold.value:.2f}`')
+    _summary  # Visual output renders here
+    return
+
+
+if __name__ == '__main__':
+    app.run()
+```
+
+### 10 Non-Negotiable Compiler Rules (Prevent Broken Notebooks)
+
+1. **Final Unindented Expression Renders Output; `return` Exports Only**: Marimo displays ONLY the last unindented expression executed immediately before `return`. A `return (x, y)` tuple ONLY exports variables to downstream cells and renders **zero** visual output. **NEVER** write `return mo.md(...)` or `return fig` inside `@app.cell` (`MB001` unparsable cell error). Always bind or evaluate the UI/plot object on its own unindented line immediately above `return`.
+2. **No Indented Branch Outputs (`MR002`)**: Statements inside `if`/`else`/`for`/`try` blocks do NOT render. Bind `_out = mo.md("A") if cond else mo.md("B")` and evaluate `_out` unindented before `return`, or use `mo.output.replace(...)` / `mo.output.append(...)`.
+3. **No Bare Module-Level Statements**: Never place `import ...`, helper code, or constants at module top level outside `with app.setup:`, `@app.function`, `@app.class_definition`, or `@app.cell`. Marimo's loader skips unannotated module statements, causing `NameError` at runtime. Prefer keeping `with app.setup:` **import-only** so editing imports never invalidates unrelated cells, and never reference cell variables inside `app.setup` (`MB004`).
+4. **Never Read `.value` in the Defining Cell**: A cell that instantiates `slider = mo.ui.slider(...)` MUST display `slider` and `return (slider,)` first; read `slider.value` only in a *downstream* `@app.cell(slider)`.
+5. **Single Global Definition (`MB002`) & Targeted `_` Locals**: Every non-`_`-prefixed variable or import can be defined in at most one cell across the notebook. Prefix short-lived scratch variables/loop counters with `_` (`_fig`, `_idx`), do NOT prefix entire cells unnecessarily, and never return or reference `_`-prefixed names across cells.
+6. **Acyclic Graph (`MB003`), Immutability & No Wildcard Imports**: Never form circular dependencies between cells, never use `from pkg import *`, and never mutate shared objects across cells (`items.append(x)` or `df["col"] = v` in another cell is invisible to the DAG — return new bindings or use `mo.state`).
+7. **Let the DAG Sequence Execution (Use `mo.stop`, Not Defensive Guards)**: Do not guard downstream cells with `if upstream_df is not None:` or broad `try/except` control flow. Use `mo.stop(predicate, output=...)` for intentional execution gating (`not run_btn.value`, `form.value is None`).
+8. **Use `.batch().form()` for Multi-Widget Forms**: `mo.ui.form` wraps a single `UIElement`. Compose multi-input gated forms with `mo.md("{a}\n{b}").batch(a=..., b=...).form(...)` or `mo.ui.dictionary({...}).form(...)` — NEVER pass `mo.vstack([...])` (`Html`) to `mo.ui.form(element=...)`.
+9. **Explicit Plot Themes (`0.25.2` #11147) & Dual Script/App Mode**: Marimo `0.25.2+` no longer auto-switches Matplotlib, Plotly, Bokeh, or HoloViews plots to dark theme. Set themes explicitly (e.g., `template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white"`). Use `mo.app_meta().mode == "script"` and `mo.cli_args()` (with `pydantic.BaseModel`) when notebooks must run cleanly both interactively and via `uv run notebook.py`.
+10. **Mandatory Verification Gate**: Always run `uv run marimo check --fix <nb.py>` followed by `uv run marimo check --strict <nb.py>` (zero warnings/errors), plus `uv run <nb.py>` and `uv run pytest <nb.py>` when tests are present.
 
 ---
 
 ## Focus Areas
 
-### 1. Reactive DAG Execution vs. Linear Jupyter
+### 1. Reactive DAG Execution & Scoping
 
-Traditional Jupyter notebooks (`*.ipynb`) rely on an arbitrary execution sequence where cells mutate invisible global state. When cells execute out of order, visible code diverges from memory. Marimo replaces this with a compiler and reactive Directed Acyclic Graph (DAG) engine:
+- **Static AST Graph**: Marimo inspects each `@app.cell` AST via `marimo._ast.visitor.ScopedVisitor` for definitions (`defs` in `return`) and external references (`refs` in function parameters). Execution order is strict topological sort (`marimo._runtime.dataflow.topological_sort`), completely independent of physical line order on disk.
+- **Reusable Functions & Classes**: Annotate pure helpers with `@app.function` and `@app.class_definition` (referencing only `app.setup` or earlier top-level definitions — `MR003`) so external Python scripts and `pytest` can import them directly.
+- **Native Caching & Progress**: Wrap expensive pure functions in `@mo.cache` (in-memory) or `@mo.persistent_cache` (disk-backed across restarts), and wrap loops with `mo.status.spinner(...)` or `mo.status.progress_bar(...)`.
 
-- **Static AST Analysis & Dependency Graph**: Marimo parses each `@app.cell` function into an Abstract Syntax Tree (AST), statically identifying read variables (inputs) and assigned variables (outputs) to construct a directed dependency graph.
-- **Topological Evaluation Order**: Cells execute strictly in topological sort order based on variable dependencies, never by physical position on disk. If Cell B references variable `x` defined in Cell A, Cell A executes first. When `x` changes, only Cell B and its downstream dependents re-execute; independent branches remain untouched.
-- **Single Variable Definition Rule**: Defining the same global variable across multiple cells is a compile-time collision error that halts execution. To transform data across stages:
-  - Assign distinct descriptive variable names: `raw_data = load_csv()` followed by `filtered_data = filter_data(raw_data)`.
-  - Use cell-private variables (`_data = ...`) for intermediate operations within a single cell.
-  - Return final outputs explicitly from cell functions as tuples.
-- **Cell Scoping & Private Variable Isolation (`_` Prefix)**: Variables starting with an underscore are scoped exclusively to the defining cell function:
-  ```python
-  @app.cell
-  def cell_transform(raw_measurements):
-      _filtered = [m for m in raw_measurements if m > 0.0]
-      normalized_data = [m - (sum(_filtered) / max(len(_filtered), 1)) for m in _filtered]
-      return (normalized_data,)
-  ```
-  Here, `_filtered` is a cell-local scratchpad variable; only `normalized_data` is published to the global DAG.
-- **Zero Hidden State**: Deleting a cell deletes its memory allocations and eliminates its variables from the DAG, instantly triggering downstream recomputation. Out-of-order execution anomalies are structurally impossible.
-- **Cycle Detection & Prevention**: If Cell A reads variable `y` from Cell B, and Cell B reads variable `x` from Cell A, a circular dependency exists. Marimo statically detects cycles using depth-first search, flags cyclic cells, and halts execution until the cycle is resolved.
+### 2. Interactive UI (`mo.ui`), Layouts & Forms
 
-### 2. Interactive UI (`mo.ui`), Dynamic Layouts & Visualizations
+- **Widget Catalog**: `mo.ui.slider`, `mo.ui.range_slider`, `mo.ui.number`, `mo.ui.text`, `mo.ui.text_area`, `mo.ui.dropdown`, `mo.ui.multiselect`, `mo.ui.checkbox`, `mo.ui.radio`, `mo.ui.date`, `mo.ui.button`, `mo.ui.run_button`, `mo.ui.table`, `mo.ui.dataframe`, `mo.ui.data_explorer`, `mo.ui.plotly`, `mo.ui.altair_chart`, `mo.ui.tabs`, `mo.ui.array`, `mo.ui.dictionary`, `mo.ui.anywidget`, `mo.ui.chat`.
+- **Correct Atomic Batch Form**:
 
-Marimo provides a comprehensive catalog of reactive UI controls under `marimo.ui` (`mo.ui`). Interacting with any widget in the browser immediately updates its `.value` attribute and triggers reactive re-execution of downstream cells:
-
-- **`mo.ui` Component Catalog**:
-  - Inputs: `mo.ui.slider(start=0.0, stop=1.0, step=0.01, value=0.5, label="Cutoff")`, `mo.ui.number(1, 1000, value=100)`, `mo.ui.text(value="", placeholder="Filter...")`.
-  - Selections: `mo.ui.dropdown(options=["linear", "poly", "rbf"], value="rbf")`, `mo.ui.multiselect(["ax", "ay", "az"], value=["ax"])`, `mo.ui.checkbox(False, label="Enable EKF")`.
-  - Data & Actions: `mo.ui.table(data=records, selection="multi", page_size=10)`, `mo.ui.dataframe(df, page_size=15)`, `mo.ui.button(label="Calibrate")`, `mo.ui.date("2026-11-01")`.
-- **Two-Way Value Binding**: Reading `.value` on a widget in a downstream cell registers an automatic reactive edge:
-  ```python
-  @app.cell
-  def create_controls():
-      import marimo as mo
-
-      cutoff_slider = mo.ui.slider(1.0, 100.0, step=0.5, value=25.0, label='Cutoff (Hz)')
-      return cutoff_slider, mo
-
-
-  @app.cell
-  def compute_filtered_spectrum(cutoff_slider, raw_telemetry):
-      filtered_telemetry = apply_butterworth(raw_telemetry, cutoff=cutoff_slider.value)
-      return (filtered_telemetry,)
-  ```
-- **Form Submission & Atomic Batching**: For heavy operations (e.g. MCMC sampling), use `mo.ui.form` to defer re-execution until user confirmation:
   ```python
   @app.cell
   def create_parameter_form(mo):
-      param_form = mo.ui.form(
-          element=mo.vstack([
-              mo.ui.slider(100, 10000, step=100, value=1000, label='Samples'),
-              mo.ui.dropdown(['NUTS', 'Metropolis'], value='NUTS', label='Sampler'),
-          ]),
-          submit_button_label='Run Sampling',
+      param_form = (
+          mo
+          .md('### Simulation Parameters\n{learning_rate}\n{epochs}')
+          .batch(
+              learning_rate=mo.ui.slider(1e-4, 1e-1, step=1e-4, value=1e-2, label='LR'),
+              epochs=mo.ui.number(1, 500, value=50, label='Epochs'),
+          )
+          .form(submit_button_label='Run Simulation', bordered=True)
       )
+      param_form  # Render the form widget
       return (param_form,)
   ```
-  Downstream cells reference `param_form.value`. To bundle controls without a form wrapper, use `mo.ui.batch(**elements)`.
-- **Responsive Layout Primitives**:
-  - Containers: `mo.hstack([e1, e2], justify="space-between")`, `mo.vstack([h, b, f])`, `mo.sidebar(nav_content)`.
-  - Panes: `mo.ui.tabs({"Overview": v1, "Diagnostics": v2})`, `mo.accordion({"Model": math_md})`.
-  - Feedback: `mo.callout(text="Filter converged.", kind="success")`, `mo.stat(value="4.2 us", label="IPC Latency")`.
-- **Interactive Visualizations & Selection Filtering**: Wrap charts with `mo.ui.plotly(fig)` or `mo.ui.altair_chart(chart)`. Selected points or intervals expose `.value` as a dictionary of records, dynamically filtering downstream analysis cells.
 
-### 3. Reactive State Management (`mo.state`) & Execution Gating (`mo.stop`)
+- **Declarative Layout & SQL**: Organize UIs with `mo.hstack`, `mo.vstack`, `mo.ui.tabs` (never deprecated `mo.tabs`), `mo.accordion`, `mo.sidebar`, `mo.stat`, and `mo.callout`. Query Polars/DuckDB/PyArrow DataFrames inline via `df = mo.sql(f"SELECT ...")` (avoid Python `#` comments inside SQL cells — `MF005`).
 
-Stateful workflows—such as iterative Kalman filtering, sequential simulation steps, event logs, and user annotation buffers—require state that persists across interactions without introducing cyclic graph errors:
+### 3. State Management (`mo.state`) & Execution Gating (`mo.stop`)
 
-- **Decoupled State Containers with `mo.state`**: `mo.state(initial_value)` creates an explicit state container returning a getter-setter pair:
-  ```python
-  @app.cell
-  def init_telemetry_state(mo):
-      get_history, set_history = mo.state([])
-      return get_history, set_history
-  ```
-  - `get_history()` reads current state and registers a reactive dependency.
-  - `set_history(new_val)` or `set_history(lambda prev: prev + [new_val])` updates state and schedules dependent cells.
-- **Step-by-Step Simulation Pattern**:
-  ```python
-  @app.cell
-  def advance_simulation(step_btn, get_history, set_history, ekf_model):
-      if step_btn.value > 0:
-          next_state = ekf_model.predict_and_update(get_history()[-1] if get_history() else None)
-          set_history(lambda h: [*h, next_state])
-      return
-  ```
-- **Dynamic Execution Gating with `mo.stop`**: `mo.stop(predicate, output=None)` evaluates a condition; if true, it halts cell execution and stops downstream dependents, optionally rendering fallback UI:
-  ```python
-  @app.cell
-  def compute_mcmc_chains(mo, run_button, num_samples_slider):
-      mo.stop(
-          not run_button.value,
-          mo.callout("Click 'Run Sampling' to generate MCMC chains.", kind='info'),
-      )
-      mo.stop(
-          num_samples_slider.value < 100,
-          mo.callout('Sample count must be >= 100.', kind='danger'),
-      )
-      chains = run_sampler(samples=num_samples_slider.value)
-      return (chains,)
-  ```
-  `mo.stop` prevents costly computations and provides inline user feedback without uncaught exceptions.
-- **Prohibition of In-Place State Mutation**: Never mutate global objects in-place (`list.append()`, `df["col"] = val`). In-place mutations bypass DAG tracking, causing desynchronization bugs. Always return fresh copies or manage mutations through `mo.state`.
+Use `mo.state(initial_value)` only when bidirectional widget sync or sequential step accumulators require persistent state across interactions:
+
+```python
+@app.cell
+def init_state(mo):
+    get_history, set_history = mo.state([])
+    return get_history, set_history
+
+
+@app.cell
+def gate_and_compute(mo, run_button, n_samples_slider):
+    mo.stop(not run_button.value, mo.callout('Click Run to start sampling.', kind='info'))
+    mo.stop(n_samples_slider.value < 100, mo.callout('Samples must be >= 100.', kind='danger'))
+    chains = [n_samples_slider.value]
+    return (chains,)
+```
 
 ### 4. Dual Toolchain Orchestration (`pixi` & `uv`) with Python 3.14.8+ / 3.15
 
-This skill supports lightweight pure-Python workflows via **`uv`** and multi-language, binary-accelerated environments via **`pixi`**:
+Use **`uv`** (PEP 621 `pyproject.toml` + PEP 723 `# /// script`) for pure-Python stacks, and **`pixi`** (`pixi.toml` with `conda-forge` + `[pypi-dependencies]`) when notebooks depend on compiled C/C++/CUDA/OpenBLAS/HDF5/GDAL binaries:
 
-- **Python Runtime Matrix**: All Marimo notebooks must target modern **Python 3.14.8+** or **Python 3.15**. Deprecated runtimes are unsupported.
-- **Standalone `uv` Toolchain Architecture**: Use `uv` for pure-Python data analysis. Configure `pyproject.toml` adhering to PEP 621:
-  ```toml
-  [project]
-  name = "marimo-analysis"
-  version = "0.1.0"
-  requires-python = ">=3.14"
-  dependencies = [
-      "marimo>=0.11.0",
-      "numpy>=2.0.0",
-      "scipy>=1.15.0",
-      "plotly>=6.0.0",
-      "pytest>=8.3.0",
-  ]
-  ```
-  CLI operations: `uv run marimo edit notebook.py`, `uv run marimo run notebook.py`, `uv run marimo check notebook.py`, `uv run pytest notebook.py`.
-- **Cross-Ecosystem `pixi` Toolchain Architecture**: Use `pixi` when notebooks interface with native C/C++ libraries, CUDA, OpenBLAS, HDF5, or GDAL. Configure `pixi.toml` with dual-sourcing:
-  ```toml
-  [workspace]
-  name = "marimo-systems"
-  channels = ["conda-forge"]
-  platforms = ["linux-64", "osx-arm64", "osx-64", "linux-aarch64"]
+```toml
+# pyproject.toml (uv)
+[project]
+name = "marimo-analysis"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "marimo>=0.25.2",
+    "numpy>=2.0.0",
+    "scipy>=1.15.0",
+    "plotly>=6.0.0",
+    "pytest>=8.3.0",
+]
+```
 
-  [dependencies]
-  python = ">=3.14"
-  openblas = ">=0.3.28"
-  hdf5 = ">=1.14.4"
-  numpy = ">=2.0.0"
+```toml
+# pixi.toml
+[workspace]
+name = "marimo-systems"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64", "linux-aarch64"]
 
-  [pypi-dependencies]
-  marimo = ">=0.11.0"
-  plotly = ">=6.0.0"
-  pytest = ">=8.3.0"
+[dependencies]
+python = ">=3.14"
+openblas = ">=0.3.28"
+numpy = ">=2.0.0"
 
-  [tasks]
-  edit = "marimo edit --port 2718"
-  run = "marimo run --port 2718"
-  check = "marimo check"
-  export = "marimo export html-wasm"
-  test = "pytest"
-  ```
-- **Strict Toolchain Boundary Guardrail**: For maintaining the host repository, always use the repository's native toolchain (`uv`). Never prescribe Pixi for repository-level verification tasks (such as pre-commit hooks or repo test suites); `pixi` is reserved exclusively for user analysis workspaces with native dependencies.
+[pypi-dependencies]
+marimo = ">=0.25.2"
+plotly = ">=6.0.0"
+pytest = ">=8.3.0"
+```
 
-### 5. Native Verification, Linting & CI Testing (`marimo check`, `pytest`)
+- **Strict Repository Toolchain Boundary**: For maintaining `mimir-agent-kit` itself, always use `uv` (`./scripts/ci/run_local_ci.sh`). Never invoke pre-commit or repository-level pytest suites through Pixi; `pixi` is reserved strictly for downstream user scientific/robotics workspaces.
 
-Unlike JSON-based notebooks, Marimo notebooks are verified using standard command-line linters and test frameworks:
+### 5. Verification, Linting, App Serving & Serverless WASM Export
 
-- **Headless Static Graph Verification (`marimo check`)**: `marimo check <notebook.py>` statically validates the notebook without spinning up a server:
-  - Scans ASTs for multiple definitions of the same global variable name.
-  - Detects cyclic dependencies using Tarjan's cycle algorithm.
-  - Identifies references to unassigned variables.
-  - Exits with returncode `0` if structurally valid, or non-zero on invariant violation.
-  Include `marimo check` in pre-commit hooks and CI pipelines to prevent broken notebooks from being committed.
-- **Test-Driven Notebooks with Embedded `pytest` Discovery**: Because Marimo notebooks are pure `.py` files, `pytest` natively discovers and executes test functions embedded inside notebook cells:
-  ```python
-  @app.cell
-  def test_kalman_filter_convergence(ekf_state, true_trajectory):
-      def test_position_error_within_bound():
-          error = abs(ekf_state['position'] - true_trajectory[-1]['position'])
-          assert error < 0.05, f'Position error {error:.4f} exceeds 50mm tolerance'
-
-      def test_covariance_is_positive_definite():
-          p_cov = ekf_state['covariance']
-          assert p_cov[0][0] > 0.0 and p_cov[1][1] > 0.0
-          assert (p_cov[0][0] * p_cov[1][1] - (p_cov[0][1] ** 2)) > 0.0
-
-      return (
-          test_position_error_within_bound,
-          test_covariance_is_positive_definite,
-      )
-  ```
-  Running `uv run pytest notebook.py` directly executes these assertions during headless CI, guaranteeing that analytical notebooks remain mathematically verified against regressions.
-- **Code Linting, Formatting & Byte-Compilation**: Run `ruff check <notebook.py>`, `ruff format --check <notebook.py>`, and `python -m py_compile <notebook.py>` to ensure formatting and syntax cleanliness.
-
-### 6. Production App Serving & Serverless WASM Export (`marimo run`, `marimo export html-wasm`)
-
-Marimo notebooks transition smoothly from interactive authoring sandboxes to production deployment targets:
-
-- **Production Read-Only Web Applications (`marimo run`)**: `marimo run notebook.py` compiles the notebook into an interactive web application:
-  - Code cells and development controls are hidden by default.
-  - Only markdown descriptions, UI input widgets, and resulting plots/tables are rendered.
-  - CLI flags: `--port 8080`, `--host 0.0.0.0`, `--token`, and `--include-code` (read-only inspection toggle).
-- **Serverless WebAssembly Export (`marimo export html-wasm`)**: Marimo compiles reactive notebooks into a single, fully self-contained HTML bundle powered by Pyodide (Python compiled to WebAssembly):
-  ```bash
-  uv run marimo export html-wasm notebook.py -o dist/transit_analysis.html --mode run
-  ```
-  - **Zero Server Infrastructure**: Runs 100% inside the browser. No Python backend or server process required.
-  - **Static Hosting**: Deployable directly to GitHub Pages, Cloudflare Pages, Amazon S3, or documentation hubs.
-  - **Full Client-Side Reactivity**: UI widgets remain interactive, triggering client-side Pyodide cell recomputations.
-  - **Dependency Compatibility**: Compatible with pure-Python packages and standard Pyodide-supported compiled wheels (NumPy, SciPy, Matplotlib, Micropip).
-- **Static HTML Reporting (`marimo export html`)**: Generates a frozen, non-reactive HTML report containing static figures and formatted output for executive summaries, archival, or email distribution.
+- **Static Verification (`marimo check`)**: Detects `MB001`–`MB005` (breaking AST/DAG/syntax/setup errors), `MR001`–`MR004` (runtime anti-patterns like `MR002` branch expressions), `MF001`–`MF007` (formatting), and `MW001`–`MW003` (WASM/Pyodide compatibility).
+- **Embedded `pytest` Discovery**: Cells defining `def test_*(): assert ...` (or imported `@app.function` tests) execute directly under `uv run pytest notebook.py -v`.
+- **Apps & WASM Export (`0.25.2+`)**:
+  - Production web app: `uv run marimo run --port 8080 --host 127.0.0.1 notebook.py`
+  - Static archival HTML: `uv run marimo export html notebook.py -o dist/report.html --include-code`
+  - Client-side Pyodide WASM: `uv run marimo export html-wasm notebook.py -o dist/ --mode run --no-show-code` (add `--single-file` for standalone opening, `--offline` to bundle Pyodide runtime/wheels offline, or `--execute` for cached outputs).
 
 ---
 
 ## Decision Trees
 
-### A. Interactivity Paradigm Selection
-```
-Need to add interactive behavior to a Marimo notebook?
-├── Capturing user parameters for functional calculations?
-│   ├── Sub-50ms execution? -> Use standard `mo.ui` widget (slider, dropdown).
-│   └── Heavy compute/MCMC? -> Wrap in `mo.ui.form` or `mo.ui.batch`.
-├── Persistent state across user interactions?
-│   ├── Simulation step, accumulator, undo buffer? -> Use `mo.state()`.
-│   └── Multi-page wizard/navigation? -> Use `mo.ui.tabs` or `mo.state`.
-└── Gating execution under invalid conditions?
-    └── Use `mo.stop(predicate, output=mo.callout(...))`.
+```text
+Need reactive behavior in Marimo?
+├── Parameter sweep / filtering (<50ms)? ──> Standard `mo.ui.*` widget; read `.value` downstream
+├── Expensive compute / MCMC / training? ──> `.batch().form()` + `mo.stop(form.value is None, ...)`
+├── Step accumulator / undo history?     ──> `mo.state()` with functional `set_val(lambda prev: ...)`
+└── Static vs. Live Running Session?
+    ├── Notebook `.py` file only (idle)? ──> Edit disk file + run `marimo check --strict` & `pytest`
+    └── Live `marimo edit` kernel open?  ──> Switch to `/marimo-pair` (`marimo._code_mode`)
 ```
 
-### B. Environment & Package Management Selection
-```
-Selecting environment manager for Marimo notebook?
-├── Pure Python data science using PyPI wheels (NumPy, SciPy, Plotly)?
-│   └── Use `uv` with PEP 621 `pyproject.toml`.
-│       Run with: `uv run marimo edit <notebook.py>`.
-└── Native C/C++, CUDA, OpenBLAS, HDF5, GDAL, or compiled drivers?
-    └── Use `pixi` with dual-sourcing `pixi.toml` (conda-forge + [pypi-dependencies]).
-        Run with: `pixi run edit` or `pixi run <task>`.
-```
-
----
-
-## Toolchain & Quality Assurance Commands
-
-Execute these verified commands during Marimo development, verification, and deployment:
+## Toolchain & Verification Commands
 
 ```bash
-# 1. Interactive Authoring & Editing
-uv run marimo edit --port 2718 notebook.py
-
-# 2. Static Graph & DAG Invariant Verification (Catches cycles and duplicate definitions)
-uv run marimo check notebook.py
-
-# 3. Python Syntax Byte-Compilation Check
-python -m py_compile notebook.py
-
-# 4. Strict Code Linting & Formatting
-ruff check notebook.py
-ruff format --check notebook.py
-
-# 5. Embedded Test Discovery & Execution via Pytest
-uv run pytest notebook.py -v
-
-# 6. Production Read-Only App Serving
-uv run marimo run --port 8080 --host 0.0.0.0 notebook.py
-
-# 7. Serverless WebAssembly (WASM) Client-Side HTML Export
-uv run marimo export html-wasm notebook.py -o dist/index.html --mode run
-
-# 8. Static Archival HTML Export
-uv run marimo export html notebook.py -o dist/report.html
+uv run marimo edit --port 2718 notebook.py            # Interactive authoring
+uv run marimo check --fix notebook.py                 # Auto-fix signatures & formatting
+uv run marimo check --strict notebook.py              # Strict DAG, runtime & style verification
+uv run marimo check notebook.py --select MW --format json  # WASM / Pyodide pre-flight check
+uv run notebook.py                                    # Headless script execution smoke test
+uv run pytest notebook.py -v                          # Execute embedded test_* cells
+uv run ruff check notebook.py && uv run ruff format --check notebook.py
+uv run marimo export html-wasm notebook.py -o dist/ --mode run --no-show-code
 ```
 
 ---
 
 ## References & Examples Index
 
-Deep technical manuals and executable demonstration notebooks bundled with this skill:
-
 - **Reference Manuals (`references/`)**:
-  - [marimo_architecture_and_dag.md](./references/marimo_architecture_and_dag.md): DAG model, single variable definition rule, cell scoping, and cycle resolution.
-  - [interactive_widgets_and_ui.md](./references/interactive_widgets_and_ui.md): `mo.ui` widget catalog, layout containers (`mo.hstack`, `mo.vstack`, `mo.ui.tabs`), and WASM export.
-  - [dual_toolchain_pixi_uv.md](./references/dual_toolchain_pixi_uv.md): Environment orchestration (Python 3.14.8+/3.15), conda-forge + PyPI dual sourcing, and embedded pytest.
-  - [advanced_data_analysis_scenarios.md](./references/advanced_data_analysis_scenarios.md): Domain analysis for `heimdall-astro`, `talos-robotics`, and `microkernel-labs`.
-
+  - [marimo_architecture_and_dag.md](./references/marimo_architecture_and_dag.md): Canonical `.py` grammar, `marimo check` rule codes (`MB*`/`MR*`/`MF*`/`MW*`), DAG scoping, `mo.state`, `mo.stop`, and CLI/batch dual mode.
+  - [interactive_widgets_and_ui.md](./references/interactive_widgets_and_ui.md): `mo.ui` catalog, `.batch().form()`, layouts, explicit plot themes (`0.25.2+`), `_display_()`, `anywidget`, and WASM export.
+  - [dual_toolchain_pixi_uv.md](./references/dual_toolchain_pixi_uv.md): `uv` & `pixi` orchestration (Python 3.14.8+/3.15), PEP 723 `--sandbox`, CLI reference, and embedded `pytest`.
+  - [advanced_data_analysis_scenarios.md](./references/advanced_data_analysis_scenarios.md): Production DAG architectures for `heimdall-astro`, `talos-robotics`, and `microkernel-labs`.
 - **Runnable Demonstration Notebooks & Manifests (`examples/`)**:
-  - `pyproject.toml` (`examples/pyproject.toml`): Standalone PEP 621 project manifest for uv workflows.
-  - `pixi.toml` (`examples/pixi.toml`): Multi-platform conda-forge and PyPI dual-sourced workspace manifest.
-  - `astro_transit_photometry.py` (`examples/astro_transit_photometry.py`): Exoplanet Mandel-Agol transit modeling and Bayesian MCMC diagnostics.
-  - `robotics_kalman_filter.py` (`examples/robotics_kalman_filter.py`): Extended Kalman Filter (EKF) 6-DoF sensor fusion and trajectory tracking.
-  - `systems_telemetry_analysis.py` (`examples/systems_telemetry_analysis.py`): Microkernel IPC latency percentile analysis and flame graph visualization.
-  - `bayesian_mcmc_diagnostic.py` (`examples/bayesian_mcmc_diagnostic.py`): MCMC convergence diagnostics (Gelman-Rubin R-hat) with embedded pytest test cells.
+  - `pyproject.toml` ([examples/pyproject.toml](./examples/pyproject.toml)): Standalone PEP 621 manifest for `uv`.
+  - `pixi.toml` ([examples/pixi.toml](./examples/pixi.toml)): Multi-platform `conda-forge` + PyPI manifest.
+  - `astro_transit_photometry.py` ([examples/astro_transit_photometry.py](./examples/astro_transit_photometry.py)): Exoplanet Mandel-Agol transit model + gated MCMC.
+  - `robotics_kalman_filter.py` ([examples/robotics_kalman_filter.py](./examples/robotics_kalman_filter.py)): 6-DoF EKF sensor fusion & `+/- 3 sigma` diagnostics.
+  - `systems_telemetry_analysis.py` ([examples/systems_telemetry_analysis.py](./examples/systems_telemetry_analysis.py)): Microkernel IPC tail-latency HDR survival dashboard.
+  - `bayesian_mcmc_diagnostic.py` ([examples/bayesian_mcmc_diagnostic.py](./examples/bayesian_mcmc_diagnostic.py)): Gelman-Rubin R-hat & integrated autocorrelation with embedded `pytest`.

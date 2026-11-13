@@ -44,6 +44,7 @@ def title_and_intro(mo):
         - **Single Definition Rule & Pure Functions**: Deterministic Marimo DAG execution.
         """
     )
+    transit_intro_md  # noqa: B018
     return (transit_intro_md,)
 
 
@@ -96,6 +97,7 @@ def transit_ui_controls(mo):
             mo.hstack([noise_sigma_slider, run_mcmc_button], justify="start"),
         ]
     )
+    transit_controls_panel  # noqa: B018
     return (
         impact_param_slider,
         limb_u1_slider,
@@ -206,7 +208,7 @@ def synthetic_light_curve_observations(
             title="Photometric Transit Light Curve & Interactive Model",
             xaxis_title="Time from Mid-Transit (days)",
             yaxis_title="Relative Normalized Flux",
-            template="plotly_white",
+            template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white",
             legend={"x": 0.02, "y": 0.08},
             margin={"l": 40, "r": 40, "t": 50, "b": 40},
             height=420,
@@ -219,6 +221,7 @@ def synthetic_light_curve_observations(
             f"**Photometric Light Curve (1000 points)**: Min Flux = `{_min_f:.5f}`, Max Flux = `{_max_f:.5f}`"
         )
 
+    light_curve_plot  # noqa: B018
     return light_curve_plot, observed_err, observed_flux, observed_time
 
 
@@ -357,13 +360,14 @@ def gated_mcmc_sampling(
             title="Marginal Posterior: Radius Ratio k (Rp/R*)",
             xaxis_title="k",
             yaxis_title="Count",
-            template="plotly_white",
+            template="plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white",
             height=320,
         )
         mcmc_posterior_plot = mo.ui.plotly(_fig)
     except ImportError, AttributeError, ValueError, RuntimeError:
         mcmc_posterior_plot = mo.md(f"**Posterior Median k**: `{_k_med:.4f}`")
 
+    mo.vstack([mcmc_summary_table, mcmc_posterior_plot])
     return (
         mcmc_b_samples,
         mcmc_k_samples,

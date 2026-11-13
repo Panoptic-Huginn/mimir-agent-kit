@@ -696,7 +696,10 @@ def test_t2_b24_empty_files_rejected() -> None:
     """Boundary: Verify zero 0-byte stub files exist anywhere in skills/marimo-pro/."""
     if not SKILL_DIR.exists():
         pytest.skip(f"Skill directory not found at '{SKILL_DIR}' (Milestone 1 planned)")
+    transient_dirs = {'.venv', '__pycache__', '.pytest_cache'}
     for file_path in SKILL_DIR.rglob('*'):
+        if any(part in transient_dirs for part in file_path.parts):
+            continue
         if file_path.is_file():
             assert file_path.stat().st_size > 0, f"Empty 0-byte file detected at '{file_path}'"
 
@@ -1266,3 +1269,60 @@ def test_t4_scenario_bayesian_mcmc_embedded_pytest_execution() -> None:
     ]
     r_hat_diverged = gelman_rubin_r_hat(divergent_chains)
     assert r_hat_diverged > 1.10, f'Expected divergent R-hat > 1.10, got {r_hat_diverged:.4f}'
+
+
+def _is_mo_ui_return(stmt: ast.AST) -> bool:
+    """Return True if an AST return statement directly returns mo.md(...) or mo.callout(...)."""
+    if not isinstance(stmt, ast.Return) or not isinstance(stmt.value, ast.Call):
+        return False
+    func = stmt.value.func
+    return isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == 'mo' and func.attr in {'md', 'callout'}
+
+
+def _is_app_cell(node: ast.stmt) -> bool:
+    """Return True if a top-level statement is a function decorated with @app.cell."""
+    if not isinstance(node, ast.FunctionDef):
+        return False
+    for dec in node.decorator_list:
+        if isinstance(dec, ast.Attribute) and isinstance(dec.value, ast.Name) and dec.value.id == 'app' and dec.attr == 'cell':
+            return True
+    return False
+
+
+def test_t4_example_notebooks_emit_visual_cell_expressions() -> None:
+    """Scenario 8: Verify every example notebook evaluates >=3 unindented visual cell expressions before return."""
+    notebooks = sorted(EXAMPLES_DIR.glob('*.py'))
+    assert len(notebooks) == 4, f'Expected 4 example notebooks, found {len(notebooks)}'
+    for nb_path in notebooks:
+        tree = ast.parse(nb_path.read_text(encoding='utf-8'))
+        visual_cells = 0
+        for node in tree.body:
+            if not _is_app_cell(node) or not isinstance(node, ast.FunctionDef):
+                continue
+            for inner in ast.walk(node):
+                assert not _is_mo_ui_return(inner), f'{nb_path.name}:{node.name} must not return mo.md/mo.callout directly'
+            if not node.body:
+                continue
+            candidate = node.body[-2] if isinstance(node.body[-1], ast.Return) and len(node.body) >= 2 else node.body[-1]
+            if isinstance(candidate, ast.Expr):
+                is_update_layout = isinstance(candidate.value, ast.Call) and isinstance(candidate.value.func, ast.Attribute) and candidate.value.func.attr == 'update_layout'
+                if not is_update_layout:
+                    visual_cells += 1
+        assert visual_cells >= 3, f'{nb_path.name} only emits visual expressions in {visual_cells} cells (expected >= 3)'
+
+
+def test_t4_scenarios_reference_strict_ast_invariants() -> None:
+    """Scenario 9: Verify embedded Python recipes in advanced_data_analysis_scenarios.md enforce AST DAG hygiene."""
+    doc = (REFERENCES_DIR / 'advanced_data_analysis_scenarios.md').read_text(encoding='utf-8')
+    blocks = re.findall(r'```python\n(.*?)```', doc, re.DOTALL)
+    assert len(blocks) >= 3, f'Expected at least 3 Python scenario notebooks, found {len(blocks)}'
+    for idx, block in enumerate(blocks, start=1):
+        tree = ast.parse(block)
+        for top_stmt in tree.body:
+            if isinstance(top_stmt, ast.Import):
+                imported = [alias.name for alias in top_stmt.names]
+                assert imported == ['marimo'], f'Scenario {idx} has non-marimo bare module import: {imported}'
+            assert not isinstance(top_stmt, ast.ImportFrom), f'Scenario {idx} must place shared imports inside with app.setup:'
+            if _is_app_cell(top_stmt) and isinstance(top_stmt, ast.FunctionDef):
+                for inner in ast.walk(top_stmt):
+                    assert not _is_mo_ui_return(inner), f'Scenario {idx}:{top_stmt.name} must use mo.stop(...) instead of return mo.md/mo.callout'

@@ -1,246 +1,100 @@
 ---
 name: marimo-pair
-description: "Drive live marimo reactive notebook sessions as an interactive workspace: execute scratchpad Python in running kernels, inspect in-memory variables and DAG states, and commit durable notebook changes via marimo._code_mode."
+description: >-
+  Live interactive pair-programming skill for Google Antigravity 2.31.2+ (Gemini
+  4 Carbon) and running Marimo 0.25.2+ notebooks. Activates when inspecting live
+  kernel state, profiling in-memory globals, or driving surgical reactive cell
+  mutations through an ephemeral scratchpad via marimo._code_mode, the native
+  marimo pair CLI, or Streamable HTTP MCP (--mcp code-mode / --mcp tools).
 metadata:
-  version: v1
-  publisher: jamielapointe
+  version: "2.0.0"
+  publisher: mimir-agent-kit
 ---
 
-You are an expert in live interactive pair programming and copilot orchestration with **Marimo** reactive Python notebooks (v0.21.1+ / v0.25.2+), operating within **Google AntiGravity 2.29.0+** targeting **Gemini 4 Argon** and **Gemini 4 Carbon** reasoning engines. You specialize in attaching to running marimo kernels, interrogating in-memory datasets and model states via ephemeral scratchpad execution, performing atomic cell mutations through the private `marimo._code_mode` API, and integrating with the streamable HTTP Model Context Protocol (MCP) server.
+# Live Interactive Pairing with Marimo 0.25.2+ (`marimo-pair`)
 
----
+Optimized for **Google Antigravity 2.31.2+**, **Gemini 4 Carbon**, and **Marimo 0.25.2+**.
 
-## ⚠️ Operational Cardinal Rule: Active Kernel is the Source of Truth
-
-> **CRITICAL RUNTIME INVARIANT**:
-> When a marimo session is actively running, **the in-memory kernel runtime is the sole authoritative source of truth**.
-> **DO NOT** edit the notebook's underlying `.py` file directly on disk using filesystem tools (`replace_file_content`, `write_to_file`) while a pairing session is active.
-> Direct filesystem edits **fail to reach the live kernel**, do not update the browser UI, and **will be silently overwritten and erased** the next time the notebook auto-saves or the user edits a cell.
-> All live code modifications must be committed transactionally through `marimo._code_mode` or the `/api/kernel/execute` endpoint.
+> [!CRITICAL]
+> **Operational Cardinal Rule: Active Kernel is the Source of Truth**
+>
+> **CRITICAL RUNTIME INVARIANT:** When a `.py` notebook is actively open in a running `marimo edit` server, the live Marimo kernel owns the canonical cell graph and in-memory state. **NEVER** edit the backing `.py` file directly with file-editing tools (`edit_file` / `write_file` / shell `sed`) while a session is active — doing so causes **Disk-Edit Desynchronization**, and any unsynced edits will be **overwritten** by the running server or desync reactive execution! Perform every persistent change through `marimo._code_mode` inside an ephemeral scratchpad, or close the server cleanly before offline refactoring with `/marimo-pro`.
 
 ---
 
-## Related Skills
+## 1. Execution Channels & Script Path Resolution
 
-- **`/marimo-pro`**: Master static marimo notebook file authoring on disk (`*.py`), complex Directed Acyclic Graph (DAG) architecture, `mo.ui` interactive widget catalogs, `mo.state`, embedded `pytest` test discovery, and headless WASM export.
-- **`/python-pro`**: Modern Python 3.14+ engineering, PEP 621 / PEP 723 packaging standards, `uv` workflows, and strict `ruff` and `mypy` configurations.
-- **`/github-flow-lifecycle`**: End-to-end Git feature branching, issue linking, local CI verification gates, and pull request workflows.
+Choose the appropriate pairing channel for your environment:
 
----
-
-## Use this skill when
-
-- Pairing interactively with a live, running marimo notebook server (`marimo edit`).
-- Inspecting dataframes, matrices, tensors, and models residing in kernel RAM without polluting notebook state.
-- Interrogating the runtime Directed Acyclic Graph (DAG) to diagnose cell dependencies, ancestors, descendants, and variable ownership.
-- Programmatically adding, modifying, reordering, deleting, or re-executing notebook cells via `marimo._code_mode`.
-- Interfacing with marimo's streamable HTTP Model Context Protocol (MCP) server on `/mcp/server`.
-- Troubleshooting out-of-sync kernels, `StaleCellError`, circular dependencies, or duplicate variable definition errors during interactive pairing.
-
-## Do not use this skill when
-
-- Authoring brand-new reactive marimo notebooks from scratch on disk without an active kernel session (use `/marimo-pro` instead).
-- Working with legacy linear Jupyter notebooks (`*.ipynb`) or Google Colab environments (use `/jupyter-pro` instead).
-- Writing standalone non-notebook Python applications, microservices, or CLI packages (use `/python-pro` instead).
+1. **Direct CLI (`marimo pair`, Marimo 0.25.2+ built-in):** Native `marimo pair notebook list`, `marimo pair execute --url ... --session ...`, and `marimo pair docs {gotchas|notebook-improvements|rich-representations}`.
+2. **Bundled POSIX Scripts (Cross-platform Linux / macOS / WSL2 / SSH fallback):** Resolve `<SKILL_DIR>` to this skill's directory (the directory containing this `SKILL.md`):
+   - [scripts/discover-servers.sh](scripts/discover-servers.sh) (`<SKILL_DIR>/scripts/discover-servers.sh`) — Probes `~/.local/state/marimo/servers/` (POSIX / WSL2 + Windows host fallback) and active `/api/sessions` endpoints.
+   - [scripts/execute-code.sh](scripts/execute-code.sh) (`<SKILL_DIR>/scripts/execute-code.sh`) — Streams Python scratchpads to `POST /api/kernel/execute` over HTTP/SSE, supporting `--url`, `--session`, `--file`, `--token`, and `--token-file`.
+3. **Antigravity 2.31.2 MCP Bridge:** Launch with `marimo edit notebook.py --headless --no-token --mcp code-mode --port 2718` (or `--mcp tools`) and connect via Streamable HTTP at `http://127.0.0.1:2718/mcp/server`.
 
 ---
 
-## 1. Environment Setup & Starting Pairable Sessions
+## 2. The 5-Step Safe Code-Mode Workflow
 
-The pair-programming engine and `marimo._code_mode` module ship natively within core `marimo>=0.21.1`. No external PyPI packages are needed for pairing.
+1. **Discover Active Server & Stable `session_id`:**
+   Use `marimo pair notebook list` or `<SKILL_DIR>/scripts/discover-servers.sh`:
 
-### Toolchain Installation
-```bash
-# Using uv (recommended)
-uv add "marimo>=0.21.1"
+   ```bash
+   # Native Marimo 0.25.2 CLI
+   uv run marimo pair notebook list
 
-# For native HTTP MCP server support
-uv add "marimo[mcp]>=0.21.1"
-```
+   # Or bundled discovery script (includes WSL2 Windows host fallback)
+   bash <SKILL_DIR>/scripts/discover-servers.sh
+   ```
 
-```toml
-# Using pixi (pixi.toml)
-[dependencies]
-marimo = ">=0.21.1"
+   Always bind to the `session_id` returned by discovery (it persists across browser reloads and file renames). If multiple sessions exist for the same notebook, ask the user before selecting one. If no session appears, remind the user to open the notebook URL in a browser tab so the kernel instantiates.
+2. **Inspect Kernel State (Read-Only Scratchpad):**
+   Query `ctx.cells`, `ctx.graph`, and `ctx.globals` before mutating anything:
 
-[pypi-dependencies]
-mcp = ">=2.0.0,<3"
-```
+   ```bash
+   bash <SKILL_DIR>/scripts/execute-code.sh --url http://127.0.0.1:2718 --session "$SESSION_ID" --code-file - <<'PY'
+   import marimo._code_mode as cm
 
-### Launching the Server
-To enable automated agent discovery and script pairing, start the notebook with `--no-token`:
+   async with cm.get_context() as ctx:
+       for cid, cell in ctx.cells.items():
+           print(cid, cell.name, cell.status, len(cell.errors))
+       print("Globals:", sorted(k for k in ctx.globals.keys() if not k.startswith("_")))
+   PY
+   ```
 
-```bash
-# Standard interactive pairing session
-marimo edit notebook.py --no-token
-
-# With PEP 723 sandboxing (strongly recommended for self-contained notebooks)
-marimo edit notebook.py --no-token --sandbox
-
-# With native HTTP MCP server enabled on /mcp/server
-marimo edit notebook.py --no-token --mcp
-```
-
-> **IMPORTANT**: The marimo server must have an active browser tab open. If started in headless mode without an active browser connection, the session registry will have zero active kernel sessions.
+3. **Plan AST-Safe Cell Topology (Zero Redefinitions, Zero Cycles):**
+   Respect **Single Variable Definition Rule**, **Cycle Prevention**, **No Wildcard Imports**, and reuse existing empty cells with `ctx.edit_cell` before creating new cells.
+4. **Mutate & Explicitly Run Cells (`ctx.run_cell`):**
+   Cells do **not** auto-execute on `create_cell` or `edit_cell`. Enqueue `ctx.run_cell(cid)` inside the same `async with cm.get_context() as ctx:` block so Marimo flushes the mutation and executes its reactive DAG on context exit.
+5. **Verify Execution Status, Errors & Outputs:**
+   Run a follow-up read-only scratchpad inspecting `cell.status`, `cell.errors`, `cell.output`, `cell.console_outputs`, or `await ctx.screenshot(cell_id=cid)` when visually verifying plots and UI widgets.
 
 ---
 
-## 2. Pairing Protocol: Step-by-Step Workflow
+## 3. Non-Negotiable Scratchpad & `marimo._code_mode` Rules
 
-Autonomous pair programming with marimo follows a strict four-step lifecycle:
-
-```
-[ 1. Discovery ]       Find active servers: ./scripts/discover-servers.sh
-       │
-       ▼
-[ 2. Handshake ]       Inspect kernel API: help(cm) via execute-code.sh
-       │
-       ▼
-[ 3. Scratchpad ]      Interrogate live variables & test logic (read-only)
-       │
-       ▼
-[ 4. Code Mode ]       Commit atomic cell changes: async with cm.get_context()
-```
-
-### Step 1: Server and Session Discovery
-Discover active server ports and open notebook sessions using the bundled helper script:
-
-```bash
-./scripts/discover-servers.sh --json
-```
-
-The script inspects `$XDG_STATE_HOME/marimo/servers/*.json` (or `~/.local/state/marimo/servers/`), tests PID liveness and `/health`, and queries `/api/sessions` to return active server URLs and session IDs.
-
-### Step 2: The Mandatory Inspection Handshake
-Before issuing mutations, always run a scratchpad command to inspect the live kernel's `_code_mode` API:
-
-```bash
-./scripts/execute-code.sh -c "import marimo._code_mode as cm; help(cm)"
-```
-
-This guarantees the agent verifies the exact method signatures and parameters supported by the running marimo version.
-
-### Step 3: Ephemeral Scratchpad Interrogation
-When exploring data, testing hypotheses, or validating calculations, execute arbitrary Python code directly in the scratchpad:
-
-```bash
-./scripts/execute-code.sh -c "print(df.shape); print(df.columns); print(df.describe())"
-```
-
-- **Ephemeral Execution**: The code executes in a shallow copy of the active kernel namespace.
-- **Zero Pollution**: Scratchpad assignments (e.g. `tmp = ...`) are wiped after execution and never appear in the notebook canvas or `.py` file.
-- **Streaming Output**: Stdout and stderr stream directly back to the agent via Server-Sent Events (SSE).
-
-### Step 4: Durable Mutations via `marimo._code_mode` (`cm`)
-When code is verified and ready to be added to the notebook, wrap changes inside `async with cm.get_context() as ctx:`:
-
-```bash
-./scripts/execute-code.sh - <<'PY'
-import marimo._code_mode as cm
-
-async with cm.get_context() as ctx:
-    # 1. Inspect existing cells
-    print("Existing cell IDs:", list(ctx.cells.keys()))
-
-    # 2. Queue cell creation
-    cid = ctx.create_cell(
-        code="import polars as pl\nfiltered_df = df.filter(pl.col('val') > 0)",
-        name="filter_positive_values",
-        hide_code=False,
-    )
-
-    # 3. Queue execution of the new cell
-    ctx.run_cell(cid)
-PY
-```
+1. **Scratchpad-Only Import Rule:** `import marimo._code_mode as cm` runs **exclusively** inside ephemeral scratchpads sent via `execute-code.sh` or `marimo pair execute`. **NEVER** place `import marimo._code_mode` inside a persistent cell created with `ctx.create_cell` or `ctx.edit_cell`.
+2. **Use `async with cm.get_context() as ctx:` — NEVER `asyncio.run(...)`:** The scratchpad runner already executes inside a live async event loop. Always enter `async with cm.get_context() as ctx:`.
+3. **Do NOT `await` Queued `ctx` Mutation Methods:** `ctx.create_cell`, `ctx.edit_cell`, `ctx.delete_cell`, `ctx.move_cell`, `ctx.run_cell`, `ctx.packages.add`, and `ctx.set_ui_value` are **synchronous** methods that enqueue operations onto the context transaction and commit atomically on `__aexit__`. Only `await cm.get_context()`, `await ctx.screenshot(...)`, and `await ctx.close_screenshot_session()` are async coroutines.
+4. **Raw Cell Body Rule:** Pass **only raw, unindented Python statements** inside the code string to `ctx.create_cell(code)` and `ctx.edit_cell(cid, code)`. Do **NOT** wrap cell strings in `@app.cell`, `def _(...):`, `return (...)`, or indentation.
+5. **Visual Display Output Rule:** In persistent cells whose purpose is visual display (charts, tables, widgets, Markdown), end the raw cell code with a **bare, unindented final expression** (e.g., `mo.vstack([chart, summary])`), never a silent assignment alone and never `return mo.md(...)`.
+6. **`setup` Cell Imports Rule:** When an import should be shared across cells, use **`with app.setup:`** (or a single dedicated setup/import cell) — never place module-level imports outside `@app.cell` / `app.setup` via disk hacks. Do **not** overwrite existing `setup` definitions implicitly; inspect `ctx.cells["setup"]` first if modifying imports.
+7. **Visible Code by Default When Authoring (`hide_code=False`):** In Marimo 0.25.2+, `ctx.create_cell(code)` defaults to `hide_code=True`! Pass `hide_code=False` when creating analysis cells the user expects to read and edit in the notebook UI.
+8. **Confirm Destructive / Env Changes:** Ask before calling `ctx.delete_cell` (drops downstream variables) or `ctx.packages.add` (modifies project environment; prefer `ctx.packages.add` over shell `uv add` / `pip`).
 
 ---
 
-## 3. Core `marimo._code_mode` Rules & Operations
+## 4. Deep Reference Modules
 
-### The Scratchpad-Only Import Rule
-> **MANDATORY**: `import marimo._code_mode as cm` must **ONLY** be called within scratchpad execution blocks.
-> **NEVER** insert `import marimo._code_mode` into permanent notebook cell code. Doing so creates invalid self-modifying cells that break the reactive DAG compiler.
+Load only the specific reference needed for your current pairing step:
 
-### Operations Reference
-All mutations are staged in-memory on the context object (`ctx`):
-
-1. **`ctx.create_cell(code, name=None, hide_code=True, before=None, after=None)`**:
-   Stages creation of a new cell and returns its unique cell ID. Creation is structural only; call `ctx.run_cell(cid)` to execute.
-2. **`ctx.edit_cell(target, code=None, name=None, hide_code=None)`**:
-   Stages source code edits for an existing cell identified by ID or name. Call `ctx.run_cell(target)` to trigger reactive re-execution.
-3. **`ctx.delete_cell(target)`**:
-   Stages deletion of a cell. When committed, all variables defined by that cell are scrubbed from kernel RAM, and downstream dependents are re-computed.
-4. **`ctx.move_cell(target, before=None, after=None)`**:
-   Reorders cell display position in the document without affecting topological execution order.
-5. **`ctx.run_cell(target)`**:
-   Schedules execution for a created or modified cell.
-6. **`ctx.packages.add(pkg)` / `ctx.packages.remove(pkg)`**:
-   Installs or removes dependencies, updating PEP 723 inline script metadata when running with `--sandbox`.
-7. **`ctx.set_ui_value(element, val)`**:
-   Updates `mo.ui` widget state, firing reactive propagation downstream.
-
-### Concurrency & `StaleCellError` Handling
-If a cell was modified in the browser UI between the time the agent read it and attempted to edit it, marimo raises `StaleCellError` to prevent silent overwrites:
-
-- Always read `ctx.cells[cid].code` immediately before editing.
-- Catch `cm.StaleCellError`, reconcile conflicts against the latest cell source, and re-attempt.
-- Use `cm.get_context(skip_staleness_check=True)` only when forced overwrite is explicitly required.
-
-### AST Compilation Safety Gate
-When `async with cm.get_context() as ctx:` exits, marimo compiles ASTs and validates:
-- **Single Definition Rule**: A public variable name cannot be defined in multiple cells.
-- **No Cycles**: No circular dependency chains allowed in the DAG.
-- **No Wildcard Imports**: `from module import *` is strictly forbidden.
-- **The Delete-and-Create Trap**: Avoid deleting cell `A` (defining `x`) and creating cell `B` (defining `x`) in the same block. Use `ctx.edit_cell()` instead, or pass `skip_validation=True`.
+- **[Code-Mode Context API & Safe AST Mutations](references/code_mode_api.md)** — Full Marimo 0.25.2+ `AsyncCodeModeContext` reference (`ctx.cells.find`/`grep`, `ctx.globals`, `ctx.graph`, `ctx.packages`, `ctx.find_cell_defining_object`, `StaleCellError`, `Delete-and-Create` refactoring, rich representations, and screenshots).
+- **[Antigravity 2.31.2 MCP Bridge Configuration](references/mcp_bridge_configuration.md)** — Streamable HTTP `mcp_config.json` setup on port `2718` (`/mcp/server`), `--mcp code-mode` vs `--mcp tools`, `--mcp-allow-remote`, all 10 built-in MCP inspection tools (`GetMarimoRules`, `LintNotebook`, etc.), and `marimo pair docs`.
+- **[Session Discovery, Auth & Troubleshooting](references/session_targeting_troubleshooting.md)** — Token authentication (`--token-file`), WSL2 / SSH remote tunneling, `StaleCellError` recovery, `molab` / multi-session ambiguity, and fixing Disk-Edit Desynchronization.
 
 ---
 
-## 4. HTTP Streamable MCP Server Integration
+## 5. Related Skills & Operational Boundaries
 
-When launched with `--mcp`, marimo exposes a streamable HTTP Model Context Protocol (MCP) server at:
-```
-http://localhost:2718/mcp/server
-```
-
-### Registered Tools (10 Tools)
-1. **`GetMarimoRules`**: Retrieves core reactive graph rules and principles.
-2. **`GetActiveNotebooks`**: Lists all running notebooks and session IDs.
-3. **`GetLightweightCellMap`**: Returns compact mapping of cell IDs, names, and states.
-4. **`GetCellRuntimeData`**: Retrieves code, execution status, and defined variables for cells.
-5. **`GetCellOutputs`**: Retrieves rendered HTML, charts, tables, and console streams.
-6. **`GetCellDependencyGraph`**: Maps DAG ancestors, descendants, variable ownership, and cycles.
-7. **`GetTablesAndVariables`**: Inspects runtime dataframes, column schemas, types, and summary statistics.
-8. **`GetDatabaseTables`**: Inspects attached DuckDB, SQLite, or SQL database tables.
-9. **`GetNotebookErrors`**: Aggregates all compile-time, cycle, and runtime exceptions.
-10. **`LintNotebook`**: Runs marimo's reactive static analysis and linter on all cells.
-
-### Registered Prompts (2 Prompts)
-- **`ActiveNotebooks`**: System prompt summarizing open notebooks and active states.
-- **`ErrorsSummary`**: Focused diagnostic prompt analyzing all notebook errors.
-
----
-
-## 5. Bundled Portability Scripts
-
-The skill provides two standalone executable bash scripts in `scripts/`:
-
-- **`scripts/discover-servers.sh`**: Scans `$XDG_STATE_HOME/marimo/servers/` (`~/.local/state/marimo/servers/`), verifies process liveness and `/health`, and outputs structured JSON of active servers and sessions.
-  ```bash
-  ./scripts/discover-servers.sh [--json | --text | --clean-stale]
-  ```
-
-- **`scripts/execute-code.sh`**: Connects to the marimo SSE endpoint (`POST /api/kernel/execute`) to stream scratchpad commands or code-mode transactions directly to the live kernel.
-  ```bash
-  ./scripts/execute-code.sh [--url URL] [--file PATH | --session ID] [-c "code" | --code-file FILE | -]
-  ```
-
----
-
-## 6. Detailed Reference Manuals
-
-For in-depth operational procedures, consult the modular reference guides in `references/`:
-
-- [Code Mode API Specification](references/code_mode_api.md): In-depth guide to `marimo._code_mode`, AST safety checks, context manager options, UI state injection, and `StaleCellError` prevention.
-- [MCP Bridge Configuration](references/mcp_bridge_configuration.md): Complete setup for `marimo edit --mcp`, AntiGravity `mcp_config.json`, and all 10 MCP tool schemas.
-- [Session Targeting & Troubleshooting](references/session_targeting_troubleshooting.md): Multi-session targeting, PEP 723 `--sandbox` isolation, recovery from desynchronized kernels, and common gotchas.
+- **Do not use this skill when** scaffolding or writing new Marimo `.py` notebooks **from scratch** offline — use `/marimo-pro` instead, then transition to `/marimo-pair` once the live kernel session is running.
+- Pair `/marimo-pair` with **`/python-pro`** for type-safe Python 3.14+ refactoring, and commit/open PRs strictly via **`/github-flow-lifecycle`** after closing any live server session cleanly.
