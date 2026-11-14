@@ -1,0 +1,80 @@
+name: Python CI (3.14 & 3.15 Hardened Pipeline)
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-test:
+    name: Validate & Test (${{ matrix.os }} / Py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-latest
+        python-version:
+          - "3.14"
+          - "3.15"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Verify lockfile freshness and sync environment
+        run: |
+          uv lock --check
+          uv sync --locked --python ${{ matrix.python-version }} --all-extras --dev
+
+      - name: Cache prek hook environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            prek-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Run prek hooks across repository
+        env:
+          SKIP: no-commit-to-branch
+        run: uv run prek run --all-files --show-diff-on-failure
+
+      - name: Run Ruff, Basedpyright, ty, deptry, and pip-audit
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run basedpyright
+          uv run ty check
+          uv run deptry .
+          uv run pip-audit
+
+      - name: Verify Marimo notebooks and package build
+        run: |
+          if [ -d notebooks ]; then uv run marimo check notebooks/; fi
+          if [ -d src ]; then uv build --no-sources; fi
+
+      - name: Run pytest suite
+        run: uv run pytest -v

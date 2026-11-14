@@ -1,7 +1,5 @@
 """Central validation engine executing all AntiGravity 2.29.0 validators."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from scripts.validation.hooks_validator import validate_hooks

@@ -1,155 +1,191 @@
+# Turnkey Modern Python Project Configuration (November 2026)
+# Defaults to Python 3.15; lower to ">=3.14" / "py314" / "3.14" ONLY when required
+# runtime dependencies lack Python 3.15 wheels.
+# Style Authority: Tier 1 repo overrides (88 chars, double quotes, grouped symbol
+# imports, PEP 649 native annotations banning __future__.annotations via TID251)
+# -> Tier 2 Google Python Style Guide -> Tier 3 PEP 8 & 23-family Ruff rules.
+
 [project]
 name = "my-python-project"
 version = "0.1.0"
-description = "A modern Python 3.14.7 project template."
+description = "Modern Python 3.15 (3.14 floor) project template following Google Style overrides and November 2026 tooling."
 readme = "README.md"
-requires-python = ">=3.14.7"
+# Greenfield default is ">=3.15"; use ">=3.14" only when blocked by third-party 3.15 wheels.
+requires-python = ">=3.15"
 dependencies = [
-    "arviz>=1.3.0",
-    "astropy>=8.0.1",
-    "greenlet>=3.5.6",
-    "ipywidgets>=8.1.9",
-    "jupyter>=1.1.1",
-    "matplotlib>=3.11.1",
-    "nbformat>=5.11.1",
-    "numba>=0.60.0",
-    "numpy>=2.5.3",
-    "plotly>=7.0.0",
-    "pydantic>=2.10.0",
-    "pymc>=6.3.1",
-    "pyyaml>=6.0.3",
-    "ruamel-yaml>=0.18.0",
-    "scipy>=1.15.0",
-    "structlog>=24.0.0",
-    "tomli-w>=1.2.0",
-    "xarray>=2026.7.0",
-    "zarr==3.3.0",
+    "pydantic>=2.14.3",
+    "structlog>=26.1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/example-org/my-python-project"
+Repository = "https://github.com/example-org/my-python-project"
+Issues = "https://github.com/example-org/my-python-project/issues"
+Changelog = "https://github.com/example-org/my-python-project/blob/main/CHANGELOG.md"
+
 [dependency-groups]
+# PEP 735 dev/quality groups — never place non-published tooling in [project.optional-dependencies].
+lint = [
+    "ruff>=0.17.5",
+    "rumdl>=0.3.4",
+    # Add "marimo>=0.25.2" when authoring reactive notebooks under notebooks/.
+]
+typecheck = [
+    "basedpyright>=1.40.2",
+    "ty>=0.0.104",
+]
+test = [
+    "hypothesis>=6.170.15",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "pytest-randomly>=5.1.0",
+]
+security = [
+    "actionlint-py>=1.7.12.25",
+    "deptry>=0.25.1",
+    "pip-audit>=2.10.1",
+    "zizmor>=1.32.0",
+]
 dev = [
-    "google-adk>=2.10.0",
-    "google-antigravity>=0.1.19",
-    "google-genai>=2.24.0",
-    "mcp>=2.2.0",
-    "mypy>=2.3.1",
-    "pre-commit>=4.6.2",
-    "pytest-cov>=6.0.0",
-    "pytest-mock>=3.15.1",
-    "pytest-timeout>=2.3.0",
-    "pytest-xdist>=3.6.0",
-    "pytest-benchmark>=4.0.0",
-    "pytest>=8.3.0",
-    "ruff>=0.16.9",
-    "rumdl>=0.2.77",
-    "tomli-w>=1.2.0",
-    "types-pyyaml>=6.0.12.20260815",
+    { include-group = "lint" },
+    { include-group = "typecheck" },
+    { include-group = "test" },
+    { include-group = "security" },
+    "prek>=0.5.10",
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
 
 [tool.ruff]
-exclude = [".agents"]
-line-length = 9999
+exclude = [".agents", ".git", ".venv", "build", "dist"]
+line-length = 88
 preview = true
-target-version = "py314"
+# Match requires-python lower bound ("py314" if supporting 3.14).
+target-version = "py315"
 
 [tool.ruff.format]
+docstring-code-format = true
 indent-style = "space"
-quote-style = "single"
+quote-style = "double"
 skip-magic-trailing-comma = false
 
 [tool.ruff.lint]
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "RUF", "UP", "W"]
-select = ["ANN", "ARG", "B", "D", "DOC", "E", "F", "I", "N", "NPY", "PD", "PERF", "PYI", "RUF", "S", "T20", "TC", "UP", "W"]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "N",
+    "D",
+    "DOC",
+    "UP",
+    "B",
+    "SIM",
+    "C4",
+    "DTZ",
+    "PT",
+    "RUF",
+    "PERF",
+    "FURB",
+    "S",
+    "ANN",
+    "ASYNC",
+    "PTH",
+    "TID",
+    "TC",
+    "PL",
+]
+# Ruff RUF201: use full rule names in ignore lists rather than raw codes.
+ignore = [
+    "line-too-long",
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "Python 3.14+ natively defers annotations via PEP 649/749 (annotationlib); remove 'from __future__ import annotations'."
 
 [tool.ruff.lint.isort]
-force-single-line = true
 lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
-"**/*.ipynb" = ["module-import-not-at-top-of-file", "print"]
-"benchmarks/*" = ["print"]
 "scripts/*" = ["print"]
-"tests/**" = ["assert"]
-"tools/*" = ["print"]
-
-[tool.ruff.lint.pycodestyle]
-max-line-length = 9999
+"tests/**" = ["assert", "no-self-use", "magic-value-comparison"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.mypy]
-check_untyped_defs = true
-disallow_any_generics = true
-disallow_incomplete_defs = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-enable_error_code = ["ignore-without-code"]
-explicit_package_bases = true
-files = ["scripts", "src", "tests"]
-follow_imports = "normal"
-ignore_missing_imports = false
-mypy_path = "src"
-no_implicit_optional = true
-plugins = ["pydantic.mypy"]
-pretty = true
-python_version = "3.14"
-show_error_codes = true
-strict = true
-warn_redundant_casts = true
-warn_return_any = true
-warn_unreachable = true
-warn_unused_ignores = true
+[tool.basedpyright]
+# Keep include strictly to existing directories; missing paths trigger exit code 3.
+include = ["src", "tests"]
+pythonVersion = "3.15"
+typeCheckingMode = "strict"
+reportImplicitOverride = true
+reportMissingTypeStubs = "warning"
+reportUnusedCallResult = false
 
-[[tool.mypy.overrides]]
-check_untyped_defs = true
-module = ["tests.*"]
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["src"]
+reportPrivateUsage = false
 
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = [
-    "IPython.*",
-    "astropy.*",
-    "ipywidgets.*",
-    "numba.*",
-    "plotly.*",
-    "pymc",
-    "scipy.*",
-]
+[tool.ty.environment]
+python-version = "3.15"
 
-[tool.pytest.ini_options]
-addopts = "-ra --strict-markers --strict-config"
-filterwarnings = ["error"]
-markers = [
-    "benchmark: performance and execution speed benchmarks",
-    "integration: integration tests",
-    "regression: benchmark regression tests",
-    "slow: marks tests as slow",
-]
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.pytest]
+minversion = "9.0"
 testpaths = ["tests"]
-
-[tool.coverage.report]
-exclude_lines = [
-    "def __repr__",
-    "if TYPE_CHECKING:",
-    "if __name__ == .__main__.:",
-    "pragma: no cover",
-    "raise NotImplementedError",
+strict = true
+filterwarnings = ["error"]
+addopts = ["-ra", "--doctest-modules", "--cov=src", "--cov-branch"]
+markers = [
+    "unit: fast isolated tests with no external I/O or network access",
+    "integration: cross-module and subsystem integration tests",
+    "regression: tests guarding against fixed defects",
+    "e2e: full workflow and CLI verification tests",
 ]
-show_missing = true
 
 [tool.coverage.run]
 branch = true
-omit = ["*/scripts/*", "*/tests/*"]
 source = ["src"]
 
-[tool.rumdl]
-exclude = [".git", ".github", ".venv", "build", "dist", "node_modules"]
-flavor = "gfm"
-line-length = 9999
-respect-gitignore = true
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.deptry]
+exclude = ["tests", "scripts", ".venv"]
+extend_exclude = ["examples"]
+
+# ------------------------------------------------------------------------------
+# Optional Python-first Pixi integration ([tool.pixi.*]) — use ONLY when replacing uv.lock with pixi.lock
+# (For polyglot C23/C++23/Rust/SPARK Ada workspaces, use standalone pixi.toml instead.)
+#
+# [tool.pixi.workspace]
+# channels = ["conda-forge"]
+# platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+# requires-pixi = ">=0.84.2"
+#
+# [tool.pixi.pypi-dependencies]
+# my-python-project = { path = ".", editable = true }
+#
+# [tool.pixi.dependencies]
+# python = ">=3.15,<3.16"
+#
+# [tool.pixi.environments]
+# default = { solve-group = "default" }
+# dev = { features = ["dev"], solve-group = "default" }
+#
+# [tool.pixi.tasks]
+# lint = "ruff check . && ruff format --check ."
+# typecheck = "basedpyright && ty check"
+# audit = "deptry . && pip-audit"
+# test = "pytest -v"
+# check = { depends-on = ["lint", "typecheck", "audit", "test"] }
+# ------------------------------------------------------------------------------

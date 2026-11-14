@@ -11,7 +11,7 @@ metadata:
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`, LLVM Clang 23.1+ & Apple Clang 21.0+) systems programming, zero-copy C23 ABI boundary headers (`Interfaces.C`), DMA/MMIO drivers, and CERT C / MISRA C compliance.
 - **`/cpp-pro`**: Modern C++23 (`extern "C"` ABI boundaries, Holoscan operators, high-performance compute, Google Test, and Google Benchmark host harnesses linking against formally verified SPARK static libraries).
 - **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, hybrid CMake + Alire/GPRbuild static library integration, cross-compilation toolchains, and `gersemi`).
-- **`/python-pro`**: Python 3.14.7 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and WCET/telemetry analysis.
+- **`/python-pro`**: Python 3.15 / 3.14 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and WCET/telemetry analysis.
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI proof/build gates, and remote CI self-healing).
 
 ## Use this skill when

@@ -39,7 +39,7 @@
         "/^scripts/github_mcp_launcher\\.py$/"
       ],
       "matchStrings": [
-        "GITHUB_MCP_SERVER_VERSION:\\s*Final\\[str\\]\\s*=\\s*'(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)'"
+        "GITHUB_MCP_SERVER_VERSION:\\s*Final\\[str\\]\\s*=\\s*['\"](?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)['\"]"
       ],
       "depNameTemplate": "github/github-mcp-server",
       "datasourceTemplate": "github-releases",
@@ -81,7 +81,7 @@
   ],
   "packageRules": [
     {
-      "description": "Pin Python to 3.14.x (< 3.15) until ecosystem wheels fully support Python 3.15",
+      "description": "Allow Python 3.14.x and 3.15.x (< 3.16) across supported minor floor and default runtime",
       "matchManagers": [
         "github-actions",
         "pep621"
@@ -90,7 +90,7 @@
         "actions/python-versions",
         "python"
       ],
-      "allowedVersions": ">=3.14 <3.15"
+      "allowedVersions": ">=3.14 <3.16"
     },
     {
       "description": "Pin GitHub Actions Ubuntu runner to <= 24.04 until actionlint and repository ruleset 26711811 adopt ubuntu-26.04",

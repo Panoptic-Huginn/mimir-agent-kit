@@ -13,49 +13,49 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_PLUGIN_SKILL_BODY_BYTES = 24_000
 
 EXPECTED_SKILLS = {
-    'ada-spark-pro',
-    'c-pro',
-    'cmake-pro',
-    'cpp-pro',
-    'github-flow-lifecycle',
-    'github-ops',
-    'jupyter-pro',
-    'marimo-pair',
-    'marimo-pro',
-    'python-pro',
-    'rust-pro',
+    "ada-spark-pro",
+    "c-pro",
+    "cmake-pro",
+    "cpp-pro",
+    "github-flow-lifecycle",
+    "github-ops",
+    "jupyter-pro",
+    "marimo-pair",
+    "marimo-pro",
+    "python-pro",
+    "rust-pro",
 }
 
 EXPECTED_MCP_SERVERS = {
-    'academic-mcp',
-    'arxiv',
-    'europe-pmc',
-    'github',
-    'jupyter',
-    'nasa_ads',
-    'semscholar',
-    'time',
-    'workspace',
-    'zotero',
+    "academic-mcp",
+    "arxiv",
+    "europe-pmc",
+    "github",
+    "jupyter",
+    "nasa_ads",
+    "semscholar",
+    "time",
+    "workspace",
+    "zotero",
 }
 
-TOOL_MANIFEST_PATH = REPO_ROOT / 'scripts' / 'validation' / 'mcp_tool_manifest.json'
+TOOL_MANIFEST_PATH = REPO_ROOT / "scripts" / "validation" / "mcp_tool_manifest.json"
 MAX_NAMESPACED_TOOL_IDENTIFIER = 64
 
-BUILTIN_MCP_PLACEHOLDERS = {'PLUGIN_ROOT', 'PLUGIN_DATA'}
-VAR_PLACEHOLDER_RE = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
-MARKDOWN_REL_LINK_RE = re.compile(r'\]\((\.\.?/[^)#]+)(?:#[^)]*)?\)')
+BUILTIN_MCP_PLACEHOLDERS = {"PLUGIN_ROOT", "PLUGIN_DATA"}
+VAR_PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z0-9_]+)\}")
+MARKDOWN_REL_LINK_RE = re.compile(r"\]\((\.\.?/[^)#]+)(?:#[^)]*)?\)")
 
 # Constructed via concatenation so this file never contains literal forbidden substrings.
 FORBIDDEN_PATTERNS = [
-    re.compile(r'/home/' + r'jamie-lapointe'),
-    re.compile(r'/Users/' + r'jamie'),
-    re.compile(r'Google' + r'Drive/agents'),
-    re.compile(r'\bghp_[A-Za-z0-9]{20,}'),
-    re.compile(r'\bgho_[A-Za-z0-9]{20,}'),
-    re.compile(r'\bgithub_pat_[A-Za-z0-9_]{20,}'),
-    re.compile(r'\bGOCSPX-[A-Za-z0-9_-]{15,}'),
-    re.compile(r'\bAIzaSy[A-Za-z0-9_-]{25,}'),
+    re.compile(r"/home/" + r"jamie-lapointe"),
+    re.compile(r"/Users/" + r"jamie"),
+    re.compile(r"Google" + r"Drive/agents"),
+    re.compile(r"\bghp_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bgho_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bGOCSPX-[A-Za-z0-9_-]{15,}"),
+    re.compile(r"\bAIzaSy[A-Za-z0-9_-]{25,}"),
 ]
 
 
@@ -68,120 +68,169 @@ def _split_frontmatter(markdown_text: str) -> tuple[dict[str, Any], str]:
     Returns:
         Tuple of `(frontmatter_dict, markdown_body)`.
     """
-    assert markdown_text.startswith('---\n'), 'SKILL.md must begin with YAML frontmatter delimiter ---'
-    _, rest = markdown_text.split('---\n', 1)
-    raw_yaml, body = rest.split('\n---\n', 1)
+    assert markdown_text.startswith("---\n"), (
+        "SKILL.md must begin with YAML frontmatter delimiter ---"
+    )
+    _, rest = markdown_text.split("---\n", 1)
+    raw_yaml, body = rest.split("\n---\n", 1)
     parsed = yaml.safe_load(raw_yaml)
     assert isinstance(parsed, dict)
-    return (parsed, body.lstrip('\n'))
+    return (parsed, body.lstrip("\n"))
 
 
 def test_plugin_manifest_and_workspace_discovery_configs() -> None:
     """Validate `plugin.json`, `.agents/*.json`, `rules/AGENTS.md`, `LICENSE`, and `assets/logo.svg`."""
-    manifest = json.loads((REPO_ROOT / 'plugin.json').read_text(encoding='utf-8'))
-    assert manifest['name'] == 'mimir-agent-kit'
-    assert manifest['license'] == 'Apache-2.0'
-    assert (REPO_ROOT / manifest['logo']).is_file()
-    assert (REPO_ROOT / 'LICENSE').is_file()
-    assert not (REPO_ROOT / 'AGENTS.md').exists(), 'Top-level AGENTS.md is ignored in plugins; keep in rules/AGENTS.md'
+    manifest = json.loads((REPO_ROOT / "plugin.json").read_text(encoding="utf-8"))
+    assert manifest["name"] == "mimir-agent-kit"
+    assert manifest["license"] == "Apache-2.0"
+    assert (REPO_ROOT / manifest["logo"]).is_file()
+    assert (REPO_ROOT / "LICENSE").is_file()
+    assert not (REPO_ROOT / "AGENTS.md").exists(), (
+        "Top-level AGENTS.md is ignored in plugins; keep in rules/AGENTS.md"
+    )
 
-    rules_md = (REPO_ROOT / 'rules' / 'AGENTS.md').read_text(encoding='utf-8')
-    assert not rules_md.startswith('---'), 'Plugin rules/AGENTS.md must be plain Markdown without frontmatter'
-    assert 'github-flow-lifecycle' in rules_md
+    rules_md = (REPO_ROOT / "rules" / "AGENTS.md").read_text(encoding="utf-8")
+    assert not rules_md.startswith("---"), (
+        "Plugin rules/AGENTS.md must be plain Markdown without frontmatter"
+    )
+    assert "github-flow-lifecycle" in rules_md
 
-    skills_cfg = json.loads((REPO_ROOT / '.agents' / 'skills.json').read_text(encoding='utf-8'))
-    rules_cfg = json.loads((REPO_ROOT / '.agents' / 'rules.json').read_text(encoding='utf-8'))
-    assert skills_cfg == {'entries': [{'path': 'skills'}]}
-    assert rules_cfg == {'entries': [{'path': 'rules'}]}
+    skills_cfg = json.loads(
+        (REPO_ROOT / ".agents" / "skills.json").read_text(encoding="utf-8")
+    )
+    rules_cfg = json.loads(
+        (REPO_ROOT / ".agents" / "rules.json").read_text(encoding="utf-8")
+    )
+    assert skills_cfg == {"entries": [{"path": "skills"}]}
+    assert rules_cfg == {"entries": [{"path": "rules"}]}
 
 
 def test_all_custom_skills_valid_and_within_plugin_byte_limit() -> None:
     """Ensure all 7 custom skills match directory names, stay under 24 KB body cap, and have valid links."""
-    skills_dir = REPO_ROOT / 'skills'
+    skills_dir = REPO_ROOT / "skills"
     discovered = {p.name for p in skills_dir.iterdir() if p.is_dir()}
     assert discovered == EXPECTED_SKILLS
 
     for skill_name in sorted(discovered):
-        skill_file = skills_dir / skill_name / 'SKILL.md'
-        assert skill_file.is_file(), f'Missing SKILL.md in {skill_name}'
-        frontmatter, body = _split_frontmatter(skill_file.read_text(encoding='utf-8'))
-        assert frontmatter.get('name') == skill_name
-        description = str(frontmatter.get('description', '')).strip()
+        skill_file = skills_dir / skill_name / "SKILL.md"
+        assert skill_file.is_file(), f"Missing SKILL.md in {skill_name}"
+        frontmatter, body = _split_frontmatter(skill_file.read_text(encoding="utf-8"))
+        assert frontmatter.get("name") == skill_name
+        description = str(frontmatter.get("description", "")).strip()
         assert len(description) >= 20
 
-        body_bytes = len(body.encode('utf-8'))
-        assert body_bytes < MAX_PLUGIN_SKILL_BODY_BYTES, f'{skill_name}/SKILL.md body is {body_bytes} bytes (>= {MAX_PLUGIN_SKILL_BODY_BYTES} plugin cap)'
+        body_bytes = len(body.encode("utf-8"))
+        assert body_bytes < MAX_PLUGIN_SKILL_BODY_BYTES, (
+            f"{skill_name}/SKILL.md body is {body_bytes} bytes (>= {MAX_PLUGIN_SKILL_BODY_BYTES} plugin cap)"
+        )
 
         for rel_target in MARKDOWN_REL_LINK_RE.findall(body):
             resolved = (skill_file.parent / rel_target).resolve()
-            assert resolved.exists(), f'Broken relative link {rel_target} in {skill_name}/SKILL.md'
+            assert resolved.exists(), (
+                f"Broken relative link {rel_target} in {skill_name}/SKILL.md"
+            )
 
 
 def test_bundled_executable_scripts() -> None:
     """Validate executable permissions on bundled Python scripts."""
     for script_path in (
-        REPO_ROOT / 'scripts' / 'academic_mcp_server.py',
-        REPO_ROOT / 'scripts' / 'github_mcp_launcher.py',
-        REPO_ROOT / 'scripts' / 'ci' / 'snapshot_mcp_tools.py',
+        REPO_ROOT / "scripts" / "academic_mcp_server.py",
+        REPO_ROOT / "scripts" / "github_mcp_launcher.py",
+        REPO_ROOT / "scripts" / "ci" / "snapshot_mcp_tools.py",
     ):
         assert script_path.is_file()
-        assert os.access(script_path, os.X_OK), f'{script_path} must be executable (+x)'
+        assert os.access(script_path, os.X_OK), f"{script_path} must be executable (+x)"
 
 
 def test_mcp_tool_manifest_covers_servers_and_fits_namespace_budget() -> None:
     """Every stdio server has a tool snapshot and every `mcp_<plugin>_<server>_<tool>` identifier is <= 64 chars."""
-    plugin_name = json.loads((REPO_ROOT / 'plugin.json').read_text(encoding='utf-8'))['name']
-    servers: dict[str, Any] = json.loads((REPO_ROOT / 'mcp_config.json').read_text(encoding='utf-8'))['mcpServers']
-    manifest: dict[str, list[str]] = json.loads(TOOL_MANIFEST_PATH.read_text(encoding='utf-8'))
+    plugin_name = json.loads((REPO_ROOT / "plugin.json").read_text(encoding="utf-8"))[
+        "name"
+    ]
+    servers: dict[str, Any] = json.loads(
+        (REPO_ROOT / "mcp_config.json").read_text(encoding="utf-8")
+    )["mcpServers"]
+    manifest: dict[str, list[str]] = json.loads(
+        TOOL_MANIFEST_PATH.read_text(encoding="utf-8")
+    )
 
-    stdio_servers = {name for name, spec in servers.items() if 'command' in spec}
-    assert set(manifest) == stdio_servers, 'Regenerate with scripts/ci/snapshot_mcp_tools.py'
+    stdio_servers = {name for name, spec in servers.items() if "command" in spec}
+    assert set(manifest) == stdio_servers, (
+        "Regenerate with scripts/ci/snapshot_mcp_tools.py"
+    )
     for server_name, tools in manifest.items():
-        assert tools, f'Manifest entry for {server_name} is empty'
+        assert tools, f"Manifest entry for {server_name} is empty"
         for tool_name in tools:
-            identifier = f'mcp_{plugin_name}_{server_name}_{tool_name}'
-            assert len(identifier) <= MAX_NAMESPACED_TOOL_IDENTIFIER, f'{identifier} is {len(identifier)} chars (> 64); Antigravity will drop it'
+            identifier = f"mcp_{plugin_name}_{server_name}_{tool_name}"
+            assert len(identifier) <= MAX_NAMESPACED_TOOL_IDENTIFIER, (
+                f"{identifier} is {len(identifier)} chars (> 64); Antigravity will drop it"
+            )
 
 
 def test_mcp_config_variables_and_secret_hygiene() -> None:
     """Ensure every bundled MCP server declares matching `variables` metadata for every `${VAR}` placeholder."""
-    mcp_cfg = json.loads((REPO_ROOT / 'mcp_config.json').read_text(encoding='utf-8'))
-    servers: dict[str, Any] = mcp_cfg['mcpServers']
+    mcp_cfg = json.loads((REPO_ROOT / "mcp_config.json").read_text(encoding="utf-8"))
+    servers: dict[str, Any] = mcp_cfg["mcpServers"]
     assert set(servers) == EXPECTED_MCP_SERVERS
 
     for server_name, spec in servers.items():
-        serialized = json.dumps({k: v for k, v in spec.items() if k != 'variables'})
-        referenced_vars = set(VAR_PLACEHOLDER_RE.findall(serialized)) - BUILTIN_MCP_PLACEHOLDERS
-        declared_vars_list = spec.get('variables', [])
-        declared_vars = {entry['name'] for entry in declared_vars_list}
-        assert referenced_vars == declared_vars, f'Server {server_name} placeholder mismatch: referenced={referenced_vars}, declared={declared_vars}'
+        serialized = json.dumps({k: v for k, v in spec.items() if k != "variables"})
+        referenced_vars = (
+            set(VAR_PLACEHOLDER_RE.findall(serialized)) - BUILTIN_MCP_PLACEHOLDERS
+        )
+        declared_vars_list = spec.get("variables", [])
+        declared_vars = {entry["name"] for entry in declared_vars_list}
+        assert referenced_vars == declared_vars, (
+            f"Server {server_name} placeholder mismatch: referenced={referenced_vars}, declared={declared_vars}"
+        )
         for entry in declared_vars_list:
-            assert entry.get('title'), f'Missing variable title on {server_name}.{entry["name"]}'
-            assert entry.get('description'), f'Missing variable description on {server_name}.{entry["name"]}'
+            assert entry.get("title"), (
+                f"Missing variable title on {server_name}.{entry['name']}"
+            )
+            assert entry.get("description"), (
+                f"Missing variable description on {server_name}.{entry['name']}"
+            )
 
 
 def test_zero_hardcoded_machine_paths_or_plaintext_secrets() -> None:
     """Scan all repository text files for leaked home paths, Google Drive mounts, or credential tokens."""
     excluded_dirs = {
-        '.agents',
-        '.agents/teamwork',
-        '.git',
-        '.mypy_cache',
-        '.pytest_cache',
-        '.ruff_cache',
-        '.rumdl_cache',
-        '.venv',
-        '__pycache__',
+        ".agents",
+        ".agents/teamwork",
+        ".basedpyright",
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".rumdl_cache",
+        ".ty_cache",
+        ".venv",
+        "__pycache__",
     }
-    for path in REPO_ROOT.rglob('*'):
-        if any(part in excluded_dirs for part in path.parts) or any(str(path.relative_to(REPO_ROOT)).startswith(d) for d in excluded_dirs) or not path.is_file():
+    for path in REPO_ROOT.rglob("*"):
+        if (
+            any(part in excluded_dirs for part in path.parts)
+            or any(
+                str(path.relative_to(REPO_ROOT)).startswith(d) for d in excluded_dirs
+            )
+            or not path.is_file()
+        ):
             continue
-        if path.name.startswith('.coverage') or path.suffix in {'.png', '.jpg', '.jpeg', '.webp', '.ico', '.db'}:
+        if path.name.startswith(".coverage") or path.suffix in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".ico",
+            ".db",
+        }:
             continue
         try:
-            content = path.read_text(encoding='utf-8')
+            content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
         for pattern in FORBIDDEN_PATTERNS:
             match = pattern.search(content)
-            assert match is None, f'Forbidden pattern {pattern.pattern!r} found in {path.relative_to(REPO_ROOT)}'
+            assert match is None, (
+                f"Forbidden pattern {pattern.pattern!r} found in {path.relative_to(REPO_ROOT)}"
+            )

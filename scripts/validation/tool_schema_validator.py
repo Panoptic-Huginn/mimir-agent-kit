@@ -1,7 +1,5 @@
 """Validator for tool schemas and parameter definitions."""
 
-from __future__ import annotations
-
 import json
 from typing import TYPE_CHECKING
 
@@ -16,7 +14,15 @@ if TYPE_CHECKING:
     from scripts.validation.models import ValidationReport
 
 
-VALID_JSON_SCHEMA_TYPES = frozenset({'string', 'integer', 'number', 'boolean', 'array', 'object', 'null'})
+VALID_JSON_SCHEMA_TYPES = frozenset({
+    "string",
+    "integer",
+    "number",
+    "boolean",
+    "array",
+    "object",
+    "null",
+})
 
 
 def validate_tool_parameter_schema(
@@ -33,8 +39,8 @@ def validate_tool_parameter_schema(
         report: Aggregating ValidationReport.
         path: Path to the schema or defining file.
     """
-    properties = schema.get('properties')
-    required = schema.get('required')
+    properties = schema.get("properties")
+    required = schema.get("required")
 
     props_dict: dict[str, object] = {}
     if properties is not None:
@@ -58,7 +64,7 @@ def validate_tool_parameter_schema(
             )
             continue
 
-        prop_type = prop_spec.get('type')
+        prop_type = prop_spec.get("type")
         if prop_type is None:
             report.add(
                 code=ErrorCode.TLS001,
@@ -71,7 +77,9 @@ def validate_tool_parameter_schema(
             if prop_type not in VALID_JSON_SCHEMA_TYPES:
                 report.add(
                     code=ErrorCode.TLS001,
-                    message=(f"Parameter '{prop_name}' in tool '{tool_name}' has invalid type '{prop_type}'. Valid types are: {', '.join(sorted(VALID_JSON_SCHEMA_TYPES))}"),
+                    message=(
+                        f"Parameter '{prop_name}' in tool '{tool_name}' has invalid type '{prop_type}'. Valid types are: {', '.join(sorted(VALID_JSON_SCHEMA_TYPES))}"
+                    ),
                     severity=Severity.ERROR,
                     path=path,
                 )
@@ -106,7 +114,9 @@ def validate_tool_parameter_schema(
                 if not isinstance(req_item, str) or req_item not in props_dict:
                     report.add(
                         code=ErrorCode.TLS002,
-                        message=(f"Required property '{req_item}' in tool '{tool_name}' is not declared in 'properties'."),
+                        message=(
+                            f"Required property '{req_item}' in tool '{tool_name}' is not declared in 'properties'."
+                        ),
                         severity=Severity.ERROR,
                         path=path,
                         suggestion=f"Define '{req_item}' under 'properties' or remove it from 'required'.",
@@ -124,15 +134,17 @@ def validate_tool_schemas(
         report: Aggregating ValidationReport.
     """
     # Check any schema files in resources/ or schemas/
-    for schema_dir_name in ('schemas', 'resources/schemas'):
+    for schema_dir_name in ("schemas", "resources/schemas"):
         schema_dir = repo_root / schema_dir_name
         if schema_dir.is_dir():
-            for schema_file in schema_dir.glob('**/*.json'):
+            for schema_file in schema_dir.glob("**/*.json"):
                 try:
-                    content = schema_file.read_text(encoding='utf-8')
+                    content = schema_file.read_text(encoding="utf-8")
                     data = json.loads(content)
                     if isinstance(data, dict):
                         tool_name = schema_file.stem
-                        validate_tool_parameter_schema(data, tool_name, report, schema_file)
+                        validate_tool_parameter_schema(
+                            data, tool_name, report, schema_file
+                        )
                 except OSError, json.JSONDecodeError:
                     pass
