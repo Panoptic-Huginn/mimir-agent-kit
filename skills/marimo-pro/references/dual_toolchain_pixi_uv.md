@@ -36,8 +36,8 @@ Marimo automatically creates and caches an ephemeral isolated `uv` virtual envir
 
 import marimo
 
-__generated_with = '0.25.2'
-app = marimo.App(width='medium')
+__generated_with = "0.25.2"
+app = marimo.App(width="medium")
 ```
 
 Run directly with zero manual `pip install` or environment activation:
@@ -167,7 +167,7 @@ Marimo allows **top-level** `@app.cell` test functions (`def test_*(...):`) and 
 
 ```python
 @app.function
-def compute_residual_rms(observed: 'np.ndarray', model: 'np.ndarray') -> float:
+def compute_residual_rms(observed: "np.ndarray", model: "np.ndarray") -> float:
     """Compute root-mean-square residual between data and model."""
     import numpy as np
 

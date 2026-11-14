@@ -25,7 +25,7 @@ This skill governs the complete software delivery lifecycle whenever repository 
 
 - **`/github-ops`**: Non-code GitHub & GitHub Enterprise Cloud (`Panoptic-Huginn`) repository, ruleset, backlog, Projects v2, security alert, and release administration.
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels and Silver/Gold deductive proofs.
-- **`/python-pro`**: Python 3.14+ (`pixi` and `uv`), `ruff`, `mypy`, `pytest`, and `rumdl` standards.
+- **`/python-pro`**: Python 3.15 (3.14 floor) (`uv` and `pixi`), `ruff`, `basedpyright`/`ty`, `prek`, `pytest` 9+, `deptry`, `pip-audit`, and `rumdl` standards.
 - **`/rust-pro`**: Safety-critical Rust 1.99.1+ (`pixi`, `clippy`, `cargo fmt`, Google Rust Styleguide) systems software.
 - **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, `cmake --workflow --preset`, `gersemi`) standards.
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`, `clang-tidy`, `clang-format`, CERT C / MISRA C, sanitizers) systems and robotics safety standards.
@@ -156,8 +156,8 @@ Evaluate local workspace and remote GitHub state before modifying any repository
    Inspect `.github/workflows/*.yml` and the repository root, then run all applicable checks until every step exits with code `0` cleanly (without further formatter edits). Quick reference (full ecosystem table in [references/local-ci-matrix.md](references/local-ci-matrix.md)):
 
    - **Antigravity Plugin (`scripts/ci/run_local_ci.sh`):** `./scripts/ci/run_local_ci.sh` (plus `uv run rumdl check --no-exclude skills/<changed-skill>` when editing `skills/`)
-   - **Pixi / Python / Cross-Ecosystem (`pixi.lock`):** `pixi run pre-commit run --all-files --show-diff-on-failure`, `pixi run ruff check` & `ruff format --check`, `pixi run mypy`, `pixi run pytest`, `pixi run build` (if defined)
-   - **Pure `uv` Python (`uv.lock`):** `uv run pre-commit run --all-files`, `uv run ruff check .` & `ruff format --check .`, `uv run mypy .`, `uv run pytest`
+   - **Pixi / Python / Cross-Ecosystem (`pixi.lock`):** `pixi run prek run --all-files --show-diff-on-failure` (or `pre-commit`), `pixi run ruff check` & `ruff format --check`, `pixi run basedpyright` & `ty check`, `pixi run pytest`, `pixi run build` (if defined)
+   - **Pure `uv` Python (`uv.lock`):** `uv run prek run --all-files`, `uv run ruff check .` & `ruff format --check .`, `uv run basedpyright` & `uv run ty check`, `uv run deptry .`, `uv run pip-audit`, `uv run pytest`
    - **C/C++23 (`CMakePresets.json`), Rust (`Cargo.toml`), SPARK Ada (`alire.toml`), Node, Go, Docs:** Run configured format/lint/proof/test workflows per [references/local-ci-matrix.md](references/local-ci-matrix.md).
 
 ---

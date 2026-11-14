@@ -1,6 +1,6 @@
 # .pre-commit-config.yaml - Curated Pre-Commit Configuration for mimir-agent-kit
 # Enforces repository hygiene, Python formatting, strict type checking, and
-# AntiGravity 2.29.0 agentic settings verification via uv.
+# AntiGravity 2.29.0 agentic settings verification via uv and prek.
 
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
@@ -55,17 +55,22 @@ repos:
         require_serial: true
 
   # ---------------------------------------------------------------------------
-  # 3. Static Type Analysis (Mypy via uv)
+  # 3. Static Type Analysis (Basedpyright strict + Astral ty via uv)
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy (uv)
-        entry: uv run mypy
+      - id: basedpyright
+        name: basedpyright strict (uv)
+        entry: uv run basedpyright
         language: system
-        types: [python]
-        require_serial: true
         pass_filenames: false
+        files: \.py$|^pyproject\.toml$|^uv\.lock$
+      - id: ty
+        name: ty check (uv)
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        files: \.py$|^pyproject\.toml$|^uv\.lock$
 
   # ---------------------------------------------------------------------------
   # 4. Markdown Hygiene (rumdl via uv)

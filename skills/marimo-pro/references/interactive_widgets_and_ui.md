@@ -27,14 +27,16 @@ def numeric_controls(mo):
         step=1e-4,
         value=1e-2,
         debounce=True,
-        label='Learning Rate (eta):',
+        label="Learning Rate (eta):",
     )
     epoch_selector = mo.ui.slider(
         steps=[1, 5, 10, 25, 50, 100],
         value=25,
-        label='Max Epochs:',
+        label="Max Epochs:",
     )
-    band_range = mo.ui.range_slider(start=0.0, stop=100.0, value=[10.0, 90.0], label='Passband')
+    band_range = mo.ui.range_slider(
+        start=0.0, stop=100.0, value=[10.0, 90.0], label="Passband"
+    )
     mo.hstack([learning_rate, epoch_selector, band_range], wrap=True)
     return band_range, epoch_selector, learning_rate
 ```
@@ -46,21 +48,21 @@ def numeric_controls(mo):
 def selection_controls(mo):
     model_selector = mo.ui.dropdown(
         options={
-            'Linear Regression': 'lin_reg',
-            'Extended Kalman Filter': 'ekf',
-            'Bayesian MCMC': 'mcmc',
+            "Linear Regression": "lin_reg",
+            "Extended Kalman Filter": "ekf",
+            "Bayesian MCMC": "mcmc",
         },
-        value='ekf',
+        value="ekf",
         searchable=True,
         allow_select_none=False,
-        label='Telemetry Estimator Model:',
+        label="Telemetry Estimator Model:",
     )
     target_channel = mo.ui.text(
-        value='system.ipc.latency',
-        placeholder='e.g. system.ipc.latency',
-        kind='text',
+        value="system.ipc.latency",
+        placeholder="e.g. system.ipc.latency",
+        kind="text",
         debounce=True,
-        label='IPC Channel:',
+        label="IPC Channel:",
     )
     mo.hstack([model_selector, target_channel])
     return model_selector, target_channel
@@ -77,7 +79,7 @@ def show_table(mo, telemetry_records):
         data=telemetry_records,
         pagination=True,
         page_size=15,
-        selection='multi',
+        selection="multi",
         show_column_summaries=True,
         show_download=True,
     )
@@ -106,16 +108,22 @@ def build_simulation_form(mo):
             """
         )
         .batch(
-            particles=mo.ui.slider(100, 10000, step=100, value=1000, label='Particles'),
-            iterations=mo.ui.slider(10, 500, step=10, value=50, label='Iterations'),
-            solver=mo.ui.dropdown(['Euler', 'RK4', 'Verlet'], value='RK4', label='Solver'),
+            particles=mo.ui.slider(100, 10000, step=100, value=1000, label="Particles"),
+            iterations=mo.ui.slider(10, 500, step=10, value=50, label="Iterations"),
+            solver=mo.ui.dropdown(
+                ["Euler", "RK4", "Verlet"], value="RK4", label="Solver"
+            ),
         )
         .form(
-            submit_button_label='Execute Simulation',
+            submit_button_label="Execute Simulation",
             show_clear_button=True,
             clear_on_submit=False,
             bordered=True,
-            validate=lambda vals: 'Particle count must exceed 500' if vals is None or vals['particles'] < 500 else None,
+            validate=lambda vals: (
+                "Particle count must exceed 500"
+                if vals is None or vals["particles"] < 500
+                else None
+            ),
         )
     )
     simulation_form
@@ -127,14 +135,14 @@ def build_simulation_form(mo):
 ```python
 @app.cell
 def action_buttons(mo):
-    run_btn = mo.ui.run_button(label='Compute Posterior', kind='primary')
+    run_btn = mo.ui.run_button(label="Compute Posterior", kind="primary")
     reset_btn = mo.ui.button(
         value=0,
         on_click=lambda count: count + 1,
-        kind='warn',
-        label='Reset State',
+        kind="warn",
+        label="Reset State",
     )
-    mo.hstack([run_btn, reset_btn], justify='start')
+    mo.hstack([run_btn, reset_btn], justify="start")
     return reset_btn, run_btn
 ```
 
@@ -189,10 +197,10 @@ In analytical notebooks such as `astro_transit_photometry.py`, `robotics_kalman_
 ```python
 @app.cell
 def plot_light_curve(flux, go, mo, time_steps):
-    _template = 'plotly_dark' if mo.app_meta().theme == 'dark' else 'plotly_white'
+    _template = "plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white"
     _fig = go.Figure()
-    _fig.add_trace(go.Scatter(x=time_steps, y=flux, mode='lines', name='Flux'))
-    _fig.update_layout(template=_template, title='Photometric Light Curve')
+    _fig.add_trace(go.Scatter(x=time_steps, y=flux, mode="lines", name="Flux"))
+    _fig.update_layout(template=_template, title="Photometric Light Curve")
     chart = mo.ui.plotly(_fig)
     chart
     return (chart,)
@@ -210,10 +218,10 @@ def plot_altair(alt, dataframe, mo):
         .Chart(dataframe)
         .mark_circle(size=60)
         .encode(
-            x='orbital_phase:Q',
-            y='normalized_flux:Q',
-            color='transit_flag:N',
-            tooltip=['time', 'flux', 'error'],
+            x="orbital_phase:Q",
+            y="normalized_flux:Q",
+            color="transit_flag:N",
+            tooltip=["time", "flux", "error"],
         )
         .interactive()
     )
@@ -230,8 +238,8 @@ Pass `fig` or `plt.gca()` as the final expression (or wrap with `mo.as_html(fig)
 @app.cell
 def plot_residuals(mo, plt, residuals):
     _fig, _ax = plt.subplots(figsize=(8, 4))
-    _ax.hist(residuals, bins=50, color='teal', alpha=0.7)
-    _ax.set_title('Kalman Innovation Residuals')
+    _ax.hist(residuals, bins=50, color="teal", alpha=0.7)
+    _ax.set_title("Kalman Innovation Residuals")
     plt.tight_layout()
     _rendered = mo.as_html(_fig)
     plt.close(_fig)

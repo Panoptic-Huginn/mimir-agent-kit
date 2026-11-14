@@ -12,7 +12,7 @@ metadata:
 - **`/cpp-pro`**: Modern C++23 (`extern "C"` ABI boundaries, Holoscan operators, high-performance compute, Google Test, and Google Benchmark harnesses).
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+` Silver/Gold AoRTE proofs, `alr 2.1+`, Jorvik real-time tasks, and zero-copy C23/C++23 ABI interop).
 - **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, hybrid CMake + Cargo build integrations, cross-compilation toolchains, and `gersemi`).
-- **`/python-pro`**: Python 3.14.7 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and telemetry analysis.
+- **`/python-pro`**: Python 3.15 / 3.14 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and telemetry analysis.
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI gates, and remote CI self-healing).
 
 ## Use this skill when

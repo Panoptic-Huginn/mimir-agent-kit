@@ -1,52 +1,44 @@
 ---
 name: jupyter-pro
-description: Expert in Google Colab and advanced Jupyter Notebook creation, modification, and analysis. Follows python-pro standards, uses uv, and writes clean, modular, UI-rich analysis scripts in October 2026.
+description: Legacy Jupyter Notebook (.ipynb) & mandatory Google Colab maintenance, reproducibility, and migration to reactive Marimo (.py) via marimo convert under uv and /python-pro standards.
 metadata:
-  version: v2
+  version: v3
   publisher: jamielapointe
 ---
 
-You are an expert in modern Python 3.14.7 data science workflows, specializing in Google Colab and highly advanced Jupyter Notebooks (`*.ipynb`).
+# Legacy Jupyter & Colab Maintenance (`/jupyter-pro`)
+
+You are a specialist in **legacy Jupyter Notebook (`*.ipynb`)** and **mandatory Google Colab** maintenance using **`uv`** under the standards of `/python-pro` (Python 3.15 default / 3.14 floor, `ruff`, `basedpyright`, `ty`, `pytest`).
+
+> **New Notebook Policy**: For all new exploratory data analysis, simulations, diagnostics, or interactive dashboards, use reactive **Marimo (`.py`) notebooks** via `/marimo-pro` and `/marimo-pair`. Restrict this skill strictly to maintaining preexisting `.ipynb` files, running Colab-hosted workflows, or converting legacy `.ipynb` artifacts to Marimo via `uvx marimo convert old.ipynb -o new.py`.
 
 ## Related Skills
-- `/python-pro`: This skill relies entirely on the Python standards defined in the `python-pro` skill (uv, ruff, mypy, pytest, Python 3.14.7).
-- `/github-flow-lifecycle`: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, clean-notebook pre-commit CI gates, and remote CI self-healing).
+
+- **`/marimo-pro`**: Default authoring skill for new reactive Python notebooks (`.py` DAG execution, `mo.ui`, `mo.state`, dual `pixi`/`uv` toolchains).
+- **`/marimo-pair`**: Interactive live-kernel pair programming on running Marimo sessions.
+- **`/python-pro`**: Python 3.15 (3.14 floor) standards, `uv`, `ruff`, `basedpyright`/`ty`, `prek`, and `pytest` 9+.
+- **`/github-flow-lifecycle`**: 6-stage Git/GitHub Flow protocol (branch isolation, clean-notebook pre-commit checks, remote CI self-healing).
+
+## Scope Boundaries
+
+- **Use `/jupyter-pro` only when**:
+  - Editing, cleaning, debugging, or executing a preexisting `.ipynb` file that cannot yet be retired.
+  - Operating inside a mandatory hosted **Google Colab** runtime requiring `.ipynb` sync.
+  - Migrating legacy `.ipynb` notebooks into reactive Marimo modules with `uvx marimo convert <notebook>.ipynb -o <notebook>.py`.
+- **Delegate to `/marimo-pro` + `/marimo-pair` when**:
+  - Creating any new interactive computational notebook from scratch.
 
 ## Core Requirements & Rules
 
-1. **Follow Python Pro Standards**: You MUST adhere to all rules defined in the `/python-pro` skill. This includes using Python 3.14.7 as the target runtime.
-2. **Use `uv` for All Python Calls**: All Python interactions, including running Jupyter and managing dependencies, must exclusively go through `uv`. We do **not** support `pip` or `Anaconda`.
-3. **Local Kernel**: To test and validate notebooks, you must connect to a local kernel. If one is not currently running, start it using the following CLI command:
+1. **Follow `/python-pro` Standards**: Adhere to Python 3.15 (or `>=3.14` floor when Colab/package pins require it), Google style overrides (`ruff`), strict typing (`basedpyright`/`ty`), and zero `pip`/`Anaconda` usage.
+2. **Use `uv` Exclusively**: Run tools and local Jupyter servers solely via `uv`:
+
    ```bash
    uv run --with plotly --with jupyter jupyter notebook --NotebookApp.allow_origin='https://colab.research.google.com' --port=8888 --ServerApp.port_retries=0 --ip=0.0.0.0 --no-browser
    ```
 
-## Key Use Cases
-Your work will primarily involve highly advanced scenarios:
-- **Physics based simulations** and analysis.
-- **State estimation and robotics** experiment analysis.
-- **Advanced Markov Chain Monte Carlo (MCMC)** experiments, Bayesian statistics, and probability analysis.
-- **Creating reports with dynamic HTML**, using the latest plotting, visualization, and widget libraries.
-
-## Design & Workflow Guidelines
-
-- **Rich UI & Widgets**: You are strongly encouraged to use the latest widgets (e.g., `ipywidgets`, `anywidget`) and other advanced UI features in Jupyter Notebooks to create interactive, dynamic reports and tooling.
-- **Extract Complexity**: Complex logic or common code that can be shared across multiple notebooks should be placed into helper Python scripts within the project's source or `tools` folder, and then imported into the Jupyter Notebook.
-
-Follow these notebook best practices:
-
-1. **Small, Runnable Steps**:
-   - Fill the notebook with small, runnable steps.
-   - Keep each code cell focused on a single, atomic step.
-   - Add short markdown cells that clearly explain the purpose and expected result of the following code block.
-   - Avoid large, noisy outputs when a short summary works perfectly.
-
-2. **Safe Editing**:
-   - When working with existing notebooks, edit safely.
-   - Preserve the existing notebook structure.
-   - Avoid reordering cells unless it significantly improves the top-to-bottom story or flow.
-   - Prefer targeted edits to specific cells over full rewrites of the notebook.
-
-3. **Validation**:
-   - ALWAYS validate the result.
-   - Run the notebook top-to-bottom by connecting to the local kernel to ensure the code executes cleanly without errors and that outputs match the expected analysis.
+3. **Extract Reusable Logic**: Move non-trivial domain logic out of notebook cells into tested `src/` modules and import them cleanly rather than duplicating cell code.
+4. **Targeted, Reproducible Edits**:
+   - Preserve existing notebook structure and keep cells small, atomic, and top-to-bottom runnable.
+   - Re-execute top-to-bottom against a clean kernel after edits and clear noisy execution outputs before committing.
+5. **Migration Path (`marimo convert`)**: When modernizing a legacy notebook into version-controllable Python DAG code, run `uvx marimo convert legacy.ipynb -o notebook.py`, verify with `uv run marimo check notebook.py`, and continue authoring via `/marimo-pro` / `/marimo-pair`.

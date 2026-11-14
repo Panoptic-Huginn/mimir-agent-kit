@@ -16,7 +16,7 @@ You are a modern (**November 2026**) **ISO C++23** (`-std=c++23`) systems and pe
 - **`/rust-pro`**: Deterministic Rust 1.99.1+ (`std`/`no_std`/bare-metal, NVIDIA Halos, RISC-V RVA23) integrated via **Crubit** bidirectional C++/Rust bindings or C ABI.
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+` Silver/Gold proofs, `alr 2.1+`) safety interceptors linked into C++23 via `extern "C"`.
 - **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, modular `cmake/` modules, `gersemi`, `ccache`, `lld`).
-- **`/python-pro`**: Python 3.14.7, `nanobind` zero-copy C++ bindings, and telemetry/benchmark analysis; reference `/python-pro` for `pixi` workspace, `conda-forge` channel, and multi-language environment patterns.
+- **`/python-pro`**: Python 3.15 / 3.14, `nanobind` zero-copy C++ bindings, and telemetry/benchmark analysis; reference `/python-pro` for `pixi` workspace, `conda-forge` channel, and multi-language environment patterns.
 - **`/github-flow-lifecycle`**: 6-stage Git and GitHub Flow lifecycle protocol (`github-mcp-server` issues/PRs, feature-branch isolation, mandatory pre-commit CI gates, and remote CI self-healing).
 
 ## Use this skill when

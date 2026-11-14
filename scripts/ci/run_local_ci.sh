@@ -10,8 +10,10 @@
 #
 # Sequential verification stages:
 #   1. Lockfile synchronization check (uv lock --check)
-#   2. Curated pre-commit hooks on all files (uv run pre-commit run --all-files --show-diff-on-failure)
-#   3. Comprehensive test suite execution (uv run pytest)
+#   2. Curated git hooks on all files (uv run prek run --all-files --show-diff-on-failure)
+#   3. Unused/missing/transitive dependency hygiene audit (uv run deptry .)
+#   4. Vulnerability & CVE dependency audit (uv run pip-audit)
+#   5. Comprehensive test suite execution (uv run pytest)
 # ==============================================================================
 
 set -euo pipefail
@@ -55,8 +57,10 @@ if [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]]; then
     printf "%b\n" ""
     printf "%b\n" "${BOLD}Verification Stages:${RESET}"
     printf "%b\n" "  1. uv lock --check"
-    printf "%b\n" "  2. uv run pre-commit run --all-files --show-diff-on-failure"
-    printf "%b\n" "  3. uv run pytest [pytest-options...]"
+    printf "%b\n" "  2. uv run prek run --all-files --show-diff-on-failure"
+    printf "%b\n" "  3. uv run deptry ."
+    printf "%b\n" "  4. uv run pip-audit"
+    printf "%b\n" "  5. uv run pytest [pytest-options...]"
     printf "%b\n" ""
     printf "%b\n" "${BOLD}Exit Code:${RESET} 0 on success, non-zero (1) on any failure."
     exit 0
@@ -93,26 +97,38 @@ fi
 
 # Stage 1: Lockfile synchronization
 CURRENT_STAGE="Stage 1: uv lock --check"
-printf "\n%b\n" "${CYAN}--> [1/3] Verifying uv.lock consistency...${RESET}"
+printf "\n%b\n" "${CYAN}--> [1/5] Verifying uv.lock consistency...${RESET}"
 uv lock --check
 printf "%b\n" "${GREEN}✓ uv.lock is synchronized with pyproject.toml${RESET}"
 
-# Stage 2: Curated pre-commit hooks
+# Stage 2: Curated pre-commit hooks via prek
 # Skip 'no-commit-to-branch' during non-commit full-tree CI audits so local CI
 # passes on both feature branches and 'main' checkouts (actual 'git commit'
 # invocations still enforce 'no-commit-to-branch' via .git/hooks/pre-commit).
-CURRENT_STAGE="Stage 2: uv run pre-commit run --all-files"
-printf "\n%b\n" "${CYAN}--> [2/3] Running curated pre-commit hooks on all files...${RESET}"
+CURRENT_STAGE="Stage 2: uv run prek run --all-files"
+printf "\n%b\n" "${CYAN}--> [2/5] Running curated pre-commit hooks via prek on all files...${RESET}"
 PRE_COMMIT_SKIP="no-commit-to-branch"
 if [[ -n "${SKIP:-}" ]]; then
     PRE_COMMIT_SKIP="${SKIP},${PRE_COMMIT_SKIP}"
 fi
-SKIP="${PRE_COMMIT_SKIP}" uv run pre-commit run --all-files --show-diff-on-failure
-printf "%b\n" "${GREEN}✓ All pre-commit hooks passed${RESET}"
+SKIP="${PRE_COMMIT_SKIP}" uv run prek run --all-files --show-diff-on-failure
+printf "%b\n" "${GREEN}✓ All prek hooks passed${RESET}"
 
-# Stage 3: Comprehensive test suite
-CURRENT_STAGE="Stage 3: uv run pytest"
-printf "\n%b\n" "${CYAN}--> [3/3] Running full test suite & agentic settings verification...${RESET}"
+# Stage 3: Dependency hygiene check via deptry
+CURRENT_STAGE="Stage 3: uv run deptry ."
+printf "\n%b\n" "${CYAN}--> [3/5] Auditing declared vs. imported dependencies via deptry...${RESET}"
+uv run deptry .
+printf "%b\n" "${GREEN}✓ deptry reported zero dependency issues${RESET}"
+
+# Stage 4: Dependency vulnerability audit via pip-audit
+CURRENT_STAGE="Stage 4: uv run pip-audit"
+printf "\n%b\n" "${CYAN}--> [4/5] Scanning locked environment for CVEs via pip-audit...${RESET}"
+uv run pip-audit
+printf "%b\n" "${GREEN}✓ pip-audit found zero known vulnerabilities${RESET}"
+
+# Stage 5: Comprehensive test suite
+CURRENT_STAGE="Stage 5: uv run pytest"
+printf "\n%b\n" "${CYAN}--> [5/5] Running full test suite & agentic settings verification...${RESET}"
 if [[ $# -gt 0 ]]; then
     uv run pytest "$@"
 else

@@ -11,7 +11,7 @@ metadata:
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+`, `alr 2.1+`) safety-critical robotics kernels (NVIDIA Halos / IGX Thor FSI), Silver/Gold deductive proofs, and zero-copy `Interfaces.C` / C23 ABI interop.
 - **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, `CMAKE_C_STANDARD 23`, `cmake --workflow --preset`, `gersemi`) build system architecture and cross-compilation toolchains.
 - **`/cpp-pro`**: Modern C++23 (`extern "C"` ABI boundaries, C++/C interop, Google Test, and Google Benchmark harnesses).
-- **`/python-pro`**: Python 3.14.7 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and benchmark/telemetry analysis.
+- **`/python-pro`**: Python 3.15 / 3.14 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and benchmark/telemetry analysis.
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI gates, and remote CI self-healing).
 
 ## Use this skill when

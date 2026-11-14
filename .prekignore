@@ -1,0 +1,4 @@
+# Ignore starter-template .pre-commit-config.yaml files inside skill example bundles
+# so `prek` workspace discovery does not treat them as nested subprojects.
+# Root .pre-commit-config.yaml hooks still inspect all tracked files under skills/.
+skills/**/examples/

@@ -107,8 +107,10 @@ Even when MCP provides read telemetry, apply mutations and programmatic checks c
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    cell_map = {cid: {'name': c.name, 'status': c.status} for cid, c in ctx.cells.items()}
-    print('Cell map:', cell_map)
+    cell_map = {
+        cid: {"name": c.name, "status": c.status} for cid, c in ctx.cells.items()
+    }
+    print("Cell map:", cell_map)
 ```
 
 Verify variable lineage across parent/child edges before calling `edit_cell`:
@@ -119,7 +121,7 @@ import marimo._code_mode as cm
 async with cm.get_context() as ctx:
     for var_name, defs in ctx.graph.definitions.items():
         if len(defs) > 1:
-            print('Duplicate definition conflict:', var_name, defs)
+            print("Duplicate definition conflict:", var_name, defs)
 ```
 
 Inspect active tabular datasets safely before adding visualization cells:
@@ -129,6 +131,6 @@ import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
     for name, val in ctx.globals.items():
-        if hasattr(val, 'schema') and hasattr(val, 'height'):
-            print(name, 'rows=', val.height, 'schema=', dict(val.schema))
+        if hasattr(val, "schema") and hasattr(val, "height"):
+            print(name, "rows=", val.height, "schema=", dict(val.schema))
 ```

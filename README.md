@@ -50,10 +50,10 @@ flowchart TD
 | `cpp-pro` | High-performance ISO C++23 (`LLVM/Clang 23.1.5`), Google Style + HFT/Embedded/Robotics, `pixi`, `<cstdint>`, `std::expected` & `<print>`, tiered coroutines, Abseil, Crubit, GTest/GBench | `examples/{pixi.toml,.clang-format,.clang-tidy,.pre-commit-config.yaml}`, `references/` |
 | `github-flow-lifecycle` | 6-stage Git & GitHub Flow code-delivery protocol: issue tracking, `<type>/<N>-<slug>` branch isolation, mandatory pre-commit local CI gate, PR self-healing | `references/`, paired with `rules/AGENTS.md` |
 | `github-ops` | Non-code GitHub & GHEC (`Panoptic-Huginn`) operations: repo provisioning/hardening, org & repo rulesets, custom properties, sub-issues/Projects v2, security triage, releases | `references/ghec-governance-and-recipes.md` |
-| `jupyter-pro` | Reproducible Jupyter Notebook & Google Colab engineering workflows (`uv`, Python 3.14+, clean-output hygiene) | — |
+| `jupyter-pro` | Legacy Jupyter (`.ipynb`) & mandatory Google Colab maintenance + `marimo convert` migrations (`uv`, Python 3.14+, clean-output hygiene) | — |
 | `marimo-pair` | Live marimo reactive kernel driving, in-memory DAG state inspection, and durable notebook commits via `marimo._code_mode` | `scripts/`, `references/` |
 | `marimo-pro` | Reactive marimo Python notebooks, `mo.ui` widgets, DAG execution, `mo.state`, and dual `pixi`/`uv` toolchains | `references/` |
-| `python-pro` | Production Python 3.14+ (`uv`, `pixi`, `ruff`, `mypy --strict`, `pydantic`, `pytest`, `rumdl`, Google docstrings) | `examples/pyproject.toml` |
+| `python-pro` | Production Python 3.15 (3.14 floor, `uv`, `pixi`, Marimo default, `ruff`, `basedpyright` + `ty`, `prek`, `pytest` 9+, `deptry`, `pip-audit`, Google overrides) | `examples/{pyproject.toml,pixi.toml,.pre-commit-config.yaml,ci.yml,pep723_script.py}`, `references/` |
 | `rust-pro` | Deterministic Rust 1.99.1+ (`std`, `no_std`, bare-metal), Pixi orchestration, NVIDIA Halos safety kernels, Google Rust Styleguide, RISC-V RVA23 | `examples/{pixi.toml,Cargo.toml,clippy.toml,rustfmt.toml}`, `references/` |
 
 > [!NOTE]
@@ -213,11 +213,14 @@ Before committing any change on a feature branch (`<type>/<issue-number>-<slug>`
 # 1. Validate strict Antigravity plugin schema, hooks, MCP variables & 24 KB skill body limits
 agy plugin validate --strict .
 
-# 2. Run Python linter, formatter check, strict static typing, Markdown linter & unit tests
+# 2. Run Python linter, formatter check, strict static typing, dependency/CVE audits, Markdown linter & tests
 uv sync --locked
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy
+uv run basedpyright
+uv run ty check
+uv run deptry .
+uv run pip-audit
 uv run rumdl check .
 uv run pytest -v
 ```

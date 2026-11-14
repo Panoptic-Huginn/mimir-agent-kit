@@ -1,13 +1,9 @@
 """Data models and report structures for AntiGravity 2.29.0 validation."""
 
-from __future__ import annotations
-
 import enum
 import json
-from dataclasses import dataclass
-from dataclasses import field
-from typing import TYPE_CHECKING
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
@@ -19,11 +15,11 @@ if TYPE_CHECKING:
 class Severity(enum.StrEnum):
     """Validation issue severity level."""
 
-    ERROR = 'ERROR'
-    WARNING = 'WARNING'
+    ERROR = "ERROR"
+    WARNING = "WARNING"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ValidationIssue:
     """Represents a single validation issue found during repository audit.
 
@@ -50,16 +46,16 @@ class ValidationIssue:
             Dictionary containing issue attributes.
         """
         return {
-            'code': str(self.code),
-            'message': self.message,
-            'severity': self.severity.value,
-            'path': str(self.path),
-            'line': self.line,
-            'suggestion': self.suggestion,
+            "code": str(self.code),
+            "message": self.message,
+            "severity": self.severity.value,
+            "path": str(self.path),
+            "line": self.line,
+            "suggestion": self.suggestion,
         }
 
 
-@dataclass
+@dataclass(slots=True)
 class ValidationReport:
     """Aggregate report containing all issues collected across validators.
 
@@ -137,12 +133,12 @@ class ValidationReport:
             Dictionary with report summary and issue list.
         """
         return {
-            'passed': self.is_clean,
-            'strict': self.strict,
-            'errorCount': self.error_count,
-            'warningCount': self.warning_count,
-            'totalIssues': len(self.issues),
-            'issues': [i.to_dict() for i in self.issues],
+            "passed": self.is_clean,
+            "strict": self.strict,
+            "errorCount": self.error_count,
+            "warningCount": self.warning_count,
+            "totalIssues": len(self.issues),
+            "issues": [i.to_dict() for i in self.issues],
         }
 
     def to_json(self, indent: int = 2) -> str:

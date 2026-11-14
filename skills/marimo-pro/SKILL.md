@@ -11,7 +11,7 @@ You are an expert in modern reactive Python computational notebooks using **Mari
 ## Related Skills
 
 - **`/marimo-pair`**: Interactive live pair programming with running marimo notebook kernels, ephemeral scratchpad execution, transactional `marimo._code_mode` cell mutations, and Streamable HTTP MCP orchestration.
-- **`/python-pro`**: Python 3.14+ engineering standards, pure-Python `uv` workflows, strict `ruff` formatting/linting, `mypy` static typing, and production packaging.
+- **`/python-pro`**: Python 3.15 (3.14 floor) engineering standards, `uv`/`pixi` workflows, Google style overrides + `ruff`, `basedpyright`/`ty` static typing, `prek`, and `pytest` 9+.
 - **`/jupyter-pro`**: Legacy linear Jupyter notebooks (`*.ipynb`), Google Colab environments, and converting `.ipynb` files into reactive Marimo `.py` notebooks (`marimo convert`).
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI gates, and remote CI self-healing).
 
@@ -66,8 +66,8 @@ Every generated notebook must conform to this exact structural grammar so `marim
 
 import marimo
 
-__generated_with = '0.25.2'
-app = marimo.App(width='medium')
+__generated_with = "0.25.2"
+app = marimo.App(width="medium")
 
 
 with app.setup:
@@ -83,21 +83,21 @@ def compute_metric(values: list[float]) -> float:
 
 @app.cell
 def create_controls():
-    threshold = mo.ui.slider(0.0, 1.0, step=0.05, value=0.5, label='Threshold')
-    metric = mo.ui.dropdown(['p50', 'p99'], value='p99', label='Metric')
-    _view = mo.hstack([threshold, metric], justify='start', gap=2)
+    threshold = mo.ui.slider(0.0, 1.0, step=0.05, value=0.5, label="Threshold")
+    metric = mo.ui.dropdown(["p50", "p99"], value="p99", label="Metric")
+    _view = mo.hstack([threshold, metric], justify="start", gap=2)
     _view  # Unindented final expression -> renders in UI
     return metric, threshold
 
 
 @app.cell
 def show_result(metric, threshold):
-    _summary = mo.md(f'**{metric.value}** cutoff = `{threshold.value:.2f}`')
+    _summary = mo.md(f"**{metric.value}** cutoff = `{threshold.value:.2f}`")
     _summary  # Visual output renders here
     return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
 ```
 
@@ -134,12 +134,12 @@ if __name__ == '__main__':
   def create_parameter_form(mo):
       param_form = (
           mo
-          .md('### Simulation Parameters\n{learning_rate}\n{epochs}')
+          .md("### Simulation Parameters\n{learning_rate}\n{epochs}")
           .batch(
-              learning_rate=mo.ui.slider(1e-4, 1e-1, step=1e-4, value=1e-2, label='LR'),
-              epochs=mo.ui.number(1, 500, value=50, label='Epochs'),
+              learning_rate=mo.ui.slider(1e-4, 1e-1, step=1e-4, value=1e-2, label="LR"),
+              epochs=mo.ui.number(1, 500, value=50, label="Epochs"),
           )
-          .form(submit_button_label='Run Simulation', bordered=True)
+          .form(submit_button_label="Run Simulation", bordered=True)
       )
       param_form  # Render the form widget
       return (param_form,)
@@ -160,8 +160,13 @@ def init_state(mo):
 
 @app.cell
 def gate_and_compute(mo, run_button, n_samples_slider):
-    mo.stop(not run_button.value, mo.callout('Click Run to start sampling.', kind='info'))
-    mo.stop(n_samples_slider.value < 100, mo.callout('Samples must be >= 100.', kind='danger'))
+    mo.stop(
+        not run_button.value, mo.callout("Click Run to start sampling.", kind="info")
+    )
+    mo.stop(
+        n_samples_slider.value < 100,
+        mo.callout("Samples must be >= 100.", kind="danger"),
+    )
     chains = [n_samples_slider.value]
     return (chains,)
 ```

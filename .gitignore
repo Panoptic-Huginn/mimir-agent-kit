@@ -4,6 +4,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 .mypy_cache/
+.basedpyright/
+.ty_cache/
 .pytest_cache/
 .ruff_cache/
 .rumdl_cache/

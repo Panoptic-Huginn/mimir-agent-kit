@@ -22,12 +22,19 @@ import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
     for cid, cell in ctx.cells.items():
-        print(f'{cid} [{cell.name or "unnamed"}] status={cell.status} errors={len(cell.errors)}')
+        print(
+            f"{cid} [{cell.name or 'unnamed'}] status={cell.status} errors={len(cell.errors)}"
+        )
 
     # Substring and regex search across live notebook cells (Marimo 0.25.2+)
-    matches = ctx.cells.find('mo.ui.slider')
-    regex_hits = ctx.cells.grep(r'def\s+fit_')
-    print('Slider cells:', [c.id for c in matches], 'Model defs:', [c.id for c in regex_hits])
+    matches = ctx.cells.find("mo.ui.slider")
+    regex_hits = ctx.cells.grep(r"def\s+fit_")
+    print(
+        "Slider cells:",
+        [c.id for c in matches],
+        "Model defs:",
+        [c.id for c in regex_hits],
+    )
 ```
 
 Inspect runtime globals, the live DAG `ctx.graph`, and which cell owns an object via `ctx.find_cell_defining_object`:
@@ -36,13 +43,15 @@ Inspect runtime globals, the live DAG `ctx.graph`, and which cell owns an object
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    user_vars = {k: type(v).__name__ for k, v in ctx.globals.items() if not k.startswith('_')}
-    print('Live globals:', user_vars)
+    user_vars = {
+        k: type(v).__name__ for k, v in ctx.globals.items() if not k.startswith("_")
+    }
+    print("Live globals:", user_vars)
 
-    if 'df' in ctx.globals:
-        owner = ctx.find_cell_defining_object(ctx.globals['df'])
-        print('df owner:', owner)
-        print('DAG children of owner:', ctx.graph.children.get(owner, set()))
+    if "df" in ctx.globals:
+        owner = ctx.find_cell_defining_object(ctx.globals["df"])
+        print("df owner:", owner)
+        print("DAG children of owner:", ctx.graph.children.get(owner, set()))
 ```
 
 Inspect execution errors, standard output, and HTML/UI outputs after a run:
@@ -52,12 +61,16 @@ import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
     for cell in ctx.cells.values():
-        if cell.errors or cell.status in ('exception', 'marimo_error'):
-            print('FAILED CELL:', cell.id, cell.errors)
+        if cell.errors or cell.status in ("exception", "marimo_error"):
+            print("FAILED CELL:", cell.id, cell.errors)
         if cell.console_outputs:
-            print('CONSOLE:', cell.id, [o.data for o in cell.console_outputs])
+            print("CONSOLE:", cell.id, [o.data for o in cell.console_outputs])
         if cell.output is not None:
-            print('OUTPUT MIME:', cell.id, getattr(cell.output, 'mimetype', type(cell.output).__name__))
+            print(
+                "OUTPUT MIME:",
+                cell.id,
+                getattr(cell.output, "mimetype", type(cell.output).__name__),
+            )
 ```
 
 ---
@@ -74,9 +87,9 @@ async with cm.get_context() as ctx:
     body = "summary_df = raw_df.group_by('region').len()\nsummary_table = mo.ui.table(summary_df, label='Regional Counts')\nsummary_table"
     if empty_cells:
         target_id = empty_cells[0]
-        ctx.edit_cell(target_id, body, hide_code=False, name='summarize_regions')
+        ctx.edit_cell(target_id, body, hide_code=False, name="summarize_regions")
     else:
-        target_id = ctx.create_cell(body, hide_code=False, name='summarize_regions')
+        target_id = ctx.create_cell(body, hide_code=False, name="summarize_regions")
 
     # Cells do not auto-run on create/edit; enqueue run_cell in the same block
     ctx.run_cell(target_id)
@@ -93,10 +106,10 @@ async with cm.get_context() as ctx:
         ctx.move_cell(cell_ids[-1], after=cell_ids[0])
 
     # Update a UI slider programmatically and inspect stale downstream cells
-    if 'threshold_slider' in ctx.globals:
-        ctx.set_ui_value(ctx.globals['threshold_slider'], 0.75)
+    if "threshold_slider" in ctx.globals:
+        ctx.set_ui_value(ctx.globals["threshold_slider"], 0.75)
         for cid, cell in ctx.cells.items():
-            if cell.status == 'stale':
+            if cell.status == "stale":
                 ctx.run_cell(cid)
 ```
 
@@ -116,19 +129,19 @@ Every mutation committed by `cm.get_context()` must satisfy Marimo's DAG invaria
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    old_id = 'legacy_cell'
+    old_id = "legacy_cell"
     if old_id in ctx.cells:
         ctx.delete_cell(old_id)
     loader_id = ctx.create_cell(
         "df_loaded = pl.read_parquet('events.parquet')\nmo.stat(label='Rows', value=str(df_loaded.height))",
         hide_code=False,
-        name='load_events',
+        name="load_events",
     )
     plot_id = ctx.create_cell(
         "fig = px.histogram(df_loaded.to_pandas(), x='latency_ms', template='plotly_white')\nmo.ui.plotly(fig)",
         after=loader_id,
         hide_code=False,
-        name='plot_latency',
+        name="plot_latency",
     )
     ctx.run_cell(loader_id)
     ctx.run_cell(plot_id)
@@ -147,11 +160,14 @@ import marimo._code_mode as cm
 
 try:
     async with cm.get_context() as ctx:
-        ctx.edit_cell('cell_a', "metric = 42\nmo.md(f'Metric = **{metric}**')")
-        ctx.run_cell('cell_a')
+        ctx.edit_cell("cell_a", "metric = 42\nmo.md(f'Metric = **{metric}**')")
+        ctx.run_cell("cell_a")
 except cm.StaleCellError:
     async with cm.get_context(skip_staleness_check=True) as ctx:
-        print('Re-reading latest cell version before manual reconciliation:', ctx.cells['cell_a'].code)
+        print(
+            "Re-reading latest cell version before manual reconciliation:",
+            ctx.cells["cell_a"].code,
+        )
 ```
 
 ### Installing & Auditing Packages (`ctx.packages`)
@@ -163,9 +179,9 @@ import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
     installed = ctx.packages.list()
-    print('Environment packages:', installed[:10])
+    print("Environment packages:", installed[:10])
     # Queued synchronously and installed on context exit:
-    ctx.packages.add('polars>=1.22.0')
+    ctx.packages.add("polars>=1.22.0")
 ```
 
 ### Live Visual Screenshots (`await ctx.screenshot`)
@@ -176,8 +192,8 @@ Use async `await ctx.screenshot(...)` (and close the headless Playwright browser
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    png_path = await ctx.screenshot(cell_id='plot_latency')
-    print('Saved cell screenshot to:', png_path)
+    png_path = await ctx.screenshot(cell_id="plot_latency")
+    print("Saved cell screenshot to:", png_path)
     await ctx.close_screenshot_session()
 ```
 
@@ -189,13 +205,13 @@ Verify runtime errors separately after context exit executes `run_cell`:
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    new_id = ctx.create_cell('x = 1 / 0', hide_code=False)
+    new_id = ctx.create_cell("x = 1 / 0", hide_code=False)
     ctx.run_cell(new_id)
 
 async with cm.get_context() as ctx:
     for cid, cell in ctx.cells.items():
         if cell.errors:
-            print('Verification caught error in', cid, cell.errors)
+            print("Verification caught error in", cid, cell.errors)
 ```
 
 ### Read-Only Deep Variable & Rich Representation Audit
@@ -206,6 +222,10 @@ Prefer `mo.md(...)`, `mo.ui.table(...)`, and interactive `mo.ui.plotly(...)` / A
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    snapshot = {k: repr(v)[:120] for k, v in ctx.globals.items() if not k.startswith('_') and not callable(v)}
+    snapshot = {
+        k: repr(v)[:120]
+        for k, v in ctx.globals.items()
+        if not k.startswith("_") and not callable(v)
+    }
     print(snapshot)
 ```

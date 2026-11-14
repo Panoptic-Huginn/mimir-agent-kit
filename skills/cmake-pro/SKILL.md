@@ -16,7 +16,7 @@ Build deterministic, target-based **CMake 4.5+** (November 2026) software system
 - **`/c-pro`**: Modern ISO C23 (`CMAKE_C_STANDARD 23`, `<stdbit.h>` probes, dual-language `extern "C"` ABI headers) for real-time OS and safety kernels.
 - **`/cpp-pro`**: Modern ISO C++23 (`LLVM/Clang 23.1.5`), `-fno-exceptions -fno-rtti` defaults, C++ modules ban for determinism, and the Linux `libstdc++` vs. macOS `libc++` native standard library ABI rule.
 - **`/rust-pro`**: Rust 1.99.1+ (`edition = "2024"`, `#![no_std]` capable) via Cargo, Corrosion, and Crubit `cpp_api_from_rust` / C ABI interop (`CMAKE_EXPERIMENTAL_RUST` remains experimental in CMake 4.5).
-- **`/python-pro`**: Python 3.14.7 + `nanobind` CMake module targets and canonical **`pixi` 0.84.2+** workspace/environment workflows.
+- **`/python-pro`**: Python 3.15 / 3.14 + `nanobind` CMake module targets and canonical **`pixi` 0.84.2+** workspace/environment workflows.
 - **`/github-flow-lifecycle`**: 6-stage Git/GitHub Flow protocol enforcing branch isolation, local `CMakePresets.json` pre-commit CI gates, and remote Actions self-healing.
 
 ---
