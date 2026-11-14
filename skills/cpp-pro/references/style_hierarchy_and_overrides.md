@@ -86,7 +86,7 @@ Because `/cpp-pro` targets **LLVM/Clang 23.1.5** strictly on **Linux** and **mac
 
 ## 3. `pixi` Dependencies & Platform-Native C++ Stdlib ABI Portability
 
-Manage C++ dependencies (`abseil-cpp`, `gtest`, `benchmark`, `nanobind`) and toolchains (`clangxx`, `clang-tools`, `lld`, `cmake`, `ninja`, `ccache`, `gersemi`, `pre-commit`) using **`pixi`** (`pixi.toml` + `pixi.lock` via `conda-forge`; consult `/python-pro` for `pixi` CLI patterns). Inject `CMAKE_PREFIX_PATH="$CONDA_PREFIX"` inside `CMakePresets.json` (`pixi` supersedes legacy external package-manager manifest rules in `/cmake-pro`; fall back to host/sysroot `find_package(<Pkg> CONFIG REQUIRED)` only in air-gapped or bare-metal embedded SDKs).
+Manage C++ dependencies (`abseil-cpp`, `gtest`, `benchmark`, `nanobind`) and toolchains (`clangxx`, `clang-tools`, `lld`, `cmake`, `ninja`, `ccache`, `gersemi`, `pre-commit`) using **`pixi`** (`pixi.toml` + `pixi.lock` via `conda-forge`; consult `/python-pro` for `pixi` CLI patterns). Inject `CMAKE_PREFIX_PATH="$CONDA_PREFIX"` inside `CMakePresets.json` (aligned with `/cmake-pro`'s `pixi` + `$CONDA_PREFIX` standard; fall back to host/sysroot `find_package(<Pkg> CONFIG REQUIRED)` only in air-gapped or bare-metal embedded SDKs).
 
 ### Platform-Native C++ Stdlib ABI Rule
 

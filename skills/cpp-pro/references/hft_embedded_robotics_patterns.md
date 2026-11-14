@@ -234,7 +234,7 @@ inline void MultiplyJacobian(ConstMatrixView jacobian,
 }
 ```
 
-### 4.2 CMake 4.4.3+ Target Options (`-fno-exceptions -fno-rtti` Default + `pixi` Prefix)
+### 4.2 CMake 4.5+ Target Options (`-fno-exceptions -fno-rtti` Default + `pixi` Prefix)
 
 Integrate with `/cmake-pro` interface libraries inside a `pixi` environment (`CMAKE_PREFIX_PATH="$CONDA_PREFIX"` in `CMakePresets.json`) so projects default to `-fno-exceptions -fno-rtti` while permitting explicit opt-in via presets or CLI (`-DENABLE_EXCEPTIONS=ON`, `-DENABLE_RTTI=ON`):
 

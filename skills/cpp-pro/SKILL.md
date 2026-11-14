@@ -15,7 +15,7 @@ You are a modern (**November 2026**) **ISO C++23** (`-std=c++23`) systems and pe
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`), zero-copy `extern "C"` ABI boundary headers, DMA/MMIO drivers, and CERT C / MISRA C safety kernels.
 - **`/rust-pro`**: Deterministic Rust 1.99.1+ (`std`/`no_std`/bare-metal, NVIDIA Halos, RISC-V RVA23) integrated via **Crubit** bidirectional C++/Rust bindings or C ABI.
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`GNAT 16.1+`, `gnatprove 16.1+` Silver/Gold proofs, `alr 2.1+`) safety interceptors linked into C++23 via `extern "C"`.
-- **`/cmake-pro`**: Modern CMake 4.4.3+ (`CMakePresets.json` v10+, modular `cmake/` modules, `gersemi`, `ccache`, `lld`).
+- **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, modular `cmake/` modules, `gersemi`, `ccache`, `lld`).
 - **`/python-pro`**: Python 3.14.7, `nanobind` zero-copy C++ bindings, and telemetry/benchmark analysis; reference `/python-pro` for `pixi` workspace, `conda-forge` channel, and multi-language environment patterns.
 - **`/github-flow-lifecycle`**: 6-stage Git and GitHub Flow lifecycle protocol (`github-mcp-server` issues/PRs, feature-branch isolation, mandatory pre-commit CI gates, and remote CI self-healing).
 
@@ -103,7 +103,7 @@ See [modern_cpp23_and_abseil.md](./references/modern_cpp23_and_abseil.md) for co
 ### Toolchain & Dependency Management (`pixi`)
 
 - **Compiler Standard**: Upstream **LLVM/Clang 23.1.5** (`clang++ -std=c++23`, `lld`, `clang-format`, `clang-tidy`, `clangd`) across Linux (`x86_64`, `aarch64`, `RISC-V RVA23`) and macOS Apple Silicon (treat AppleClang 21.0+ strictly as a feature-probed fallback).
-- **Strongly Recommend `pixi` for Dependencies & Toolchains**: Use **`pixi`** (`pixi.toml` + `pixi.lock` via `conda-forge`; consult `/python-pro` for `pixi` CLI and multi-environment conventions) whenever available to pin both external C++ packages (`abseil-cpp`, `gtest`, `benchmark`, `nanobind`) and native build tooling (`clangxx`, `clang-tools`, `lld`, `cmake`, `ninja`, `ccache`, `gersemi`, `pre-commit`) across Linux and macOS. Pass `CMAKE_PREFIX_PATH="$CONDA_PREFIX"` inside `CMakePresets.json` (`CMake 4.4.3+` per `/cmake-pro`)—`pixi` supersedes any legacy external package-manager manifest rules in `/cmake-pro`. Fall back to host/sysroot CMake `find_package(<Pkg> CONFIG REQUIRED)` only in air-gapped or bare-metal embedded SDKs where `pixi` is unavailable.
+- **Strongly Recommend `pixi` for Dependencies & Toolchains**: Use **`pixi`** (`pixi.toml` + `pixi.lock` via `conda-forge`; consult `/python-pro` for `pixi` CLI and multi-environment conventions) whenever available to pin both external C++ packages (`abseil-cpp`, `gtest`, `benchmark`, `nanobind`) and native build tooling (`clangxx`, `clang-tools`, `lld`, `cmake`, `ninja`, `ccache`, `gersemi`, `pre-commit`) across Linux and macOS. Pass `CMAKE_PREFIX_PATH="$CONDA_PREFIX"` inside `CMakePresets.json` (`CMake 4.5+`, aligned with `/cmake-pro`'s `pixi` + `$CONDA_PREFIX` standard). Fall back to host/sysroot CMake `find_package(<Pkg> CONFIG REQUIRED)` only in air-gapped or bare-metal embedded SDKs where `pixi` is unavailable.
 - **Platform-Native Stdlib ABI Rule**: When linking `pixi` / `conda-forge` C++ binaries, preserve each OS's native standard library ABI (**`libstdc++` on Linux**, **`libc++` on macOS Apple Silicon**—never force `-stdlib=libc++` on Linux against `libstdc++`-built `conda-forge` libraries). Guard skew-sensitive C++23 headers (`<generator>`, `<flat_map>`, `<stdfloat>`, `<spanstream>`) with `__has_include(...)` or `__cpp_lib_*` feature-test macros.
 - **Exceptions & RTTI Default**: Default interface options to `-fno-exceptions -fno-rtti` while exposing `ENABLE_EXCEPTIONS` and `ENABLE_RTTI` CMake options for explicit project opt-in.
 
@@ -118,7 +118,7 @@ See [modern_cpp23_and_abseil.md](./references/modern_cpp23_and_abseil.md) for co
 
 When initializing a new C++23 repository, scaffold:
 
-1. [examples/pixi.toml](./examples/pixi.toml): Hermetic `conda-forge` workspace pinning LLVM/Clang 23.1.5, CMake 4.4.3+, Ninja, `abseil-cpp`, `gtest`, `benchmark`, `gersemi`, and `pre-commit` on Linux and macOS.
+1. [examples/pixi.toml](./examples/pixi.toml): Hermetic `conda-forge` workspace pinning LLVM/Clang 23.1.5, CMake 4.5+, Ninja, `abseil-cpp`, `gtest`, `benchmark`, `gersemi`, and `pre-commit` on Linux and macOS.
 2. [examples/.clang-format](./examples/.clang-format): Google Style (`PointerAlignment: Left`, `ColumnLimit: 80`).
 3. [examples/.clang-tidy](./examples/.clang-tidy): LLVM/Clang 23.1.5 config enforcing `google-*`, `abseil-*`, `modernize-deprecated-headers`, `modernize-use-std-print`, `bugprone-unchecked-optional-access`, `misc-include-cleaner`, coroutine safety checks, and Google `readability-identifier-naming` (with GSL, signed/unsigned, and `do-while` nits omitted).
 4. [examples/.pre-commit-config.yaml](./examples/.pre-commit-config.yaml): Turnkey Git `pre-commit` enforcement for `clang-format`, `clang-tidy`, `gersemi`, and branch/secret hygiene (`.pixi/` excluded).
@@ -178,7 +178,7 @@ Choosing a container or cross-language boundary?
   - [modern_cpp23_and_abseil.md](./references/modern_cpp23_and_abseil.md): C++23 idioms (`std::expected`, deducing `this`, `std::mdspan`, multidimensional `operator[]`, `std::out_ptr`, `std::move_only_function`, `<stdfloat>`, hardened coroutines), Abseil LTS `20260817.0+`, Google Test `v1.18.0+`, Google Benchmark `v1.10.0+`, and **Crubit** C++/Rust interop.
   - [hft_embedded_robotics_patterns.md](./references/hft_embedded_robotics_patterns.md): Hot/cold path contracts, architecture-aware cache-aligned (`128uz`/`64uz`) SPSC ring buffer, Halos/HFT safety interceptor, `std::mdspan` kernel, and `pixi`-compatible CMake options.
 - **Baseline Examples (`examples/`)**:
-  - [pixi.toml](./examples/pixi.toml): Hermetic Linux & macOS `conda-forge` C++23 workspace (`Clang 23.1.5`, `CMake 4.4.3+`, Abseil, GTest, GBench, `gersemi`, `pre-commit`).
+  - [pixi.toml](./examples/pixi.toml): Hermetic Linux & macOS `conda-forge` C++23 workspace (`Clang 23.1.5`, `CMake 4.5+`, Abseil, GTest, GBench, `gersemi`, `pre-commit`).
   - [.clang-format](./examples/.clang-format): Google Style (`PointerAlignment: Left`, LLVM/Clang 23.1.5).
   - [.clang-tidy](./examples/.clang-tidy): Curated LLVM/Clang 23.1.5 linter & Google naming config.
   - [.pre-commit-config.yaml](./examples/.pre-commit-config.yaml): Git `pre-commit` enforcement (`clang-format`, `clang-tidy`, `gersemi`, hygiene).

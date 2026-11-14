@@ -1,0 +1,299 @@
+{
+  "version": 13,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 5,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "warnings": {
+        "author": true,
+        "deprecated": true,
+        "policy": true,
+        "strict": true,
+        "nonTargetDirective": true,
+        "installAbsoluteDestination": true,
+        "uninitialized": true,
+        "unusedCli": true
+      },
+      "errors": {
+        "nonTargetDirective": true,
+        "deprecated": true
+      },
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_CXX_SCAN_FOR_MODULES": "OFF",
+        "CMAKE_VERIFY_INTERFACE_HEADER_SETS": "ON"
+      }
+    },
+    {
+      "name": "pixi-base",
+      "hidden": true,
+      "inherits": "base",
+      "description": "Inherits base when running inside an activated Pixi ($CONDA_PREFIX) shell",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "$env{CONDA_PREFIX}",
+        "rhs": ""
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}"
+      }
+    },
+    {
+      "name": "ci-debug",
+      "inherits": "pixi-base",
+      "displayName": "CI Debug (Clang + ASan + UBSan)",
+      "description": "Strict CI debug build with AddressSanitizer, UndefinedBehaviorSanitizer, and warnings as errors",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZER_ADDRESS": "ON",
+        "ENABLE_SANITIZER_UNDEFINED": "ON",
+        "BUILD_TESTING": "ON",
+        "WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "dev-debug",
+      "inherits": "pixi-base",
+      "displayName": "Developer Debug",
+      "description": "Fast local debug preset inside Pixi for rapid iteration",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "WARNINGS_AS_ERRORS": "OFF"
+      }
+    },
+    {
+      "name": "dev-release",
+      "inherits": "pixi-base",
+      "displayName": "Developer Release (IPO + SPDX SBOM)",
+      "description": "Optimized release build with IPO/LTO and SPDX 3.0.1 JSON-LD SBOM emission",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_IPO": "ON",
+        "BUILD_TESTING": "ON",
+        "CMAKE_INSTALL_SBOM_FORMATS": "spdx-3.0.1+json"
+      }
+    },
+    {
+      "name": "ci-tsan",
+      "inherits": "pixi-base",
+      "displayName": "CI ThreadSanitizer",
+      "description": "Concurrency verification build with ThreadSanitizer and warnings as errors",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ENABLE_SANITIZER_THREAD": "ON",
+        "BUILD_TESTING": "ON",
+        "WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "sysroot-release",
+      "inherits": "base",
+      "displayName": "Air-Gapped Sysroot Release",
+      "description": "Standalone release preset without $CONDA_PREFIX for air-gapped or host SDK sysroot builds",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_IPO": "ON",
+        "BUILD_TESTING": "ON",
+        "CMAKE_INSTALL_SBOM_FORMATS": "spdx-3.0.1+json"
+      }
+    },
+    {
+      "name": "cross-aarch64",
+      "inherits": "base",
+      "displayName": "Cross-Compile Linux AArch64",
+      "description": "Cross-compile Linux AArch64 release artifacts without host Pixi prefix leakage",
+      "toolchainFile": "${fileDir}/cmake/toolchains/aarch64-linux-gnu.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "OFF"
+      }
+    },
+    {
+      "name": "cross-riscv64",
+      "inherits": "base",
+      "displayName": "Cross-Compile Linux RISC-V 64 (RVA23)",
+      "description": "Cross-compile Linux RISC-V RVA23 release artifacts with RVV 1.0 probing",
+      "toolchainFile": "${fileDir}/cmake/toolchains/riscv64-linux-gnu.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "ci-debug",
+      "configurePreset": "ci-debug",
+      "displayName": "Build CI Debug",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    },
+    {
+      "name": "dev-debug",
+      "configurePreset": "dev-debug",
+      "displayName": "Build Developer Debug",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    },
+    {
+      "name": "dev-release",
+      "configurePreset": "dev-release",
+      "displayName": "Build Developer Release",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    },
+    {
+      "name": "ci-tsan",
+      "configurePreset": "ci-tsan",
+      "displayName": "Build CI TSan",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    },
+    {
+      "name": "sysroot-release",
+      "configurePreset": "sysroot-release",
+      "displayName": "Build Sysroot Release",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    },
+    {
+      "name": "cross-aarch64",
+      "configurePreset": "cross-aarch64",
+      "displayName": "Build Cross AArch64",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    },
+    {
+      "name": "cross-riscv64",
+      "configurePreset": "cross-riscv64",
+      "displayName": "Build Cross RISC-V 64",
+      "description": "Build targets for configure preset ${configurePresetName}"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "ci-debug",
+      "configurePreset": "ci-debug",
+      "displayName": "Test CI Debug",
+      "output": {
+        "outputOnFailure": true,
+        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false,
+        "testPassthroughArguments": [
+          "--gtest_brief=1"
+        ]
+      }
+    },
+    {
+      "name": "dev-debug",
+      "configurePreset": "dev-debug",
+      "displayName": "Test Developer Debug",
+      "output": {
+        "outputOnFailure": true,
+        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false,
+        "testPassthroughArguments": [
+          "--gtest_brief=1"
+        ]
+      }
+    },
+    {
+      "name": "dev-release",
+      "configurePreset": "dev-release",
+      "displayName": "Test Developer Release",
+      "output": {
+        "outputOnFailure": true,
+        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false,
+        "testPassthroughArguments": [
+          "--gtest_brief=1"
+        ]
+      }
+    },
+    {
+      "name": "ci-tsan",
+      "configurePreset": "ci-tsan",
+      "displayName": "Test CI TSan",
+      "output": {
+        "outputOnFailure": true,
+        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false,
+        "testPassthroughArguments": [
+          "--gtest_brief=1"
+        ]
+      }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "ci-debug",
+      "displayName": "CI Debug Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ci-debug"
+        },
+        {
+          "type": "build",
+          "name": "ci-debug"
+        },
+        {
+          "type": "test",
+          "name": "ci-debug"
+        }
+      ]
+    },
+    {
+      "name": "ci-release",
+      "displayName": "CI Release Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "dev-release"
+        },
+        {
+          "type": "build",
+          "name": "dev-release"
+        },
+        {
+          "type": "test",
+          "name": "dev-release"
+        }
+      ]
+    },
+    {
+      "name": "ci-tsan",
+      "displayName": "CI TSan Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ci-tsan"
+        },
+        {
+          "type": "build",
+          "name": "ci-tsan"
+        },
+        {
+          "type": "test",
+          "name": "ci-tsan"
+        }
+      ]
+    }
+  ]
+}
