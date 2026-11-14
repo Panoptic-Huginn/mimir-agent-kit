@@ -1,6 +1,6 @@
 # Canonical SPARK Ada 2022 Reference Patterns
 
-Complete, copy-ready SPARK Ada 2022 (`-gnat2022`, `SPARK_Mode => On`) reference patterns for safety-critical robotics OS kernels, MMIO hardware registers, Jorvik real-time concurrency, and hybrid Alire + CMake 4.4.3+ integration.
+Complete, copy-ready SPARK Ada 2022 (`-gnat2022`, `SPARK_Mode => On`) reference patterns for safety-critical robotics OS kernels, MMIO hardware registers, Jorvik real-time concurrency, and hybrid Alire + CMake 4.5+ integration.
 
 ---
 
@@ -342,9 +342,9 @@ end Holoscan_Sensor_Mailbox;
 
 ---
 
-## 4. Hybrid Alire + CMake 4.4.3+ Integration (Linking SPARK into C23/C++23)
+## 4. Hybrid Alire + CMake 4.5+ Integration (Linking SPARK into C23/C++23)
 
-When embedding a formally verified SPARK static library into a larger C23 (`/c-pro`) or C++23 (`/cpp-pro`) workspace driven by CMake 4.4.3+ (`/cmake-pro`):
+When embedding a formally verified SPARK static library into a larger C23 (`/c-pro`) or C++23 (`/cpp-pro`) workspace driven by CMake 4.5+ (`/cmake-pro`):
 
 1. Configure the SPARK `.gpr` file as a static Stand-Alone Library:
    ```ada

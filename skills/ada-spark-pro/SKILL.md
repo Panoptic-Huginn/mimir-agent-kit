@@ -10,7 +10,7 @@ metadata:
 
 - **`/c-pro`**: Modern ISO C23 (`-std=c23`, LLVM Clang 23.1+ & Apple Clang 21.0+) systems programming, zero-copy C23 ABI boundary headers (`Interfaces.C`), DMA/MMIO drivers, and CERT C / MISRA C compliance.
 - **`/cpp-pro`**: Modern C++23 (`extern "C"` ABI boundaries, Holoscan operators, high-performance compute, Google Test, and Google Benchmark host harnesses linking against formally verified SPARK static libraries).
-- **`/cmake-pro`**: Modern CMake 4.4.3+ (`CMakePresets.json` v10+, hybrid CMake + Alire/GPRbuild static library integration, cross-compilation toolchains, and `gersemi`).
+- **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13, hybrid CMake + Alire/GPRbuild static library integration, cross-compilation toolchains, and `gersemi`).
 - **`/python-pro`**: Python 3.14.7 (`pixi` and `uv`) orchestration, `ctypes`/`cffi` hardware-in-the-loop (HIL) test harnesses, and WCET/telemetry analysis.
 - **`/github-flow-lifecycle`**: End-to-end Git and GitHub Flow lifecycle protocol (`github-mcp-server` issue/PR management, branch isolation, pre-commit local CI proof/build gates, and remote CI self-healing).
 
@@ -195,7 +195,7 @@ Complete, copy-ready SPARK Ada 2022 (`-gnat2022`, `SPARK_Mode => On`) reference 
 1. **Gold-Proved Halos Safety Command Interceptor (`halos_safety_gate.ads` / `.adb`)**: Proves Silver AoRTE and Gold zero-torque safe-state latching on stale heartbeats ($> 5\text{ ms}$), clock rollback, non-finite C float inputs (`'Valid`), and torque-limit exceedance, exported via `Convention => C` (`halos_spark_intercept_joint_cmd`).
 2. **Memory-Mapped I/O (MMIO) Hardware Watchdog Register (`fsi_watchdog_mmio.ads`)**: Exact 32-bit record representation clauses (`at ... range ...`, `Bit_Order => System.Low_Order_First`) paired with `Async_Writers`, `Async_Readers`, `Effective_Reads`, and `Effective_Writes` volatile contracts for ARM64 / RISC-V RVA23 Safety Islands.
 3. **Jorvik Real-Time Protected Sensor Mailbox (`holoscan_sensor_mailbox.ads`)**: Ceiling-priority `protected type` under `pragma Profile (Jorvik)` guaranteeing zero data races and zero deadlocks.
-4. **Hybrid Alire + CMake 4.4.3+ Integration (`cmake/SparkTargets.cmake`)**: Encapsulated Stand-Alone Library `.gpr` configuration imported as a `Halos::SparkSafety` static CMake target gated by `alr -n gnatprove`.
+4. **Hybrid Alire + CMake 4.5+ Integration (`cmake/SparkTargets.cmake`)**: Encapsulated Stand-Alone Library `.gpr` configuration imported as a `Halos::SparkSafety` static CMake target gated by `alr -n gnatprove`.
 
 ---
 

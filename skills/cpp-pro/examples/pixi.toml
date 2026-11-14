@@ -5,7 +5,7 @@
 [workspace]
 name = "cpp23-pro-template"
 version = "0.1.0"
-description = "Hermetic C++23 workspace managed with Pixi (LLVM/Clang 23.1.5, CMake 4.4.3+, Abseil, GTest, GBench)"
+description = "Hermetic C++23 workspace managed with Pixi (LLVM/Clang 23.1.5, CMake 4.5+, Abseil, GTest, GBench)"
 authors = ["Panoptic-Huginn <engineering@panoptic-huginn.org>"]
 channels = ["conda-forge"]
 platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
@@ -14,7 +14,7 @@ platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
 clangxx = ">=23.1.5"
 clang-tools = ">=23.1.5"
 lld = ">=23.1.5"
-cmake = ">=4.4.3"
+cmake = ">=4.5.0"
 ninja = ">=1.12.0"
 ccache = ">=4.10.0"
 abseil-cpp = ">=20260817.0"
@@ -39,5 +39,5 @@ build = { depends-on = ["configure"], cmd = "cmake --build --preset ci-debug", d
 test = { depends-on = ["build"], cmd = "ctest --preset ci-debug --output-on-failure", description = "Execute Google Test suite via CTest" }
 fmt = { cmd = "pre-commit run clang-format --all-files", description = "Verify Google-style clang-format across C/C++23 sources" }
 lint = { depends-on = ["configure"], cmd = "pre-commit run clang-tidy --all-files", description = "Run LLVM/Clang 23.1.5 clang-tidy static analysis (-warnings-as-errors=*)" }
-cmake-fmt = { cmd = "gersemi --check CMakeLists.txt cmake", description = "Verify CMake 4.4.3+ formatting with gersemi" }
+cmake-fmt = { cmd = "gersemi --check CMakeLists.txt cmake", description = "Verify CMake 4.5+ formatting with gersemi" }
 ci = { depends-on = ["configure", "build", "lint", "test"], description = "Run full local C++23 CI verification pipeline" }

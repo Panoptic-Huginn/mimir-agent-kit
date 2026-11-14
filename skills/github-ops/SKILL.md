@@ -24,7 +24,7 @@ This skill governs **control-plane, metadata, governance, planning, security-tri
 - **`/github-flow-lifecycle`**: Mandatory 6-stage code-delivery protocol whenever modifying repository files, creating commits, or opening/updating Pull Requests.
 - **`/python-pro`**: Python 3.14+ (`uv` and `pixi`) project conventions when bootstrapping or auditing Python repositories.
 - **`/rust-pro`**: Safety-critical Rust 1.99.1+ repository conventions.
-- **`/cmake-pro`**: Modern CMake 4.4.3+ (`CMakePresets.json` v10+) repository conventions.
+- **`/cmake-pro`**: Modern CMake 4.5+ (`CMakePresets.json` v13) repository conventions.
 - **`/c-pro`**: Deterministic ISO C23 systems repository conventions.
 - **`/cpp-pro`**: High-performance ISO C++23 repository conventions.
 - **`/ada-spark-pro`**: Formally verified SPARK Ada 2022 (`alr`, `gnatprove`) repository conventions.

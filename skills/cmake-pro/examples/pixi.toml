@@ -1,0 +1,46 @@
+# Production Pixi Workspace Configuration for Modern CMake 4.5+ Projects
+# Supports Linux (linux-64, linux-aarch64, plus riscv64 cross) and macOS (osx-arm64) ONLY.
+# Reference /python-pro for general Pixi CLI workflows and /cpp-pro for C++23 ABI rules.
+
+[workspace]
+name = "modern-cmake-template"
+version = "1.0.0"
+description = "Hermetic CMake 4.5+ workspace managed with Pixi (conda-forge LLVM/Clang 23.1.5+, Ninja, ccache, gersemi)"
+authors = ["Panoptic-Huginn <engineering@panoptic-huginn.org>"]
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+requires-pixi = ">=0.84.2"
+
+[dependencies]
+cmake = ">=4.5.0"
+ninja = ">=1.12.0"
+clangxx = ">=23.1.5"
+clang-tools = ">=23.1.5"
+lld = ">=23.1.5"
+ccache = ">=4.10.0"
+libabseil = ">=20260817.0"
+gtest = ">=1.18.0"
+benchmark = ">=1.10.0"
+gersemi = ">=0.19.2"
+pre-commit = ">=4.6.0"
+
+[target.linux-64.dependencies]
+# Preserve Linux conda-forge libstdc++ ABI (do NOT inject -stdlib=libc++ against conda-forge libs).
+
+[target.linux-aarch64.dependencies]
+# Preserve Linux aarch64 conda-forge libstdc++ ABI (e.g., NVIDIA IGX Thor / Jetson Orin).
+
+[target.osx-arm64.dependencies]
+# Preserve Apple Silicon macOS native libc++ ABI.
+libcxx = ">=23.1.5"
+
+[tasks]
+presets = { cmd = "cmake --list-presets=all-defined", description = "List CMake 4.5+ configure, build, test, and workflow presets" }
+configure = { cmd = "cmake --preset ci-debug", description = "Configure ci-debug preset (Ninja, Clang, ASan+UBSan, $CONDA_PREFIX)" }
+build = { depends-on = ["configure"], cmd = "cmake --build --preset ci-debug", description = "Build ci-debug targets with Ninja and ccache" }
+test = { depends-on = ["build"], cmd = "ctest --preset ci-debug", description = "Execute Google Test suite via CTest ci-debug preset" }
+workflow = { cmd = "cmake --workflow --preset ci-debug", description = "Run end-to-end configure, build, and test CMake workflow preset" }
+cmake-fmt = { cmd = "gersemi --check CMakeLists.txt cmake", description = "Verify deterministic CMake 4.5+ formatting with gersemi" }
+cmake-fmt-fix = { cmd = "gersemi -i CMakeLists.txt cmake", description = "Format CMakeLists.txt and cmake/ modules in-place with gersemi" }
+lint = { depends-on = ["configure"], cmd = "pre-commit run clang-tidy --all-files", description = "Run clang-tidy static analysis against build/ci-debug/compile_commands.json" }
+ci = { depends-on = ["configure", "build", "lint", "test", "cmake-fmt"], description = "Run full local CMake, build, static analysis, test, and format CI gate" }
