@@ -1,0 +1,43 @@
+# Production Pixi Workspace Configuration for Modern ISO C++23 (LLVM/Clang 23.1.5)
+# Supports Linux (x86_64, aarch64) and macOS (Apple Silicon) ONLY. Windows is unsupported.
+# Reference /python-pro for general Pixi CLI and multi-environment patterns.
+
+[workspace]
+name = "cpp23-pro-template"
+version = "0.1.0"
+description = "Hermetic C++23 workspace managed with Pixi (LLVM/Clang 23.1.5, CMake 4.4.3+, Abseil, GTest, GBench)"
+authors = ["Panoptic-Huginn <engineering@panoptic-huginn.org>"]
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+
+[dependencies]
+clangxx = ">=23.1.5"
+clang-tools = ">=23.1.5"
+lld = ">=23.1.5"
+cmake = ">=4.4.3"
+ninja = ">=1.12.0"
+ccache = ">=4.10.0"
+abseil-cpp = ">=20260817.0"
+gtest = ">=1.18.0"
+benchmark = ">=1.10.0"
+gersemi = ">=0.17.0"
+pre-commit = ">=4.6.0"
+
+[target.linux-64.dependencies]
+# Preserve Linux conda-forge libstdc++ ABI (do NOT inject -stdlib=libc++ against conda-forge libs).
+
+[target.linux-aarch64.dependencies]
+# Preserve Linux aarch64 conda-forge libstdc++ ABI (e.g., NVIDIA IGX Thor / Orin).
+
+[target.osx-arm64.dependencies]
+# Preserve Apple Silicon macOS native libc++ ABI.
+libcxx = ">=23.1.5"
+
+[tasks]
+configure = { cmd = "cmake --preset ci-debug -DCMAKE_PREFIX_PATH=$CONDA_PREFIX", description = "Configure CMakePreset ci-debug against Pixi conda-forge prefix" }
+build = { depends-on = ["configure"], cmd = "cmake --build --preset ci-debug", description = "Build C++23 targets using Ninja and LLVM/Clang 23.1.5" }
+test = { depends-on = ["build"], cmd = "ctest --preset ci-debug --output-on-failure", description = "Execute Google Test suite via CTest" }
+fmt = { cmd = "pre-commit run clang-format --all-files", description = "Verify Google-style clang-format across C/C++23 sources" }
+lint = { depends-on = ["configure"], cmd = "pre-commit run clang-tidy --all-files", description = "Run LLVM/Clang 23.1.5 clang-tidy static analysis (-warnings-as-errors=*)" }
+cmake-fmt = { cmd = "gersemi --check CMakeLists.txt cmake", description = "Verify CMake 4.4.3+ formatting with gersemi" }
+ci = { depends-on = ["configure", "build", "lint", "test"], description = "Run full local C++23 CI verification pipeline" }
