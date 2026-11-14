@@ -31,8 +31,8 @@ This reference provides three complete, runnable, visually rendering **Marimo 0.
 
 import marimo
 
-__generated_with = '0.25.2'
-app = marimo.App(width='medium')
+__generated_with = "0.25.2"
+app = marimo.App(width="medium")
 
 with app.setup:
     import emcee
@@ -57,7 +57,9 @@ def astro_header():
 
 @app.cell
 def astro_controls():
-    transit_depth_ppm = mo.ui.slider(start=500, stop=25000, step=250, value=8500, label='True Depth (ppm)')
+    transit_depth_ppm = mo.ui.slider(
+        start=500, stop=25000, step=250, value=8500, label="True Depth (ppm)"
+    )
     mcmc_form = (
         mo
         .md(
@@ -74,7 +76,7 @@ def astro_controls():
             n_steps=mo.ui.slider(start=150, stop=800, step=50, value=300),
             u1_slider=mo.ui.slider(start=0.05, stop=0.75, step=0.05, value=0.35),
         )
-        .form(submit_button_label='Run MCMC Fit')
+        .form(submit_button_label="Run MCMC Fit")
     )
 
     controls_panel = mo.vstack([transit_depth_ppm, mcmc_form])
@@ -90,35 +92,37 @@ def generate_light_curve(transit_depth_ppm):
     half_dur = 1.15
     flux_clean = np.ones_like(phase_hr)
     in_transit = np.abs(phase_hr) < half_dur
-    flux_clean[in_transit] -= depth * np.sqrt(np.clip(1.0 - (phase_hr[in_transit] / half_dur) ** 2, 0.0, 1.0))
+    flux_clean[in_transit] -= depth * np.sqrt(
+        np.clip(1.0 - (phase_hr[in_transit] / half_dur) ** 2, 0.0, 1.0)
+    )
     sigma = 4.5e-4
     flux_obs = flux_clean + _rng.normal(0.0, sigma, size=phase_hr.size)
 
-    theme = 'plotly_dark' if mo.app_meta().theme == 'dark' else 'plotly_white'
+    theme = "plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white"
     lc_fig = go.Figure()
     lc_fig.add_trace(
         go.Scatter(
             x=phase_hr,
             y=flux_obs,
-            mode='markers',
-            name='Observed Flux',
-            marker={'size': 5, 'opacity': 0.75},
+            mode="markers",
+            name="Observed Flux",
+            marker={"size": 5, "opacity": 0.75},
         )
     )
     lc_fig.add_trace(
         go.Scatter(
             x=phase_hr,
             y=flux_clean,
-            mode='lines',
-            name='Injected Model',
-            line={'width': 2},
+            mode="lines",
+            name="Injected Model",
+            line={"width": 2},
         )
     )
     lc_fig.update_layout(
         template=theme,
-        title='Synthetic Normalized Transit Light Curve',
-        xaxis_title='Time from Mid-Transit (hr)',
-        yaxis_title='Relative Flux',
+        title="Synthetic Normalized Transit Light Curve",
+        xaxis_title="Time from Mid-Transit (hr)",
+        yaxis_title="Relative Flux",
         height=380,
     )
     lc_plot = mo.ui.plotly(lc_fig)
@@ -131,18 +135,20 @@ def run_mcmc_fit(flux_obs, mcmc_form, phase_hr, sigma):
     mo.stop(
         mcmc_form.value is None,
         mo.callout(
-            mo.md('Configure sampler parameters above and click **Run MCMC Fit**.'),
-            kind='info',
+            mo.md("Configure sampler parameters above and click **Run MCMC Fit**."),
+            kind="info",
         ),
     )
 
-    n_walkers = int(mcmc_form.value['n_walkers'])
-    n_steps = int(mcmc_form.value['n_steps'])
-    u1 = float(mcmc_form.value['u1_slider'])
+    n_walkers = int(mcmc_form.value["n_walkers"])
+    n_steps = int(mcmc_form.value["n_steps"])
+    u1 = float(mcmc_form.value["u1_slider"])
 
     def log_probability(theta: np.ndarray) -> float:
         rp_rs, dur_hr, flux_base = theta
-        if not (0.005 < rp_rs < 0.25 and 0.3 < dur_hr < 5.0 and 0.99 < flux_base < 1.01):
+        if not (
+            0.005 < rp_rs < 0.25 and 0.3 < dur_hr < 5.0 and 0.99 < flux_base < 1.01
+        ):
             return -np.inf
         half_dur = 0.5 * dur_hr
         model = np.full_like(phase_hr, flux_base)
@@ -158,16 +164,16 @@ def run_mcmc_fit(flux_obs, mcmc_form, phase_hr, sigma):
     chain = sampler.get_chain(discard=n_steps // 2, flat=True)
 
     summary_df = pl.DataFrame({
-        'parameter': ['Rp/R*', 'Duration (hr)', 'Baseline Flux'],
-        'median': [float(np.median(chain[:, i])) for i in range(3)],
-        'std': [float(np.std(chain[:, i])) for i in range(3)],
+        "parameter": ["Rp/R*", "Duration (hr)", "Baseline Flux"],
+        "median": [float(np.median(chain[:, i])) for i in range(3)],
+        "std": [float(np.std(chain[:, i])) for i in range(3)],
     })
-    mcmc_summary = mo.ui.table(summary_df, label='Posterior Summary')
+    mcmc_summary = mo.ui.table(summary_df, label="Posterior Summary")
     mcmc_summary
     return (mcmc_summary,)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
 ```
 
@@ -180,8 +186,8 @@ if __name__ == '__main__':
 ```python
 import marimo
 
-__generated_with = '0.25.2'
-app = marimo.App(width='wide')
+__generated_with = "0.25.2"
+app = marimo.App(width="wide")
 
 with app.setup:
     import marimo as mo
@@ -192,14 +198,18 @@ with app.setup:
 
 @app.cell
 def telemetry_controls():
-    ring_size = mo.ui.slider(start=64, stop=1024, step=64, value=256, label='IPC Ring Size')
-    sample_count = mo.ui.dropdown(
-        options={'2,000 events': 2000, '10,000 events': 10000, '0 (test gate)': 0},
-        value='2,000 events',
-        label='Capture Sample Count',
+    ring_size = mo.ui.slider(
+        start=64, stop=1024, step=64, value=256, label="IPC Ring Size"
     )
-    threshold_us = mo.ui.number(start=10, stop=500, step=10, value=120, label='SLO p99 Limit (us)')
-    ui_bar = mo.hstack([ring_size, sample_count, threshold_us], justify='start')
+    sample_count = mo.ui.dropdown(
+        options={"2,000 events": 2000, "10,000 events": 10000, "0 (test gate)": 0},
+        value="2,000 events",
+        label="Capture Sample Count",
+    )
+    threshold_us = mo.ui.number(
+        start=10, stop=500, step=10, value=120, label="SLO p99 Limit (us)"
+    )
+    ui_bar = mo.hstack([ring_size, sample_count, threshold_us], justify="start")
     ui_bar
     return ring_size, sample_count, threshold_us, ui_bar
 
@@ -210,8 +220,8 @@ def validate_and_synthesize(ring_size, sample_count, threshold_us):
     mo.stop(
         n_events <= 0,
         mo.callout(
-            mo.md('**Empty Capture Window:** Select a non-zero sample count above.'),
-            kind='warn',
+            mo.md("**Empty Capture Window:** Select a non-zero sample count above."),
+            kind="warn",
         ),
     )
 
@@ -221,24 +231,24 @@ def validate_and_synthesize(ring_size, sample_count, threshold_us):
     latencies[outliers] *= 4.2
 
     df = pl.DataFrame({
-        'seq': np.arange(n_events),
-        'latency_us': np.round(latencies, 2),
+        "seq": np.arange(n_events),
+        "latency_us": np.round(latencies, 2),
     })
-    p50 = float(df['latency_us'].quantile(0.50))
-    p99 = float(df['latency_us'].quantile(0.99))
-    p999 = float(df['latency_us'].quantile(0.999))
+    p50 = float(df["latency_us"].quantile(0.50))
+    p99 = float(df["latency_us"].quantile(0.99))
+    p999 = float(df["latency_us"].quantile(0.999))
 
     stats = mo.hstack(
         [
-            mo.stat(label='p50 Latency', value=f'{p50:.1f} us'),
-            mo.stat(label='p99 Latency', value=f'{p99:.1f} us'),
-            mo.stat(label='p99.9 Latency', value=f'{p999:.1f} us'),
+            mo.stat(label="p50 Latency", value=f"{p50:.1f} us"),
+            mo.stat(label="p99 Latency", value=f"{p99:.1f} us"),
+            mo.stat(label="p99.9 Latency", value=f"{p999:.1f} us"),
             mo.stat(
-                label='SLO Status',
-                value='PASS' if p99 <= float(threshold_us.value) else 'BREACH',
+                label="SLO Status",
+                value="PASS" if p99 <= float(threshold_us.value) else "BREACH",
             ),
         ],
-        widths='equal',
+        widths="equal",
     )
     stats
     return df, p50, p99, p999, stats
@@ -246,26 +256,26 @@ def validate_and_synthesize(ring_size, sample_count, threshold_us):
 
 @app.cell
 def plot_ipc_histogram(df, threshold_us):
-    theme = 'plotly_dark' if mo.app_meta().theme == 'dark' else 'plotly_white'
+    theme = "plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white"
     fig = go.Figure(
         data=[
             go.Histogram(
-                x=df['latency_us'].to_numpy(),
+                x=df["latency_us"].to_numpy(),
                 nbinsx=60,
-                name='IPC Latency (us)',
+                name="IPC Latency (us)",
             )
         ]
     )
     fig.add_vline(
         x=float(threshold_us.value),
-        line_dash='dash',
-        annotation_text='SLO Limit',
+        line_dash="dash",
+        annotation_text="SLO Limit",
     )
     fig.update_layout(
         template=theme,
-        title='Kernel IPC Round-Trip Latency Distribution',
-        xaxis_title='Latency (us)',
-        yaxis_title='Event Count',
+        title="Kernel IPC Round-Trip Latency Distribution",
+        xaxis_title="Latency (us)",
+        yaxis_title="Event Count",
         height=360,
     )
     hist_view = mo.ui.plotly(fig)
@@ -273,7 +283,7 @@ def plot_ipc_histogram(df, threshold_us):
     return (hist_view,)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
 ```
 
@@ -286,8 +296,8 @@ if __name__ == '__main__':
 ```python
 import marimo
 
-__generated_with = '0.25.2'
-app = marimo.App(width='medium')
+__generated_with = "0.25.2"
+app = marimo.App(width="medium")
 
 with app.setup:
     import marimo as mo
@@ -312,9 +322,13 @@ def ekf_covariance_update(
 
 @app.cell
 def ekf_controls():
-    meas_sigma = mo.ui.slider(start=0.05, stop=1.5, step=0.05, value=0.25, label='GNSS Noise Sigma (m)')
-    process_sigma = mo.ui.slider(start=0.01, stop=0.5, step=0.02, value=0.08, label='IMU Process Noise')
-    panel = mo.hstack([meas_sigma, process_sigma], justify='start')
+    meas_sigma = mo.ui.slider(
+        start=0.05, stop=1.5, step=0.05, value=0.25, label="GNSS Noise Sigma (m)"
+    )
+    process_sigma = mo.ui.slider(
+        start=0.01, stop=0.5, step=0.02, value=0.08, label="IMU Process Noise"
+    )
+    panel = mo.hstack([meas_sigma, process_sigma], justify="start")
     panel
     return meas_sigma, panel, process_sigma
 
@@ -331,7 +345,9 @@ def simulate_2d_ekf(meas_sigma, process_sigma):
 
     state = np.array([truth[0, 0], truth[0, 1], 0.0, 0.8])
     cov = np.eye(4) * 0.5
-    f_mat = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=float)
+    f_mat = np.array(
+        [[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=float
+    )
     q_cov = np.eye(4) * (float(process_sigma.value) ** 2)
     h_mat = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=float)
     r_cov = np.eye(2) * (float(meas_sigma.value) ** 2)
@@ -345,16 +361,16 @@ def simulate_2d_ekf(meas_sigma, process_sigma):
         est_xy[idx] = state[:2]
 
     rmse = float(np.sqrt(np.mean(np.sum((est_xy - truth) ** 2, axis=1))))
-    theme = 'plotly_dark' if mo.app_meta().theme == 'dark' else 'plotly_white'
+    theme = "plotly_dark" if mo.app_meta().theme == "dark" else "plotly_white"
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=truth[:, 0], y=truth[:, 1], mode='lines', name='Truth'))
-    fig.add_trace(go.Scatter(x=est_xy[:, 0], y=est_xy[:, 1], mode='lines', name='EKF'))
+    fig.add_trace(go.Scatter(x=truth[:, 0], y=truth[:, 1], mode="lines", name="Truth"))
+    fig.add_trace(go.Scatter(x=est_xy[:, 0], y=est_xy[:, 1], mode="lines", name="EKF"))
     fig.update_layout(
         template=theme,
-        title=f'EKF Trajectory (RMSE = {rmse:.3f} m)',
-        xaxis_title='X (m)',
-        yaxis_title='Y (m)',
-        yaxis_scaleanchor='x',
+        title=f"EKF Trajectory (RMSE = {rmse:.3f} m)",
+        xaxis_title="X (m)",
+        yaxis_title="Y (m)",
+        yaxis_scaleanchor="x",
         height=400,
     )
     trajectory_plot = mo.ui.plotly(fig)
@@ -374,6 +390,6 @@ def test_ekf_covariance_psd() -> None:
     return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
 ```

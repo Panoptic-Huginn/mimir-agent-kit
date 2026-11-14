@@ -38,12 +38,16 @@ updates:
       dev-dependencies:
         patterns:
           - "actionlint*"
-          - "mypy*"
-          - "pre-commit*"
+          - "basedpyright*"
+          - "deptry*"
+          - "hypothesis*"
+          - "pip-audit*"
+          - "prek*"
           - "pytest*"
           - "pyyaml*"
           - "ruff*"
           - "rumdl*"
+          - "ty"
           - "types-pyyaml*"
           - "zizmor*"
       dependencies:

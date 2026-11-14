@@ -20,7 +20,7 @@ import marimo._code_mode as cm
 async with cm.get_context() as ctx:
     # Dump authoritative kernel code before deciding whether to reconcile
     for cid, cell in ctx.cells.items():
-        print(f'--- {cid} ({cell.name}) ---')
+        print(f"--- {cid} ({cell.name}) ---")
         print(cell.code)
 ```
 
@@ -74,7 +74,7 @@ import marimo._code_mode as cm
 async with cm.get_context() as ctx:
     # Always verify current cell content before forcing skip_staleness_check=True
     for cid, cell in ctx.cells.items():
-        print(cid, 'first line:', cell.code.splitlines()[0] if cell.code else '<empty>')
+        print(cid, "first line:", cell.code.splitlines()[0] if cell.code else "<empty>")
 ```
 
 ### B. Cell Created or Edited Remains Unexecuted (`status == "idle"` or stale outputs)
@@ -85,8 +85,8 @@ Remember: `ctx.create_cell` and `ctx.edit_cell` queue AST edits only. Always cal
 import marimo._code_mode as cm
 
 async with cm.get_context() as ctx:
-    stale_ids = [cid for cid, c in ctx.cells.items() if c.status == 'stale']
+    stale_ids = [cid for cid, c in ctx.cells.items() if c.status == "stale"]
     for cid in stale_ids:
         ctx.run_cell(cid)
-    print('Triggered stale cells:', stale_ids)
+    print("Triggered stale cells:", stale_ids)
 ```

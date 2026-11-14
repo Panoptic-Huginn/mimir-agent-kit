@@ -1,0 +1,101 @@
+# Canonical Pre-Commit Hook Configuration (Executed via `prek` + `uv run`)
+# Install locally with: `uv run prek install --overwrite`
+# Run across all files with: `uv run prek run --all-files --show-diff-on-failure`
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+exclude: '^\.agents/|^\.gemini/|^\.venv/|build/|dist/'
+
+repos:
+  # 1. Immutable Repository & File Hygiene (SHA-pinned pre-commit-hooks)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: '(^|/)tsconfig.*\.json$|\.jsonc$'
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-ast
+      - id: debug-statements
+      - id: check-vcs-permalinks
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+  # 2. Ruff Linting & Formatting
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (uv)
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format (uv)
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+  # 3. Strict Static Type Checking (Basedpyright + Astral ty)
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright strict (uv)
+        entry: uv run basedpyright
+        language: system
+        pass_filenames: false
+        files: \.py$|^pyproject\.toml$|^uv\.lock$
+      - id: ty
+        name: ty check (uv)
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        files: \.py$|^pyproject\.toml$|^uv\.lock$
+
+  # 4. Reactive Notebook Integrity (Marimo DAG validation when notebooks exist)
+  - repo: local
+    hooks:
+      - id: marimo-check
+        name: marimo notebook DAG check (uv)
+        entry: uv run marimo check
+        language: system
+        files: ^notebooks/.*\.py$
+        pass_filenames: true
+
+  # 5. Markdown & GitHub Actions Supply-Chain Checks
+  - repo: local
+    hooks:
+      - id: rumdl
+        name: rumdl markdown check (uv)
+        entry: uv run rumdl check
+        language: system
+        types: [markdown]
+        pass_filenames: true
+      - id: actionlint
+        name: actionlint workflow check (uv)
+        entry: uv run actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        types: [yaml]
+        pass_filenames: true
+      - id: zizmor
+        name: zizmor workflow security audit (uv)
+        entry: uv run zizmor
+        args: [--strict-collection, --min-severity=low, .github/workflows/]
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        types: [yaml]
+        pass_filenames: false

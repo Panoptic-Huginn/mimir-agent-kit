@@ -30,8 +30,8 @@ Marimo's parser ONLY preserves these top-level constructs when loading or saving
 
 import marimo
 
-__generated_with = '0.25.2'
-app = marimo.App(width='medium')
+__generated_with = "0.25.2"
+app = marimo.App(width="medium")
 
 with app.setup:
     import marimo as mo
@@ -50,12 +50,12 @@ def photon_energy_j(wavelength_m: float) -> float:
 def compute_band():
     wavelength = 500e-9
     photon_energy = photon_energy_j(wavelength)
-    _card = mo.stat(value=f'{photon_energy:.3e} J', label='500 nm Photon Energy')
+    _card = mo.stat(value=f"{photon_energy:.3e} J", label="500 nm Photon Energy")
     _card  # Unindented final expression -> renders in UI
     return photon_energy, wavelength
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
 ```
 
@@ -158,7 +158,9 @@ def validate_sensor_inputs(mo, raw_telemetry):
     _is_valid = raw_telemetry is not None and len(raw_telemetry) > 0
     mo.stop(
         not _is_valid,
-        output=mo.callout('Telemetry stream empty. Awaiting hardware ingest...', kind='warn'),
+        output=mo.callout(
+            "Telemetry stream empty. Awaiting hardware ingest...", kind="warn"
+        ),
     )
     normalized_data = raw_telemetry / 1000.0
     normalized_data
@@ -177,11 +179,11 @@ def resolve_params(BaseModel, Field, mo, param_form):
     class RunParams(BaseModel):
         samples: int = Field(default=1024, ge=64)
 
-    if mo.app_meta().mode == 'script':
-        _cli = {k.replace('-', '_'): v for k, v in mo.cli_args().items()}
+    if mo.app_meta().mode == "script":
+        _cli = {k.replace("-", "_"): v for k, v in mo.cli_args().items()}
         run_params = RunParams(**_cli)
     else:
-        mo.stop(param_form.value is None, mo.md('Submit parameters to execute.'))
+        mo.stop(param_form.value is None, mo.md("Submit parameters to execute."))
         run_params = RunParams(**param_form.value)
     return (run_params,)
 ```
@@ -201,13 +203,13 @@ from examples.robotics_kalman_filter import app
 
 def test_robotics_kalman_filter_convergence():
     outputs, defs = app.run()
-    assert defs['filter_converged'] is True
-    assert defs['estimation_error'] < 0.05
+    assert defs["filter_converged"] is True
+    assert defs["estimation_error"] < 0.05
 
 
 def test_custom_parameters():
-    outputs, defs = app.run(defs={'noise_sigma': 0.01})
-    assert defs['covariance_trace'] < 0.1
+    outputs, defs = app.run(defs={"noise_sigma": 0.01})
+    assert defs["covariance_trace"] < 0.1
 
 
 # Isolated single-cell execution via cell.run(**refs)
@@ -216,7 +218,7 @@ from examples.astro_transit_photometry import compute_transit_model
 
 def test_transit_model_unit():
     output, defs = compute_transit_model.run(radius_ratio=0.1, impact_param=0.2)
-    flux = defs['transit_flux']
+    flux = defs["transit_flux"]
     assert len(flux) == 1000
     assert min(flux) < 1.0
 ```
