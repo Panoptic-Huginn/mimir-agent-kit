@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 import re
+import tomllib
 from typing import TYPE_CHECKING
 from typing import Any
 from urllib.parse import urlparse
@@ -53,6 +54,20 @@ def _load_yaml_dict(file_path: Path) -> dict[str, Any]:
         Parsed dictionary representation of the YAML file.
     """
     parsed = yaml.safe_load(file_path.read_text(encoding='utf-8'))
+    assert isinstance(parsed, dict), f"'{file_path.name}' must parse to a dictionary"
+    return parsed
+
+
+def _load_toml_dict(file_path: Path) -> dict[str, Any]:
+    """Load a TOML file and assert that its root is a dictionary.
+
+    Args:
+        file_path: Path object pointing to the TOML configuration file.
+
+    Returns:
+        Parsed dictionary representation of the TOML file.
+    """
+    parsed = tomllib.loads(file_path.read_text(encoding='utf-8'))
     assert isinstance(parsed, dict), f"'{file_path.name}' must parse to a dictionary"
     return parsed
 
@@ -133,7 +148,7 @@ def test_t1_04_skill_frontmatter_name() -> None:
 
 
 def test_t1_05_skill_frontmatter_description() -> None:
-    """Verify frontmatter description meets minimum length and covers core topics."""
+    """Verify frontmatter description covers C++23, pixi, coroutines, and omits Core Guidelines/vcpkg."""
     frontmatter, _ = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     desc = frontmatter.get('description', '')
     assert isinstance(desc, str), 'Frontmatter description must be a string'
@@ -142,13 +157,14 @@ def test_t1_05_skill_frontmatter_description() -> None:
         'c++23',
         '23.1.5',
         'google c++ style',
-        'core guidelines',
         'hft',
         'embedded',
         'robotics',
+        'pixi',
         '<cstdint>',
         'std::expected',
         'std::print',
+        'coroutines',
         'abseil',
         'google test',
         'google benchmark',
@@ -160,6 +176,8 @@ def test_t1_05_skill_frontmatter_description() -> None:
     lowered = desc.lower()
     for kw in required_keywords:
         assert kw in lowered, f"Description missing expected keyword '{kw}'"
+    assert 'core guidelines' not in lowered
+    assert 'vcpkg' not in lowered
 
 
 def test_t1_06_skill_frontmatter_metadata() -> None:
@@ -186,17 +204,16 @@ def test_t1_08_subdirectories_allowed() -> None:
 
 
 def test_t1_09_examples_directory_contents() -> None:
-    """Verify examples/ contains .clang-format, .clang-tidy, and .pre-commit-config.yaml."""
+    """Verify examples/ contains pixi.toml, .clang-format, .clang-tidy, and .pre-commit-config.yaml."""
     assert EXAMPLES_DIR.is_dir()
-    required_files = [
-        '.clang-format',
-        '.clang-tidy',
-        '.pre-commit-config.yaml',
-    ]
-    for filename in required_files:
+    for filename in ['.clang-format', '.clang-tidy', '.pre-commit-config.yaml']:
         target = EXAMPLES_DIR / filename
         assert target.is_file(), f"Missing required example configuration '{filename}'"
         _ = _load_yaml_dict(target)
+
+    pixi_path = EXAMPLES_DIR / 'pixi.toml'
+    assert pixi_path.is_file(), "Missing required example configuration 'pixi.toml'"
+    _ = _load_toml_dict(pixi_path)
 
 
 def test_t1_10_references_directory_contents() -> None:
@@ -226,19 +243,17 @@ def test_t1_11_persona_november_2026_clang_23_1_5() -> None:
     assert 'clang-format' in body
 
 
-def test_t1_12_descending_style_priority_order() -> None:
-    """Verify strict descending priority order: #1 Google > #2 Core Guidelines > #3 HFT/Embedded/Robotics."""
+def test_t1_12_descending_two_tier_style_hierarchy() -> None:
+    """Verify 2-tier priority order (#1 Google > #2 Modern C++23 & HFT/Embedded/Robotics) and Core Guidelines removal."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
-    google_url = 'https://google.github.io/styleguide/cppguide.html'
-    core_url = 'https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines'
-    industry_label = 'Standard Industry Best Practices'
-    assert google_url in body
-    assert core_url in body
-    assert industry_label in body
-    assert body.index(google_url) < body.index(core_url) < body.index(industry_label)
-    assert 'High-Frequency Trading (HFT)' in body
-    assert 'Embedded' in body
-    assert 'Robotics' in body
+    tier1_label = 'Google C++ Style Guide'
+    tier2_label = 'Modern ISO C++23 & HFT / Embedded / Robotics Best Practices'
+    assert tier1_label in body
+    assert tier2_label in body
+    assert body.index(tier1_label) < body.index(tier2_label)
+    parsed_urls = [urlparse(url) for url in _extract_markdown_https_urls(body)]
+    assert any(u.scheme == 'https' and u.hostname == 'google.github.io' and u.path == '/styleguide/cppguide.html' for u in parsed_urls)
+    assert 'Do NOT use the C++ Core Guidelines as a style authority' in body
 
 
 def test_t1_13_explicit_cstdint_and_int_only_rule() -> None:
@@ -312,18 +327,16 @@ def test_t1_17_crubit_cpp_rust_interop() -> None:
     assert 'lifetimebound' in modern_doc
 
 
-def test_t1_18_core_guidelines_carveout_1_ignore_gsl() -> None:
-    """Verify Core Guidelines carve-out #1: GSL (gsl::*) is completely ignored."""
+def test_t1_18_microsoft_gsl_completely_banned() -> None:
+    """Verify Microsoft.GSL (gsl::*) is completely banned across SKILL.md and style manual."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
-    assert 'Ignore GSL' in body
-    assert 'gsl::*' in body
-    assert 'Microsoft.GSL' in body
-    assert 'IGNORE COMPLETELY' in style_doc
+    assert 'NEVER depend on `Microsoft.GSL` (`gsl::*`)' in body
+    assert 'Banned `Microsoft.GSL` (`gsl::*`)' in style_doc
 
 
-def test_t1_19_core_guidelines_carveout_2_std_expected_and_exceptions_rtti_flexibility() -> None:
-    """Verify carve-out #2: std::expected default with -fno-exceptions/-fno-rtti and CMake opt-in."""
+def test_t1_19_std_expected_and_exceptions_rtti_flexibility() -> None:
+    """Verify std::expected default with -fno-exceptions/-fno-rtti and CMake opt-in."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     assert 'std::expected<T, E>' in body
     assert '-fno-exceptions -fno-rtti' in body
@@ -332,57 +345,72 @@ def test_t1_19_core_guidelines_carveout_2_std_expected_and_exceptions_rtti_flexi
     assert 'never call throwing `.value()`' in body
 
 
-def test_t1_20_core_guidelines_carveout_3_no_contracts_until_cpp26() -> None:
-    """Verify carve-out #3: C++ contract annotations deferred until C++26."""
+def test_t1_20_no_contracts_until_cpp26() -> None:
+    """Verify C++ contract syntax is deferred until C++26."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
-    assert 'Do NOT use Contracts yet' in body
-    assert 'C++26' in body
+    assert 'Defer Language Contracts to C++26' in body
+    assert 'ABSL_CHECK' in body and 'static_assert' in body
 
 
-def test_t1_21_core_guidelines_carveout_4_print_over_iostream() -> None:
-    """Verify carve-out #4: std::print and std::println (<print>) bypass <iostream> formatting."""
+def test_t1_21_print_over_iostream() -> None:
+    """Verify std::print and std::println (<print>) bypass <iostream> formatting."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
-    assert 'Bypass `<iostream>`' in body
+    assert 'bypassing stateful `<iostream>`' in body
     assert 'std::print' in body
     assert 'std::println' in body
     assert '<print>' in body
 
 
-def test_t1_22_core_guidelines_carveout_5_naming_layout_ignored() -> None:
-    """Verify carve-out #5: Core Guidelines Naming and Layout rules ignored for Google + clang-format."""
+def test_t1_22_google_naming_do_while_and_unsigned_override() -> None:
+    """Verify Google naming, do-while allowance, and unsigned <cstdint> / 0uz flexibility."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
-    assert 'Ignore Naming and Layout rules' in body
-    assert 'NL.*' in style_doc
+    assert 'do-while' in body
+    assert 'Unsigned Integer Flexibility' in body
+    assert '0uz' in body
+    assert 'do-while' in style_doc
+    assert 'uint64_t' in style_doc
 
 
-def test_t1_23_core_guidelines_carveout_6_signed_unsigned_ignored() -> None:
-    """Verify carve-out #6: Core Guidelines Signed vs. Unsigned integer rules ignored."""
+def test_t1_23_non_const_ref_out_params_and_by_value_span() -> None:
+    """Verify non-const ref out-parameters are permitted for buffer reuse and std::span is passed by value."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
-    assert 'Ignore Signed vs. Unsigned integer rules' in body
-    assert 'ES.100' in style_doc
+    assert 'non-`const` reference out/in-out parameters' in body
+    assert 'passed **by value**' in body
+    assert 'std::expected<void, FilterError> FilterJointTorques(' in style_doc
+    assert 'std::span<float> out_filtered' in style_doc
+    assert 'std::vector<float>& out_scratch' in style_doc
 
 
-def test_t1_24_core_guidelines_carveout_7_non_const_ref_out_params() -> None:
-    """Verify carve-out #7: Non-const reference out-parameters permitted for buffer reuse."""
+def test_t1_24_judicious_constinit_meyers_singletons_nolint() -> None:
+    """Verify constinit, Meyer's singletons, and NOLINT guidance for justified static state."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
-    style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
-    assert 'No out-parameters via non-`const` reference' in body
-    assert 'F.16' in style_doc
-
-
-def test_t1_25_core_guidelines_carveout_8_singletons_global_state_judgement() -> None:
-    """Verify carve-out #8: Engineering judgement on Singletons / Global State with NOLINT guidance."""
-    _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
-    assert 'Singletons / Global State' in body
     assert 'constinit' in body
     assert "Meyer's singletons" in body
     assert 'NOLINT(cppcoreguidelines-avoid-non-const-global-variables)' in body
 
 
+def test_t1_25_zero_vcpkg_and_pixi_with_python_pro_reference() -> None:
+    """Verify zero vcpkg anywhere in cpp-pro, strong pixi guidance, /python-pro link, and stdlib ABI rules."""
+    for file_path in SKILL_DIR.rglob('*'):
+        if not file_path.is_file():
+            continue
+        content = file_path.read_text(encoding='utf-8')
+        assert 'vcpkg' not in content.lower(), f"Forbidden legacy vcpkg reference found in '{file_path}'"
+
+    _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
+    style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
+    assert 'pixi' in body
+    assert '/python-pro' in body
+    assert 'CMAKE_PREFIX_PATH="$CONDA_PREFIX"' in body
+    assert 'libstdc++' in body and 'libc++' in body
+    assert '__has_include' in body and '__cpp_lib_' in body
+    assert '__has_include(<generator>)' in style_doc
+
+
 def test_t1_26_modern_cpp23_constructs_featured() -> None:
-    """Verify SKILL.md and reference docs highlight modern C++23 features."""
+    """Verify SKILL.md and reference docs highlight expanded modern C++23 features."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     modern_doc = (REFERENCES_DIR / 'modern_cpp23_and_abseil.md').read_text(encoding='utf-8')
     for feature in [
@@ -392,6 +420,12 @@ def test_t1_26_modern_cpp23_constructs_featured() -> None:
         'std::flat_map',
         'Deducing `this`',
         'std::ranges::to',
+        'std::out_ptr',
+        'std::move_only_function',
+        'operator[',
+        '<stdfloat>',
+        'constexpr',
+        'auto(x)',
         'std::byteswap',
         'std::to_underlying',
         'std::unreachable()',
@@ -400,7 +434,7 @@ def test_t1_26_modern_cpp23_constructs_featured() -> None:
         '0uz',
     ]:
         assert feature in body, f"SKILL.md missing C++23 construct '{feature}'"
-        assert feature.replace('Deducing `this`', 'Deducing `this`') in modern_doc
+        assert feature in modern_doc, f"modern_cpp23_and_abseil.md missing C++23 construct '{feature}'"
 
 
 def test_t1_27_related_skills_include_rust_ada_c_cmake_python_and_exclude_notebook_skills() -> None:
@@ -423,6 +457,30 @@ def test_t1_28_git_pre_commit_and_no_verify_prohibition() -> None:
     assert '--no-verify' in body
     assert 'NEVER' in body
     assert 'pre-commit checks' in body
+
+
+def test_t1_29_tiered_cpp23_coroutines_policy() -> None:
+    """Verify tiered C++23 coroutine policy across LLVM/Clang 23.1 Linux & macOS targets."""
+    _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
+    style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
+    modern_doc = (REFERENCES_DIR / 'modern_cpp23_and_abseil.md').read_text(encoding='utf-8')
+
+    for target_doc in (body, style_doc):
+        assert 'Windows/MSVC' in target_doc
+        assert 'stdexec' in target_doc
+        assert 'asio::awaitable' in target_doc
+        assert 'libcoro' in target_doc
+        assert 'pw::async2' in target_doc
+        assert 'coro_return_type' in target_doc
+        assert 'coro_lifetimebound' in target_doc
+        assert 'coro_await_elidable' in target_doc
+        assert 'coro_only_destroy_when_complete' in target_doc
+        assert 'HALO' in target_doc
+
+    assert 'clang::coro_return_type' in modern_doc
+    assert 'clang::coro_lifetimebound' in modern_doc
+    assert 'clang::coro_await_elidable' in modern_doc
+    assert 'clang::coro_only_destroy_when_complete' in modern_doc
 
 
 # ==============================================================================
@@ -448,7 +506,7 @@ def test_t2_02_all_relative_markdown_links_resolve() -> None:
             target = (md_file.parent / match.group(2)).resolve()
             assert target.exists(), f"Broken relative link in '{md_file.name}': '{match.group(2)}' -> '{target}'"
             checked += 1
-    assert checked >= 8, f'Expected at least 8 verified relative links, found {checked}'
+    assert checked >= 9, f'Expected at least 9 verified relative links, found {checked}'
 
 
 def test_t2_03_secret_and_home_path_hygiene() -> None:
@@ -480,8 +538,8 @@ def test_t2_05_clang_tidy_no_embedded_comments_and_warnings_as_errors() -> None:
     assert cfg.get('WarningsAsErrors') == '*'
 
 
-def test_t2_06_clang_tidy_enforces_google_int_c_headers_print_and_iwyu() -> None:
-    """Verify .clang-tidy enables checks for Google ints, <c[lib]>, std::print, and IWYU."""
+def test_t2_06_clang_tidy_enforces_google_int_c_headers_print_iwyu_and_coroutines() -> None:
+    """Verify .clang-tidy enables checks for Google ints, <c[lib]>, std::print, IWYU, and coroutines."""
     checks = _clang_tidy_checks(_load_yaml_dict(EXAMPLES_DIR / '.clang-tidy'))
     required_checks = {
         '-*',
@@ -491,6 +549,9 @@ def test_t2_06_clang_tidy_enforces_google_int_c_headers_print_and_iwyu() -> None
         'modernize-use-std-format',
         'misc-include-cleaner',
         'bugprone-unchecked-optional-access',
+        'cppcoreguidelines-avoid-capturing-lambda-coroutines',
+        'cppcoreguidelines-avoid-reference-coroutine-parameters',
+        'cppcoreguidelines-no-suspend-with-lock',
         'misc-coroutine-hostile-raii',
         'readability-identifier-naming',
         'abseil-duration-addition',
@@ -500,13 +561,14 @@ def test_t2_06_clang_tidy_enforces_google_int_c_headers_print_and_iwyu() -> None
     assert not missing, f'.clang-tidy missing required checks: {missing}'
 
 
-def test_t2_07_clang_tidy_omits_gsl_sign_comparison_and_removed_checks() -> None:
-    """Verify .clang-tidy excludes GSL checks, sign-comparison nits, and removed Clang checks."""
+def test_t2_07_clang_tidy_omits_gsl_do_while_sign_comparison_and_removed_checks() -> None:
+    """Verify .clang-tidy excludes GSL, avoid-do-while, sign-comparison nits, and removed Clang checks."""
     checks = _clang_tidy_checks(_load_yaml_dict(EXAMPLES_DIR / '.clang-tidy'))
     forbidden_checks = {
         'cppcoreguidelines-owning-memory',
         'cppcoreguidelines-pro-bounds-pointer-arithmetic',
         'cppcoreguidelines-pro-bounds-array-to-pointer-decay',
+        'cppcoreguidelines-avoid-do-while',
         'modernize-use-integer-sign-comparison',
         'modernize-use-trailing-return-type',
         'readability-identifier-length',
@@ -549,9 +611,10 @@ def test_t2_09_clang_tidy_abseil_and_assert_check_options() -> None:
     assert opts.get('modernize-make-unique.IncludeStyle') == 'google'
 
 
-def test_t2_10_pre_commit_config_pins_sha_and_configures_cpp_hooks() -> None:
-    """Verify examples/.pre-commit-config.yaml SHA-pins hooks and enforces format/tidy/gersemi."""
+def test_t2_10_pre_commit_config_pins_sha_excludes_pixi_and_configures_cpp_hooks() -> None:
+    """Verify examples/.pre-commit-config.yaml SHA-pins hooks, excludes .pixi, and enforces C++/CMake/TOML."""
     cfg = _load_yaml_dict(EXAMPLES_DIR / '.pre-commit-config.yaml')
+    assert r'^\.pixi/' in str(cfg.get('exclude', ''))
     repos = cfg.get('repos', [])
     assert isinstance(repos, list) and len(repos) >= 3
 
@@ -563,7 +626,8 @@ def test_t2_10_pre_commit_config_pins_sha_and_configures_cpp_hooks() -> None:
         if not isinstance(entry, dict):
             continue
         repo_url = str(entry.get('repo', ''))
-        if repo_url == 'https://github.com/pre-commit/pre-commit-hooks':
+        parsed_repo = urlparse(repo_url)
+        if parsed_repo.scheme == 'https' and parsed_repo.hostname == 'github.com' and parsed_repo.path == '/pre-commit/pre-commit-hooks':
             rev = str(entry.get('rev', ''))
             assert sha_pattern.match(rev), f"pre-commit-hooks rev '{rev}' must be a 40-char immutable SHA"
             pinned_pre_commit_hooks = True
@@ -571,8 +635,8 @@ def test_t2_10_pre_commit_config_pins_sha_and_configures_cpp_hooks() -> None:
             if isinstance(hook, dict) and 'id' in hook:
                 found_hooks.add(str(hook['id']))
 
-    assert pinned_pre_commit_hooks, 'Missing SHA-pinned https://github.com/pre-commit/pre-commit-hooks repo'
-    required_hooks = {'clang-format', 'clang-tidy', 'gersemi', 'no-commit-to-branch', 'detect-private-key', 'trailing-whitespace'}
+    assert pinned_pre_commit_hooks, 'Missing SHA-pinned pre-commit-hooks repo'
+    required_hooks = {'clang-format', 'clang-tidy', 'gersemi', 'check-toml', 'no-commit-to-branch', 'detect-private-key', 'trailing-whitespace'}
     missing = required_hooks - found_hooks
     assert not missing, f'examples/.pre-commit-config.yaml missing required hooks: {missing}'
 
@@ -630,12 +694,15 @@ def test_t2_16_no_unpaired_bracket_or_broken_code_fences_in_markdown() -> None:
         assert fence_count % 2 == 0, f"Unclosed code fence detected in '{md_file.name}' (count={fence_count})"
 
 
-def test_t2_17_hot_path_frame_size_and_rt_isolation_documented() -> None:
-    """Verify HFT/Embedded/Robotics patterns enforce bounded stack and OS memory locking."""
+def test_t2_17_hot_path_frame_size_rt_isolation_and_arch_cache_line_documented() -> None:
+    """Verify HFT/Embedded/Robotics patterns enforce bounded stack, OS locking, and 128uz/64uz cache lines."""
     patterns_doc = (REFERENCES_DIR / 'hft_embedded_robotics_patterns.md').read_text(encoding='utf-8')
     assert '-Wframe-larger-than=4096' in patterns_doc
     assert 'mlockall' in patterns_doc
-    assert 'alignas(64)' in patterns_doc
+    assert '128uz' in patterns_doc
+    assert '64uz' in patterns_doc
+    assert 'alignas(kCacheLineBytes)' in patterns_doc
+    assert 'alignas(kGateCacheLineBytes)' in patterns_doc
 
 
 def test_t2_18_crubit_build_system_limitations_documented_accurately() -> None:
@@ -655,11 +722,32 @@ def test_t2_19_spsc_and_halos_patterns_avoid_gsl_and_iostream() -> None:
         assert 'gsl::' not in text, f"'{doc_name}' must never use gsl::"
 
 
-def test_t2_20_toolchain_mentions_linux_and_apple_silicon() -> None:
-    """Verify SKILL.md covers Linux (x86_64, aarch64, RISC-V RVA23) and macOS Apple Silicon."""
+def test_t2_20_toolchain_mentions_linux_and_apple_silicon_no_windows() -> None:
+    """Verify SKILL.md covers Linux (x86_64, aarch64, RISC-V RVA23) and macOS Apple Silicon without Windows."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
-    for target in ['x86_64', 'aarch64', 'RISC-V RVA23', 'Apple Silicon']:
-        assert target in body, f"SKILL.md missing target architecture '{target}'"
+    for target in ['x86_64', 'aarch64', 'RISC-V RVA23', 'Apple Silicon', 'Windows/MSVC is unsupported']:
+        assert target in body, f"SKILL.md missing target requirement '{target}'"
+
+
+def test_t2_21_examples_pixi_toml_valid_linux_macos_conda_forge() -> None:
+    """Verify examples/pixi.toml configures conda-forge, Linux/macOS platforms only, Clang 23.1.5, and C++ libs."""
+    cfg = _load_toml_dict(EXAMPLES_DIR / 'pixi.toml')
+    ws = cfg.get('workspace', {})
+    assert isinstance(ws, dict)
+    assert ws.get('channels') == ['conda-forge']
+    platforms = ws.get('platforms', [])
+    assert platforms == ['linux-64', 'linux-aarch64', 'osx-arm64']
+    assert 'win-64' not in platforms
+
+    deps = cfg.get('dependencies', {})
+    assert isinstance(deps, dict)
+    for pkg in ['clangxx', 'clang-tools', 'lld', 'cmake', 'ninja', 'ccache', 'abseil-cpp', 'gtest', 'benchmark', 'gersemi', 'pre-commit']:
+        assert pkg in deps, f"examples/pixi.toml missing dependency '{pkg}'"
+
+    tasks = cfg.get('tasks', {})
+    assert isinstance(tasks, dict)
+    for task_name in ['configure', 'build', 'test', 'lint', 'ci']:
+        assert task_name in tasks, f"examples/pixi.toml missing task '{task_name}'"
 
 
 # ==============================================================================
@@ -668,14 +756,19 @@ def test_t2_20_toolchain_mentions_linux_and_apple_silicon() -> None:
 
 
 def test_t3_01_style_hierarchy_consistency_across_skill_and_manual() -> None:
-    """Interaction: Style priority order in SKILL.md matches style_hierarchy_and_overrides.md."""
+    """Interaction: 2-tier style priority order in SKILL.md matches style_hierarchy_and_overrides.md."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
-    google_url = 'https://google.github.io/styleguide/cppguide.html'
-    core_url = 'https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines'
-    assert body.index(google_url) < body.index(core_url)
-    assert style_doc.index(google_url) < style_doc.index(core_url)
-    assert style_doc.index(core_url) < style_doc.index('HFT, Embedded & Robotics')
+    tier1 = 'Google C++ Style Guide'
+    tier2 = 'Modern ISO C++23 & HFT / Embedded / Robotics Best Practices'
+    assert body.index(tier1) < body.index(tier2)
+    assert style_doc.index(tier1) < style_doc.index(tier2)
+
+    skill_urls = [urlparse(u) for u in _extract_markdown_https_urls(body)]
+    style_urls = [urlparse(u) for u in _extract_markdown_https_urls(style_doc)]
+    assert any(u.scheme == 'https' and u.hostname == 'google.github.io' for u in skill_urls)
+    assert any(u.scheme == 'https' and u.hostname == 'google.github.io' for u in style_urls)
+    assert any(u.scheme == 'https' and u.hostname == 'isocpp.github.io' for u in style_urls)
 
 
 def test_t3_02_filesystem_and_chrono_cold_path_vs_hot_path_split() -> None:
@@ -688,14 +781,17 @@ def test_t3_02_filesystem_and_chrono_cold_path_vs_hot_path_split() -> None:
     assert '<filesystem>' in patterns_doc
 
 
-def test_t3_03_pre_commit_and_cmake_presets_integration() -> None:
-    """Interaction: examples/.pre-commit-config.yaml references /cmake-pro compile_commands preset."""
+def test_t3_03_pre_commit_pixi_and_cmake_presets_integration() -> None:
+    """Interaction: examples/.pre-commit-config.yaml integrates with pixi and /cmake-pro compile_commands preset."""
     pre_commit_raw = (EXAMPLES_DIR / '.pre-commit-config.yaml').read_text(encoding='utf-8')
     skill_text = SKILL_MD.read_text(encoding='utf-8')
     assert 'build/ci-debug' in pre_commit_raw
     assert 'compile_commands.json' in pre_commit_raw
+    assert 'pixi run' in pre_commit_raw
     assert 'CMakePresets.json' in skill_text
+    assert 'CMAKE_PREFIX_PATH="$CONDA_PREFIX"' in skill_text
     assert '/cmake-pro' in skill_text
+    assert '/python-pro' in skill_text
 
 
 def test_t3_04_clang_tidy_google_naming_matches_reference_code() -> None:
@@ -726,12 +822,13 @@ def test_t3_06_absl_guarded_by_matches_clang_thread_safety_diagnostics() -> None
     assert 'clang-diagnostic-thread-safety-attributes' in checks
 
 
-def test_t3_07_c23_dual_header_exception_bridges_c_pro_and_cpp_pro() -> None:
-    """Interaction: C23/SPARK Ada extern C header policy coordinates between /cpp-pro and /c-pro."""
+def test_t3_07_c23_dual_header_and_out_ptr_bridge_c_pro_and_cpp_pro() -> None:
+    """Interaction: C23/SPARK Ada extern C header and std::out_ptr RAII facade bridge /cpp-pro and /c-pro."""
     modern_doc = (REFERENCES_DIR / 'modern_cpp23_and_abseil.md').read_text(encoding='utf-8')
     style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
     assert '/c-pro' in modern_doc and '/ada-spark-pro' in modern_doc
     assert 'extern "C"' in modern_doc and '<stdint.h>' in modern_doc
+    assert 'std::out_ptr(' in modern_doc
     assert 'extern "C"' in style_doc and 'dual-language headers' in style_doc
 
 
@@ -748,8 +845,10 @@ def test_t3_09_readme_table_reflects_refactored_cpp_pro() -> None:
     readme_text = README_MD.read_text(encoding='utf-8')
     cpp_row = next((line for line in readme_text.splitlines() if '| `cpp-pro` |' in line), '')
     assert cpp_row, "README.md missing '| `cpp-pro` |' skill row"
-    for term in ['C++23', '23.1.5', '<cstdint>', 'std::expected', '<print>', 'Abseil', 'Crubit', '.pre-commit-config.yaml']:
+    for term in ['C++23', '23.1.5', 'pixi', '<cstdint>', 'std::expected', '<print>', 'coroutines', 'Abseil', 'Crubit', 'pixi.toml', '.pre-commit-config.yaml']:
         assert term in cpp_row, f"README.md cpp-pro row missing '{term}'"
+    assert 'core guidelines' not in cpp_row.lower()
+    assert 'vcpkg' not in cpp_row.lower()
 
 
 def test_t3_10_skill_prompt_references_exist_in_repository() -> None:
@@ -759,6 +858,22 @@ def test_t3_10_skill_prompt_references_exist_in_repository() -> None:
     for sibling in ['c-pro', 'rust-pro', 'ada-spark-pro', 'cmake-pro', 'python-pro', 'github-flow-lifecycle']:
         assert f'/{sibling}' in skill_text
         assert sibling in discovered_skills, f"Referenced sibling skill '{sibling}' missing from skills/"
+
+
+def test_t3_11_coroutine_policy_consistent_across_skill_manual_and_clang_tidy() -> None:
+    """Interaction: Tiered coroutine policy aligns across SKILL.md, references/, and .clang-tidy checks."""
+    checks = _clang_tidy_checks(_load_yaml_dict(EXAMPLES_DIR / '.clang-tidy'))
+    style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
+    patterns_doc = (REFERENCES_DIR / 'hft_embedded_robotics_patterns.md').read_text(encoding='utf-8')
+    for coro_check in (
+        'cppcoreguidelines-avoid-capturing-lambda-coroutines',
+        'cppcoreguidelines-avoid-reference-coroutine-parameters',
+        'cppcoreguidelines-no-suspend-with-lock',
+        'misc-coroutine-hostile-raii',
+    ):
+        assert coro_check in checks
+        assert coro_check in style_doc
+    assert 'Coroutines (`<coroutine>`)' in patterns_doc
 
 
 # ==============================================================================
@@ -853,6 +968,7 @@ def test_t4_03_scenario_multi_language_crubit_and_c_abi_architecture() -> None:
     assert 'cpp_api_from_rust' in modern_doc and 'rust_api_from_cpp' in modern_doc
     assert 'nanobind' in skill_text and 'nanobind' in modern_doc
     assert 'extern "C"' in skill_text and 'std::expected' in modern_doc
+    assert 'std::out_ptr' in skill_text and 'std::out_ptr' in modern_doc
 
 
 def test_t4_04_scenario_cmake_configurable_exceptions_rtti_pipeline() -> None:
@@ -887,3 +1003,26 @@ def test_t4_05_scenario_mdspan_jacobian_bounds_and_multiplication_oracle() -> No
     valid_out = [0.0, 0.0]
     assert multiply_jacobian([[1.0, 2.0], [3.0, 4.0]], [10.0, 20.0], valid_out) is True
     assert valid_out == [50.0, 110.0]
+
+
+def test_t4_06_scenario_filter_joint_torques_expected_oracle() -> None:
+    """Scenario: Verify FilterJointTorques std::expected error paths and fixed-point Q16 scaling."""
+    style_doc = (REFERENCES_DIR / 'style_hierarchy_and_overrides.md').read_text(encoding='utf-8')
+    assert 'FilterError::kEmptyInput' in style_doc
+    assert 'FilterError::kSpanMismatch' in style_doc
+
+    def filter_joint_torques(raw_torques: list[float], gain_q16: int, out_filtered: list[float]) -> str:
+        if not raw_torques:
+            return 'kEmptyInput'
+        if len(out_filtered) < len(raw_torques):
+            return 'kSpanMismatch'
+        scale = float(gain_q16) / 65536.0
+        for idx, val in enumerate(raw_torques):
+            out_filtered[idx] = val * scale
+        return 'ok'
+
+    buf = [0.0, 0.0]
+    assert filter_joint_torques([], 65536, buf) == 'kEmptyInput'
+    assert filter_joint_torques([1.0, 2.0, 3.0], 65536, buf) == 'kSpanMismatch'
+    assert filter_joint_torques([4.0, -8.0], 32768, buf) == 'ok'
+    assert buf == [2.0, -4.0]

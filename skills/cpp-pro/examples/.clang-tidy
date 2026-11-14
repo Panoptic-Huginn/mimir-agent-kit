@@ -1,14 +1,13 @@
 # .clang-tidy - Modern C++23 Configuration (LLVM/Clang 23.1.5)
 # Priority Hierarchy:
 #   1. Google C++ Style Guide (google-*, readability-identifier-naming)
-#   2. Curated C++ Core Guidelines (ignoring GSL, exceptions-over-error-codes,
-#      contracts until C++26, <iostream> formatting, naming/layout,
-#      signed/unsigned rules, non-const ref out-parameters, and allowing
-#      documented NOLINT exceptions for justified singletons/HAL state)
-#   3. HFT / Embedded / Robotics Performance & Safety (performance-*, bugprone-*)
+#   2. Modern ISO C++23 & HFT / Embedded / Robotics Best Practices
+#      (C++ Core Guidelines is NOT used as a style authority and Microsoft.GSL
+#       is banned; only concrete AST safety/UB/coroutine checks are cherry-picked)
 #
 # Intentionally omitted checks:
-#   - cppcoreguidelines-owning-memory, cppcoreguidelines-pro-bounds-* (GSL)
+#   - cppcoreguidelines-owning-memory, cppcoreguidelines-pro-bounds-* (GSL banned)
+#   - cppcoreguidelines-avoid-do-while (Google Style allows do-while loops)
 #   - modernize-use-integer-sign-comparison (signed/unsigned rule ignored)
 #   - modernize-use-trailing-return-type (optional style preference)
 #   - readability-identifier-length (allows idiomatic math/loop indices)
@@ -78,7 +77,6 @@ Checks: "-*,
   clang-diagnostic-user-defined-warnings,
   cppcoreguidelines-avoid-capturing-lambda-coroutines,
   cppcoreguidelines-avoid-const-or-ref-data-members,
-  cppcoreguidelines-avoid-do-while,
   cppcoreguidelines-avoid-goto,
   cppcoreguidelines-avoid-non-const-global-variables,
   cppcoreguidelines-avoid-reference-coroutine-parameters,

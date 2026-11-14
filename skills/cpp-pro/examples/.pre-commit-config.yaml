@@ -1,11 +1,12 @@
-# .pre-commit-config.yaml - Turnkey C++23 Pre-Commit Configuration
+# .pre-commit-config.yaml - Turnkey C++23 Pre-Commit Configuration (Pixi + Clang 23.1.5)
 # Enforces repository hygiene, LLVM/Clang 23.1.5 formatting & linting, and
 # CMake formatting via gersemi before any commit is created.
-# Configure compile_commands.json once via: cmake --preset ci-debug
+# Configure compile_commands.json once via: pixi run configure (cmake --preset ci-debug)
+# Then execute hooks via: pixi run pre-commit run --all-files
 
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
-exclude: '^build/|^vcpkg_installed/|^\.cache/'
+exclude: '^build/|^\.pixi/|^\.cache/'
 
 repos:
   # ---------------------------------------------------------------------------
@@ -17,6 +18,7 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+      - id: check-toml
       - id: check-json
       - id: check-merge-conflict
       - id: check-added-large-files

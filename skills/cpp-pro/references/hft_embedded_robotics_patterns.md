@@ -12,17 +12,18 @@ Every low-latency or hard real-time C++23 system must explicitly partition initi
 | :--- | :--- | :--- |
 | **Dynamic Heap Allocation** | Allowed (`std::vector`, `absl::flat_hash_map`, arenas) | **FORBIDDEN**: Zero `new`, `delete`, `malloc`, `free`, or container growth after startup |
 | **Error Propagation** | `std::expected<T, E>` (or `absl::StatusOr<T>` at gRPC boundaries) | `std::expected<T, E>` with `enum class` / trivially copyable `E` (no strings, no `.value()`) |
+| **Coroutines (`<coroutine>`)** | Vetted async libraries (`stdexec` / `exec::task`, Asio, `libcoro`, `pw::async2`, guarded `<generator>`) | **Heap-Alloc Forbidden**: Synchronous state machines by default; coroutines only with fixed-pool `operator new noexcept` or verified Clang HALO |
 | **Virtual Dispatch** | Interfaces & DI allowed | **Avoid**: Use `std::variant` + `std::visit`, templates/concepts, or deducing `this` |
 | **Recursion & Stack** | Bounded | **FORBIDDEN**: Iterative bounded loops only; `-Wframe-larger-than=4096` |
 | **Formatting & I/O** | `std::print` / `std::println`, `<filesystem>`, logging | **FORBIDDEN**: Push fixed-size POD telemetry structs onto an SPSC ring for off-thread printing |
 | **OS Memory & CPU** | `mlockall(MCL_CURRENT \| MCL_FUTURE)`, prefault stacks, pin CPUs | Isolated cores (`isolcpus`), zero page faults, zero syscalls |
-| **Cache Layout** | Normal struct layout | `alignas(64)` isolation on cross-thread atomics; contiguous SoA / `std::flat_map` / `std::mdspan` |
+| **Cache Layout** | Normal struct layout | `alignas(kCacheLineBytes)` (`128uz` on Apple Silicon / `aarch64`, `64uz` on `x86_64`) on cross-thread atomics; contiguous SoA / `std::flat_map` / `std::mdspan` |
 
 ---
 
-## 2. Pattern 1: Cache-Aligned Lock-Free SPSC Ring Buffer
+## 2. Pattern 1: Architecture-Aware Cache-Aligned Lock-Free SPSC Ring Buffer
 
-Demonstrates strict `<cstdint>` + `int` usage, `#pragma once`, `<bit>` (`std::has_single_bit`), `alignas(64)` false-sharing elimination, explicit `acquire`/`release` memory ordering, and zero heap allocation after construction:
+Demonstrates strict `<cstdint>` + `int` usage, C++23 `0uz` / `1uz` / `64uz` / `128uz` `size_t` literals, `#pragma once`, `<bit>` (`std::has_single_bit`), architecture-aware `kCacheLineBytes` false-sharing elimination, explicit `acquire`/`release` memory ordering, and zero heap allocation after construction:
 
 ```cpp
 // spsc_ring_buffer.h
@@ -36,13 +37,19 @@ Demonstrates strict `<cstdint>` + `int` usage, `#pragma once`, `<bit>` (`std::ha
 #include <expected>
 #include <type_traits>
 
+#if defined(__APPLE__) && defined(__aarch64__)
+inline constexpr size_t kCacheLineBytes = 128uz;  // Apple Silicon L2 coherency granule
+#else
+inline constexpr size_t kCacheLineBytes = 64uz;   // x86_64 / Linux ARM64 / RISC-V RVA23
+#endif
+
 enum class RingError : uint8_t {
   kFull = 1,
   kEmpty = 2,
 };
 
 template <typename T, size_t kCapacity>
-  requires(std::is_trivially_copyable_v<T> && kCapacity >= 2 &&
+  requires(std::is_trivially_copyable_v<T> && kCapacity >= 2uz &&
            std::has_single_bit(kCapacity))
 class SpscRingBuffer {
  public:
@@ -56,7 +63,7 @@ class SpscRingBuffer {
       return std::unexpected(RingError::kFull);
     }
     slots_[write_idx & kIndexMask] = item;
-    write_idx_.store(write_idx + 1U, std::memory_order_release);
+    write_idx_.store(write_idx + 1uz, std::memory_order_release);
     return {};
   }
 
@@ -69,7 +76,7 @@ class SpscRingBuffer {
       return std::unexpected(RingError::kEmpty);
     }
     out_item = slots_[read_idx & kIndexMask];
-    read_idx_.store(read_idx + 1U, std::memory_order_release);
+    read_idx_.store(read_idx + 1uz, std::memory_order_release);
     return {};
   }
 
@@ -80,11 +87,10 @@ class SpscRingBuffer {
   }
 
  private:
-  static constexpr size_t kCacheLineBytes = 64U;
-  static constexpr size_t kIndexMask = kCapacity - 1U;
+  static constexpr size_t kIndexMask = kCapacity - 1uz;
 
-  alignas(kCacheLineBytes) std::atomic<size_t> write_idx_{0U};
-  alignas(kCacheLineBytes) std::atomic<size_t> read_idx_{0U};
+  alignas(kCacheLineBytes) std::atomic<size_t> write_idx_{0uz};
+  alignas(kCacheLineBytes) std::atomic<size_t> read_idx_{0uz};
   alignas(kCacheLineBytes) std::array<T, kCapacity> slots_{};
 };
 ```
@@ -93,7 +99,7 @@ class SpscRingBuffer {
 
 ## 3. Pattern 2: Deterministic Safety & Risk Command Interceptor
 
-Models an HFT pre-trade risk check or NVIDIA Halos actuation safety gate using `<cstdint>`, `<cmath>` (`std::isfinite`, `std::fabs`), `std::expected<T, E>` (zero exceptions), `[[nodiscard]]`, and pre-allocated output reuse:
+Models an HFT pre-trade risk check or NVIDIA Halos actuation safety gate using `<cstdint>`, `0uz` indexing, `<cmath>` (`std::isfinite`, `std::fabs`), `std::expected<T, E>` (zero exceptions), `[[nodiscard]]`, `alignas(kCacheLineBytes)`, and pre-allocated output reuse:
 
 ```cpp
 // safety_gate.h
@@ -105,7 +111,13 @@ Models an HFT pre-trade risk check or NVIDIA Halos actuation safety gate using `
 #include <cstdint>
 #include <expected>
 
-inline constexpr size_t kDofCount = 6U;
+#if defined(__APPLE__) && defined(__aarch64__)
+inline constexpr size_t kGateCacheLineBytes = 128uz;
+#else
+inline constexpr size_t kGateCacheLineBytes = 64uz;
+#endif
+
+inline constexpr size_t kDofCount = 6uz;
 inline constexpr uint64_t kMaxHeartbeatAgeNs = 5'000'000ULL;
 
 enum class SafetyState : uint8_t {
@@ -122,7 +134,7 @@ enum class GateFault : uint8_t {
   kLimitExceeded = 5U,
 };
 
-struct alignas(64) JointCommand {
+struct alignas(kGateCacheLineBytes) JointCommand {
   uint64_t timestamp_ns = 0ULL;
   uint32_t sequence_id = 0U;
   std::array<float, kDofCount> desired_torque_nm{};
@@ -162,7 +174,7 @@ class HalosSafetyGate {
       return std::unexpected(GateFault::kStaleHeartbeat);
     }
 
-    for (size_t i = 0U; i < kDofCount; ++i) {
+    for (size_t i = 0uz; i < kDofCount; ++i) {
       const float req = cmd.desired_torque_nm[i];
       if (!std::isfinite(req)) {
         state_ = SafetyState::kFaultEstop;
@@ -189,7 +201,7 @@ class HalosSafetyGate {
 
 ---
 
-## 4. Pattern 3: `std::mdspan` Compute Kernel & Configurable Exceptions/RTTI CMake Options
+## 4. Pattern 3: `std::mdspan` Compute Kernel & `pixi`-Integrated CMake Options
 
 ### 4.1 Zero-Copy `std::mdspan` Matrix-Vector Kernel
 
@@ -212,9 +224,9 @@ inline void MultiplyJacobian(ConstMatrixView jacobian,
     return;
   }
 
-  for (size_t r = 0U; r < rows; ++r) {
+  for (size_t r = 0uz; r < rows; ++r) {
     float acc = 0.0F;
-    for (size_t c = 0U; c < cols; ++c) {
+    for (size_t c = 0uz; c < cols; ++c) {
       acc += jacobian[r, c] * q_dot[c];
     }
     out_y[r] = acc;
@@ -222,12 +234,12 @@ inline void MultiplyJacobian(ConstMatrixView jacobian,
 }
 ```
 
-### 4.2 CMake 4.4.3+ Target Options (`-fno-exceptions -fno-rtti` Default + Explicit Opt-In)
+### 4.2 CMake 4.4.3+ Target Options (`-fno-exceptions -fno-rtti` Default + `pixi` Prefix)
 
-Integrate with `/cmake-pro` interface libraries so projects default to `-fno-exceptions -fno-rtti` while permitting explicit opt-in via `CMakePresets.json` or CLI (`-DENABLE_EXCEPTIONS=ON`, `-DENABLE_RTTI=ON`) when third-party SDKs or application layers require them:
+Integrate with `/cmake-pro` interface libraries inside a `pixi` environment (`CMAKE_PREFIX_PATH="$CONDA_PREFIX"` in `CMakePresets.json`) so projects default to `-fno-exceptions -fno-rtti` while permitting explicit opt-in via presets or CLI (`-DENABLE_EXCEPTIONS=ON`, `-DENABLE_RTTI=ON`):
 
 ```cmake
-# cmake/ProjectOptions.cmake (integrated with /cmake-pro)
+# cmake/ProjectOptions.cmake (integrated with pixi + /cmake-pro)
 option(ENABLE_EXCEPTIONS "Enable C++ exceptions (default OFF)" OFF)
 option(ENABLE_RTTI "Enable C++ RTTI (default OFF)" OFF)
 
