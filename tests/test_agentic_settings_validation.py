@@ -1694,6 +1694,30 @@ def test_sup004_renovate_runner_rule_requires_pep440_versioning(tmp_path: Path) 
     assert rep_fixed.is_clean
 
 
+@pytest.mark.parametrize('dashboard_value', [{'enabled': True}, True, False])
+def test_sup004_renovate_rejects_explicit_dependency_dashboard(tmp_path: Path, dashboard_value: object) -> None:
+    """SUP004: Reject explicit dependencyDashboard (hosted app vs. CLI schema skew, see #23)."""
+    config: dict[str, Any] = {
+        'extends': ['config:best-practices', 'helpers:pinGitHubActionDigestsToSemver'],
+        'pre-commit': {'enabled': True},
+        'dependencyDashboard': dashboard_value,
+    }
+    renovate_file = tmp_path / 'renovate.jsonc'
+    renovate_file.write_text(json.dumps(config), encoding='utf-8')
+    rep = ValidationReport()
+    validate_renovate_file(renovate_file, rep)
+    sup004 = [i for i in rep.issues if i.code == ErrorCode.SUP004]
+    assert len(sup004) == 1
+    assert 'dependencyDashboard' in sup004[0].message
+
+    # Inheriting the dashboard from config:best-practices resolves the issue
+    del config['dependencyDashboard']
+    renovate_file.write_text(json.dumps(config), encoding='utf-8')
+    rep_fixed = ValidationReport()
+    validate_renovate_file(renovate_file, rep_fixed)
+    assert rep_fixed.is_clean
+
+
 def test_sup003_rejects_push_workflow_pre_commit_without_skip_no_commit_to_branch(tmp_path: Path) -> None:
     """SUP003: Reject push-to-main workflows running pre-commit without SKIP=no-commit-to-branch."""
     sha_pc = '3e8a8703264a2f4a69428a0aa4dcb512790b2c8c'

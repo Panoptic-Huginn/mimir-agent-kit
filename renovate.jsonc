@@ -4,6 +4,11 @@
   // Maintains immutable 40-char commit SHA pins on GitHub Actions and pre-commit
   // hooks, SHA-256 digests on MCP container images, exact versions on MCP PyPI/npm
   // runners, and weekly uv lockfile upgrades.
+  // The Dependency Dashboard is inherited from `config:best-practices`
+  // (-> `config:recommended` -> `:dependencyDashboard`). Do NOT set
+  // `dependencyDashboard` explicitly: the hosted Renovate app requires a boolean
+  // while newer Renovate CLIs migrate it to an object, so any explicit value
+  // breaks one of them (see #23).
   "description": "Renovate configuration for mimir-agent-kit",
   "extends": [
     "config:best-practices",
@@ -14,9 +19,6 @@
     "before 6am on monday"
   ],
   "minimumReleaseAge": "3 days",
-  "dependencyDashboard": {
-    "enabled": true
-  },
   "labels": [
     "dependencies"
   ],

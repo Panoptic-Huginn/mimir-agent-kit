@@ -355,6 +355,18 @@ def validate_renovate_file(renovate_file: Path, report: ValidationReport) -> Non
             suggestion='Enable Renovate pre-commit hook digest updates in renovate.jsonc.',
         )
 
+    # The hosted Renovate app rejects object-form `dependencyDashboard` (`{"enabled": true}`)
+    # and halts all dependency PRs, while newer Renovate CLIs migrate the boolean form to an
+    # object. Inherit the dashboard from `config:best-practices` / `config:recommended` instead.
+    if 'dependencyDashboard' in data:
+        report.add(
+            code=ErrorCode.SUP004,
+            message=(f"{renovate_file.name} must not set 'dependencyDashboard' explicitly (found {json.dumps(data['dependencyDashboard'])}); its schema differs between the hosted Renovate app (boolean) and newer Renovate CLIs (object)."),
+            severity=Severity.ERROR,
+            path=renovate_file,
+            suggestion="Remove 'dependencyDashboard' and inherit it from the 'config:best-practices' preset.",
+        )
+
     # Verify runner package rules with range filtering specify compatible versioning (pep440)
     package_rules = data.get('packageRules', [])
     if isinstance(package_rules, list):
