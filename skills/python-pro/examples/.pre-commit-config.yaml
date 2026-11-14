@@ -49,7 +49,7 @@ repos:
         types_or: [python, pyi]
         require_serial: true
 
-  # 3. Strict Static Type Checking (Basedpyright + Astral ty)
+  # 3. Strict Static Type Checking & Dependency Hygiene (Basedpyright + Astral ty + deptry)
   - repo: local
     hooks:
       - id: basedpyright
@@ -61,6 +61,12 @@ repos:
       - id: ty
         name: ty check (uv)
         entry: uv run ty check
+        language: system
+        pass_filenames: false
+        files: \.py$|^pyproject\.toml$|^uv\.lock$
+      - id: deptry
+        name: deptry dependency hygiene (uv)
+        entry: uv run deptry .
         language: system
         pass_filenames: false
         files: \.py$|^pyproject\.toml$|^uv\.lock$

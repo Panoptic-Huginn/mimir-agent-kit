@@ -7,7 +7,7 @@
 
 Demonstrates universal 3.14+ baselines alongside 3.15-friendly lazy loading:
 - Native deferred annotations (PEP 649/749) with zero ``from __future__`` imports
-- PEP 695/696 generic classes with type-parameter defaults
+- PEP 695/696 generic classes with type-parameter defaults and ``Self`` builders
 - PEP 750 template strings (``t"..."``) for injection-safe structured rendering
 - PEP 784 ``compression.zstd`` standard-library round-trip compression
 - ``ReadOnly`` ``TypedDict`` (PEP 705) and ``TypeIs`` (PEP 742) narrowing
@@ -20,10 +20,10 @@ import datetime
 import json
 import sys
 from compression import zstd
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from string.templatelib import Interpolation, Template
-from typing import ReadOnly, TypedDict, TypeIs
+from typing import ReadOnly, Self, TypedDict, TypeIs
 
 
 # Under Python 3.15+, `lazy import <pkg>` defers module evaluation cleanly;
@@ -46,6 +46,35 @@ class SampleBuffer[T: (str, bytes) = bytes]:
     label: str
     payload: T
     next_link: SampleBuffer[T] | None = None
+
+    def with_payload(self, payload: T) -> Self:
+        """Return a new sample buffer with an updated payload.
+
+        Args:
+            payload: Replacement payload matching type parameter ``T``.
+
+        Returns:
+            Copy of this buffer preserving label and link metadata.
+        """
+        return replace(self, payload=payload)
+
+
+def runtime_profile() -> dict[str, object]:
+    """Build a version-aware Python 3.14+/3.15 runtime capability profile.
+
+    Returns:
+        Dictionary of interpreter version metadata and 3.15 feature flags.
+    """
+    is_py315 = sys.version_info >= (3, 15)
+    info = sys.version_info
+    return {
+        "python_version": f"{info.major}.{info.minor}.{info.micro}",
+        "pep810_lazy_import": is_py315,
+        "pep814_frozendict": is_py315,
+        "pep661_sentinel": is_py315,
+        "pep798_comprehension_unpacking": is_py315,
+        "pep784_zstd": True,
+    }
 
 
 def is_nonempty_text(value: object) -> TypeIs[str]:
@@ -113,12 +142,21 @@ def run_self_test() -> AuditEvent:
     if "next_link" not in annots:
         raise RuntimeError("Expected PEP 649 deferred annotation 'next_link'")
 
-    sample = SampleBuffer[bytes](label="telemetry-01", payload=b"sensor-ok")
+    sample = SampleBuffer[bytes](label="telemetry-01", payload=b"pending").with_payload(
+        b"sensor-ok"
+    )
     if not is_nonempty_text(sample.label):
         raise ValueError("SampleBuffer label must be a non-empty string")
+    if sample.payload != b"sensor-ok":
+        raise RuntimeError("SampleBuffer.with_payload did not update payload")
 
     msg, bound = format_safe_log_template(t"Telemetry frame source={sample.label}")
-    encoded = json.dumps({"msg": msg, "bound": bound}).encode("utf-8")
+    encoded = json.dumps({
+        "msg": msg,
+        "bound": bound,
+        "payload_bytes": len(sample.payload),
+        "runtime": runtime_profile(),
+    }).encode("utf-8")
     compressed = zstd.compress(encoded, level=3)
     if compress_and_verify(encoded) != encoded:
         raise RuntimeError("Unexpected round-trip mismatch")

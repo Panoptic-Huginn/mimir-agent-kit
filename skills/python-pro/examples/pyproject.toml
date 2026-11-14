@@ -1,6 +1,9 @@
 # Turnkey Modern Python Project Configuration (November 2026)
 # Defaults to Python 3.15; lower to ">=3.14" / "py314" / "3.14" ONLY when required
 # runtime dependencies lack Python 3.15 wheels.
+# Style Authority: Tier 1 repo overrides (88 chars, double quotes, grouped symbol
+# imports, PEP 649 native annotations banning __future__.annotations via TID251)
+# -> Tier 2 Google Python Style Guide -> Tier 3 PEP 8 & 23-family Ruff rules.
 
 [project]
 name = "my-python-project"
@@ -14,11 +17,18 @@ dependencies = [
     "structlog>=26.1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/example-org/my-python-project"
+Repository = "https://github.com/example-org/my-python-project"
+Issues = "https://github.com/example-org/my-python-project/issues"
+Changelog = "https://github.com/example-org/my-python-project/blob/main/CHANGELOG.md"
+
 [dependency-groups]
 # PEP 735 dev/quality groups — never place non-published tooling in [project.optional-dependencies].
 lint = [
     "ruff>=0.17.5",
     "rumdl>=0.3.4",
+    # Add "marimo>=0.25.2" when authoring reactive notebooks under notebooks/.
 ]
 typecheck = [
     "basedpyright>=1.40.2",
@@ -31,7 +41,7 @@ test = [
     "pytest-randomly>=5.1.0",
 ]
 security = [
-    "actionlint-py>=1.7.11.24",
+    "actionlint-py>=1.7.12.25",
     "deptry>=0.25.1",
     "pip-audit>=2.10.1",
     "zizmor>=1.32.0",
@@ -109,6 +119,7 @@ lines-after-imports = 2
 convention = "google"
 
 [tool.basedpyright]
+# Keep include strictly to existing directories; missing paths trigger exit code 3.
 include = ["src", "tests"]
 pythonVersion = "3.15"
 typeCheckingMode = "strict"
@@ -151,3 +162,30 @@ skip_covered = false
 [tool.deptry]
 exclude = ["tests", "scripts", ".venv"]
 extend_exclude = ["examples"]
+
+# ------------------------------------------------------------------------------
+# Optional Python-first Pixi integration ([tool.pixi.*]) — use ONLY when replacing uv.lock with pixi.lock
+# (For polyglot C23/C++23/Rust/SPARK Ada workspaces, use standalone pixi.toml instead.)
+#
+# [tool.pixi.workspace]
+# channels = ["conda-forge"]
+# platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+# requires-pixi = ">=0.84.2"
+#
+# [tool.pixi.pypi-dependencies]
+# my-python-project = { path = ".", editable = true }
+#
+# [tool.pixi.dependencies]
+# python = ">=3.15,<3.16"
+#
+# [tool.pixi.environments]
+# default = { solve-group = "default" }
+# dev = { features = ["dev"], solve-group = "default" }
+#
+# [tool.pixi.tasks]
+# lint = "ruff check . && ruff format --check ."
+# typecheck = "basedpyright && ty check"
+# audit = "deptry . && pip-audit"
+# test = "pytest -v"
+# check = { depends-on = ["lint", "typecheck", "audit", "test"] }
+# ------------------------------------------------------------------------------

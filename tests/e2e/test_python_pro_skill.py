@@ -4,11 +4,11 @@ Validates the modern Python 3.15/3.14 skill bundle, sibling skill alignment,
 repository-wide dogfooding across pyproject/hooks/CI/Renovate/Dependabot, and
 live execution of Ruff, Basedpyright, Ty, uv PEP 723 scripts, actionlint,
 zizmor, rumdl, and pytest 9+ across four tiers:
-- Tier 1: Feature Coverage (29 tests)
-- Tier 2: Boundary & Corner Cases (18 tests)
-- Tier 3: Cross-Feature Interactions (12 tests)
-- Tier 4: Real-World Subprocess Scenarios (9 tests)
-Total: 68 E2E tests.
+- Tier 1: Feature Coverage (33 tests)
+- Tier 2: Boundary & Corner Cases (20 tests)
+- Tier 3: Cross-Feature Interactions (14 tests)
+- Tier 4: Real-World Subprocess Scenarios (11 tests)
+Total: 78 E2E tests.
 """
 
 import ast
@@ -189,7 +189,7 @@ def _combined_skill_and_ref_text() -> str:
 
 
 # ==============================================================================
-# Tier 1: Feature Coverage E2E Tests (29 tests)
+# Tier 1: Feature Coverage E2E Tests (33 tests)
 # ==============================================================================
 
 
@@ -763,8 +763,147 @@ def test_t1_29_skill_never_endorses_legacy_tools_for_greenfield() -> None:
         assert "pre-commit run" not in text
 
 
+def test_t1_30_skill_decision_trees_runtime_toolchain_notebook_routing() -> None:
+    """Verify SKILL.md provides crisp runtime, toolchain, and notebook decision trees."""
+    text = SKILL_MD.read_text(encoding="utf-8")
+    for token in (
+        "Runtime Target Decision Tree",
+        'requires-python = ">=3.15"',
+        'target-version = "py315"',
+        'requires-python = ">=3.14"',
+        "sys.version_info >= (3, 15)",
+        "PYTHON_GIL=0",
+        "Py_MOD_GIL_NOT_USED",
+        "Toolchain & Packaging Decision Tree",
+        "NEVER mix uv.lock and pixi.lock",
+        "examples/pep723_script.py",
+        "examples/pyproject.toml",
+        "examples/pixi.toml",
+        "Interactive Notebook & Skill Routing Decision Tree",
+        "marimo._code_mode",
+        "uvx marimo convert",
+        "/cpp-pro",
+        "/rust-pro",
+        "/c-pro",
+        "/ada-spark-pro",
+        "/cmake-pro",
+        "/github-flow-lifecycle",
+        "/github-ops",
+    ):
+        assert token in text, f"Missing decision-tree token '{token}' in SKILL.md"
+
+
+def test_t1_31_three_tier_style_authority_hierarchy() -> None:
+    """Verify SKILL.md and style reference define the 3-tier Google style hierarchy."""
+    skill_text = SKILL_MD.read_text(encoding="utf-8")
+    style_text = (REFERENCES_DIR / "style_ruff_testing_and_ci.md").read_text(
+        encoding="utf-8"
+    )
+    for doc_name, text in (
+        ("SKILL.md", skill_text),
+        ("style_ruff_testing_and_ci.md", style_text),
+    ):
+        for marker in (
+            "Tier 1",
+            "Tier 2",
+            "Tier 3",
+            "Google Python Style Guide",
+            "88",
+            "double",
+            "grouped",
+            "PEP 649",
+            "TID251",
+            "RUF201",
+        ):
+            assert marker in text, f"Missing '{marker}' in {doc_name}"
+
+
+def test_t1_32_references_dual_version_gating_marimo_and_oidc_pep740() -> None:
+    """Verify reference docs cover 3.14/3.15 gating, Marimo workflow, and OIDC PEP 740."""
+    typing_ref = (REFERENCES_DIR / "python_314_315_and_typing.md").read_text(
+        encoding="utf-8"
+    )
+    pack_ref = (REFERENCES_DIR / "packaging_uv_pixi_and_interop.md").read_text(
+        encoding="utf-8"
+    )
+    style_ref = (REFERENCES_DIR / "style_ruff_testing_and_ci.md").read_text(
+        encoding="utf-8"
+    )
+    for token in (
+        "Dual 3.14 / 3.15 Compatibility",
+        "sys.version_info >= (3, 15)",
+        "__lazy_modules__",
+        "MappingProxyType",
+        "enum.Enum",
+        "sys._is_gil_enabled()",
+        "PYTHON_GIL=0",
+        "Self",
+        "Final",
+        "NewType",
+    ):
+        assert token in typing_ref, f"Missing '{token}' in typing reference"
+    for token in (
+        "[tool.pixi.workspace]",
+        "[tool.pixi.dependencies]",
+        "pixi.lock ONLY",
+        "scikit_build_core.build",
+        "maturin",
+        "Marimo-First Notebook Workflows",
+        "marimo edit --sandbox",
+        "@app.function",
+        "uv run marimo check notebooks/",
+        "uvx marimo convert",
+    ):
+        assert token in pack_ref, f"Missing '{token}' in packaging reference"
+    for token in (
+        "@pytest.mark.unit",
+        "@given",
+        "PYTHON_GIL=0",
+        "3.15t",
+        "id-token: write",
+        "pypa/gh-action-pypi-publish",
+        "attestations: true",
+        "PEP 740",
+    ):
+        assert token in style_ref, f"Missing '{token}' in style/CI reference"
+
+
+def test_t1_33_examples_refined_contracts() -> None:
+    """Verify refined contracts across all five bundled template files."""
+    pyproject_raw = (EXAMPLES_DIR / "pyproject.toml").read_text(encoding="utf-8")
+    pyproject_data = _load_toml(EXAMPLES_DIR / "pyproject.toml")
+    assert "urls" in pyproject_data["project"]
+    security_group = "\n".join(pyproject_data["dependency-groups"]["security"])
+    assert "actionlint-py>=1.7.12.25" in security_group
+    assert "# [tool.pixi.workspace]" in pyproject_raw
+
+    pixi_data = _load_toml(EXAMPLES_DIR / "pixi.toml")
+    assert "marimo" in pixi_data["pypi-dependencies"]
+    assert "rumdl" in pixi_data["pypi-dependencies"]
+    assert pixi_data["tasks"]["notebook-check"] == "marimo check notebooks/"
+    assert "markdown-check" in pixi_data["tasks"]
+
+    pre_commit_data = _load_yaml(EXAMPLES_DIR / ".pre-commit-config.yaml")
+    hook_entries = [
+        hook for repo in pre_commit_data["repos"] for hook in repo.get("hooks", [])
+    ]
+    deptry_hooks = [h for h in hook_entries if h.get("id") == "deptry"]
+    assert len(deptry_hooks) == 1
+    assert deptry_hooks[0]["entry"] == "uv run deptry ."
+
+    ci_raw = (EXAMPLES_DIR / "ci.yml").read_text(encoding="utf-8")
+    assert "if [ -d notebooks ]; then uv run marimo check notebooks/; fi" in ci_raw
+    assert "if [ -d src ]; then uv build --no-sources; fi" in ci_raw
+
+    script_raw = (EXAMPLES_DIR / "pep723_script.py").read_text(encoding="utf-8")
+    assert "Self" in script_raw
+    assert "def with_payload(self, payload: T) -> Self:" in script_raw
+    assert "def runtime_profile() -> dict[str, object]:" in script_raw
+    assert "sys.version_info >= (3, 15)" in script_raw
+
+
 # ==============================================================================
-# Tier 2: Boundary & Corner Cases (18 tests)
+# Tier 2: Boundary & Corner Cases (20 tests)
 # ==============================================================================
 
 
@@ -1133,8 +1272,43 @@ def test_t2_18_supply_chain_sup003_accepts_prek_and_flags_missing(
     assert len([i for i in report_missing.issues if str(i.code) == "SUP003"]) == 1
 
 
+def test_t2_19_references_markdown_links_and_byte_headroom() -> None:
+    """Verify reference docs preserve byte headroom and resolve all relative links."""
+    local_link_count = 0
+    for ref_name in EXPECTED_REFERENCES:
+        ref_path = REFERENCES_DIR / ref_name
+        raw = ref_path.read_text(encoding="utf-8")
+        assert len(raw.encode("utf-8")) < MAX_FILE_BYTES - HEADROOM_BYTES
+        assert estimate_token_count(raw) < 6_000
+        no_fences = re.sub(r"```.*?```", "", raw, flags=re.DOTALL)
+        stripped = re.sub(r"`[^`\n]+`", "", no_fences)
+        links = re.findall(r"\[[^\]]+\]\(([^)\s]+)\)", stripped)
+        for target in links:
+            if target.startswith(("http://", "https://", "mailto:", "#")):
+                continue
+            rel_path = target.split("#", 1)[0]
+            resolved = (ref_path.parent / rel_path).resolve()
+            assert resolved.is_relative_to(SKILL_DIR.resolve())
+            assert resolved.exists(), f"Broken local link in {ref_name}: {target}"
+            local_link_count += 1
+    assert local_link_count >= len(EXPECTED_EXAMPLES)
+
+
+def test_t2_20_example_pyproject_keeps_existing_include_dirs_and_single_lockfile() -> (
+    None
+):
+    """Verify example pyproject avoids nonexistent typecheck dirs and active pixi tables."""
+    data = _load_toml(EXAMPLES_DIR / "pyproject.toml")
+    tool = data["tool"]
+    assert tool["basedpyright"]["include"] == ["src", "tests"]
+    assert tool["ty"]["src"]["include"] == ["src", "tests"]
+    assert "pixi" not in tool
+    pixi_raw = (EXAMPLES_DIR / "pixi.toml").read_text(encoding="utf-8")
+    assert "never mix uv.lock and pixi.lock" in pixi_raw
+
+
 # ==============================================================================
-# Tier 3: Cross-Feature Interactions (12 tests)
+# Tier 3: Cross-Feature Interactions (14 tests)
 # ==============================================================================
 
 
@@ -1314,8 +1488,44 @@ def test_t3_12_full_repo_plugin_validators_clean() -> None:
     assert errors_or_warnings == []
 
 
+def test_t3_13_cross_file_style_hierarchy_alignment() -> None:
+    """Verify 3-tier style hierarchy rules match across docs, example, and root configs."""
+    style_text = (REFERENCES_DIR / "style_ruff_testing_and_ci.md").read_text(
+        encoding="utf-8"
+    )
+    assert "lines-after-imports = 2" in style_text
+    assert 'convention = "google"' in SKILL_MD.read_text(encoding="utf-8")
+    for toml_path in (ROOT_PYPROJECT, EXAMPLES_DIR / "pyproject.toml"):
+        ruff = _load_toml(toml_path)["tool"]["ruff"]
+        lint = ruff["lint"]
+        assert ruff["line-length"] == 88
+        assert ruff["format"]["quote-style"] == "double"
+        assert ruff["format"]["docstring-code-format"] is True
+        assert lint["isort"]["lines-after-imports"] == 2
+        assert lint["pydocstyle"]["convention"] == "google"
+        assert lint["flake8-tidy-imports"]["ban-relative-imports"] == "all"
+        assert "__future__.annotations" in lint["flake8-tidy-imports"]["banned-api"]
+
+
+def test_t3_14_cross_file_examples_ci_hooks_and_pixi_task_parity() -> None:
+    """Verify examples/ci.yml, .pre-commit-config.yaml, and pixi.toml share QA gates."""
+    ex_ci = (EXAMPLES_DIR / "ci.yml").read_text(encoding="utf-8")
+    ex_pc = (EXAMPLES_DIR / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    ex_pixi = _load_toml(EXAMPLES_DIR / "pixi.toml")
+    pixi_tasks = "\n".join(str(val) for val in ex_pixi["tasks"].values())
+    for tool in ("ruff check", "basedpyright", "ty check", "deptry", "marimo check"):
+        assert tool in ex_ci
+        assert tool in ex_pc
+        assert tool in pixi_tasks
+    for audit_tool in ("pip-audit", "pytest"):
+        assert audit_tool in ex_ci
+        assert audit_tool in pixi_tasks
+    assert "rumdl" in ex_pc
+    assert "rumdl" in pixi_tasks
+
+
 # ==============================================================================
-# Tier 4: Real-World Subprocess Scenarios (9 tests)
+# Tier 4: Real-World Subprocess Scenarios (11 tests)
 # ==============================================================================
 
 
@@ -1526,3 +1736,64 @@ def test_t4_09_live_validate_agentic_settings_strict() -> None:
         check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_t4_10_live_ruff_format_check_on_skill_and_reference_markdown() -> None:
+    """Run live ruff format --check on SKILL.md and reference Markdown code fences."""
+    targets = [
+        str(SKILL_MD),
+        *(str(REFERENCES_DIR / ref_name) for ref_name in EXPECTED_REFERENCES),
+    ]
+    res = subprocess.run(
+        [
+            _tool_bin("ruff"),
+            "format",
+            "--check",
+            "--config",
+            str(ROOT_PYPROJECT),
+            *targets,
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_t4_11_live_actionlint_and_zizmor_on_reference_release_workflow(
+    tmp_path: Path,
+) -> None:
+    """Run live actionlint and zizmor on the PyPI OIDC PEP 740 workflow snippet.
+
+    Args:
+        tmp_path: Ephemeral directory holding extracted workflow YAML.
+    """
+    style_text = (REFERENCES_DIR / "style_ruff_testing_and_ci.md").read_text(
+        encoding="utf-8"
+    )
+    yaml_blocks = re.findall(r"```yaml\n(.*?)```", style_text, flags=re.DOTALL)
+    release_blocks = [b for b in yaml_blocks if "name: Release to PyPI" in b]
+    assert len(release_blocks) == 1
+    wf_path = tmp_path / "release.yml"
+    wf_path.write_text(release_blocks[0], encoding="utf-8")
+
+    al_res = subprocess.run(
+        [_tool_bin("actionlint"), str(wf_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert al_res.returncode == 0, al_res.stdout + al_res.stderr
+    zm_res = subprocess.run(
+        [
+            _tool_bin("zizmor"),
+            "--strict-collection",
+            "--min-severity=low",
+            str(wf_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert zm_res.returncode == 0, zm_res.stdout + zm_res.stderr

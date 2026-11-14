@@ -1,7 +1,9 @@
 # Canonical Pixi Workspace Manifest (November 2026 Polyglot / Native-Toolchain Template)
-# Use Pixi ONLY when requiring multiple languages (C23, C++23, Rust, SPARK Ada),
-# native system libraries (CUDA, LLVM, HDF5), conda-forge-only packages, or unified
-# cross-ecosystem CLI task locking; use uv by default for pure Python/PyPI projects.
+# Use standalone pixi.toml ONLY when requiring multiple languages (C23, C++23, Rust,
+# SPARK Ada), native system libraries (CUDA, LLVM, HDF5), conda-forge-only packages,
+# or unified cross-ecosystem CLI task locking; for Python-only conda-forge repos, embed
+# [tool.pixi.*] inside pyproject.toml, and for pure PyPI repos default to uv.
+# Single-lockfile invariant: maintain pixi.lock ONLY — never mix uv.lock and pixi.lock.
 
 [workspace]
 name = "polyglot-python-workspace"
@@ -25,6 +27,7 @@ uv = ">=0.12.0"
 basedpyright = ">=1.40.2"
 deptry = ">=0.25.1"
 hypothesis = ">=6.170.15"
+marimo = ">=0.25.2"
 pip-audit = ">=2.10.1"
 prek = ">=0.5.10"
 pydantic = ">=2.14.3"
@@ -32,11 +35,14 @@ pytest = ">=9.2.0"
 pytest-cov = ">=7.1.0"
 pytest-randomly = ">=5.1.0"
 ruff = ">=0.17.5"
+rumdl = ">=0.3.4"
 structlog = ">=26.1.0"
 ty = ">=0.0.104"
 
 [tasks]
 lint = "ruff check . && ruff format --check ."
+markdown-check = "rumdl check"
+notebook-check = "marimo check notebooks/"
 typecheck = "basedpyright && ty check"
 audit = "deptry . && pip-audit"
 test = "pytest -v"

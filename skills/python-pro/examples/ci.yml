@@ -71,5 +71,10 @@ jobs:
           uv run deptry .
           uv run pip-audit
 
+      - name: Verify Marimo notebooks and package build
+        run: |
+          if [ -d notebooks ]; then uv run marimo check notebooks/; fi
+          if [ -d src ]; then uv build --no-sources; fi
+
       - name: Run pytest suite
         run: uv run pytest -v
