@@ -1,0 +1,57 @@
+# .pre-commit-config.yaml - Turnkey C++23 Pre-Commit Configuration
+# Enforces repository hygiene, LLVM/Clang 23.1.5 formatting & linting, and
+# CMake formatting via gersemi before any commit is created.
+# Configure compile_commands.json once via: cmake --preset ci-debug
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+exclude: '^build/|^vcpkg_installed/|^\.cache/'
+
+repos:
+  # ---------------------------------------------------------------------------
+  # 1. Repository & File Hygiene (pre-commit/pre-commit-hooks, SHA-frozen)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+  # ---------------------------------------------------------------------------
+  # 2. C++23 Formatting & Static Analysis (LLVM/Clang 23.1.5)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format (LLVM/Clang 23.1.5 Google Style)
+        entry: clang-format --dry-run --Werror
+        language: system
+        types_or: [c, c++]
+      - id: clang-tidy
+        name: clang-tidy (LLVM/Clang 23.1.5 Static Analysis)
+        entry: clang-tidy -p build/ci-debug --warnings-as-errors=*
+        language: system
+        types: [c++]
+        require_serial: true
+
+  # ---------------------------------------------------------------------------
+  # 3. Modern CMake Formatting (gersemi, per /cmake-pro)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: gersemi
+        name: gersemi (CMake 4.4.3+ Format Check)
+        entry: gersemi --check
+        language: system
+        files: '(^|/)CMakeLists\.txt$|\.cmake$'
