@@ -808,6 +808,8 @@ def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
     assert dependabot_path.is_file()
 
     renovate_data = json.loads(strip_jsonc_comments(renovate_path.read_text(encoding='utf-8')))
+    assert 'dependencyDashboard' not in renovate_data, 'Inherit dependencyDashboard from config:best-practices (#23)'
+    assert 'config:best-practices' in renovate_data.get('extends', [])
     pkg_rules = renovate_data.get('packageRules', [])
     ubuntu_rules = [r for r in pkg_rules if 'github-runners' in r.get('matchDatasources', []) and 'ubuntu' in r.get('matchPackageNames', [])]
     assert len(ubuntu_rules) == 1
