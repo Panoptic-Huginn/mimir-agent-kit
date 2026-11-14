@@ -14,6 +14,7 @@ import math
 import re
 from typing import TYPE_CHECKING
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 
@@ -83,6 +84,18 @@ def _clang_tidy_options(clang_tidy_cfg: dict[str, Any]) -> dict[str, str]:
         if isinstance(entry, dict) and 'key' in entry:
             options[str(entry['key'])] = str(entry.get('value', ''))
     return options
+
+
+def _extract_markdown_https_urls(markdown_text: str) -> list[str]:
+    """Extract HTTPS targets from Markdown links in text.
+
+    Args:
+        markdown_text: Raw Markdown document content.
+
+    Returns:
+        List of HTTPS URL strings extracted from Markdown link targets.
+    """
+    return re.findall(r'\[[^\]]+\]\((https://[^)\s]+)\)', markdown_text)
 
 
 # ==============================================================================
@@ -287,7 +300,10 @@ def test_t1_17_crubit_cpp_rust_interop() -> None:
     """Verify SKILL.md and reference docs cover Crubit bidirectional C++/Rust interop."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding='utf-8'))
     modern_doc = (REFERENCES_DIR / 'modern_cpp23_and_abseil.md').read_text(encoding='utf-8')
-    assert 'https://crubit.rs' in body
+    parsed_urls = [urlparse(url) for url in _extract_markdown_https_urls(body)]
+    assert any(u.scheme == 'https' and u.hostname == 'crubit.rs' for u in parsed_urls)
+    parsed_ref_urls = [urlparse(url) for url in _extract_markdown_https_urls(modern_doc)]
+    assert any(u.scheme == 'https' and u.hostname == 'crubit.rs' for u in parsed_ref_urls)
     assert 'cpp_api_from_rust' in body
     assert 'rust_api_from_cpp' in body
     assert 'non-`#[repr(C)]`' in body
@@ -547,7 +563,7 @@ def test_t2_10_pre_commit_config_pins_sha_and_configures_cpp_hooks() -> None:
         if not isinstance(entry, dict):
             continue
         repo_url = str(entry.get('repo', ''))
-        if 'pre-commit/pre-commit-hooks' in repo_url:
+        if repo_url == 'https://github.com/pre-commit/pre-commit-hooks':
             rev = str(entry.get('rev', ''))
             assert sha_pattern.match(rev), f"pre-commit-hooks rev '{rev}' must be a 40-char immutable SHA"
             pinned_pre_commit_hooks = True
