@@ -51,14 +51,14 @@
       "command": "npx",
       "args": [
         "-y",
-        "@cyanheads/pubmed-mcp-server@2.12.0"
+        "@cyanheads/pubmed-mcp-server@2.12.2"
       ]
     },
     "semscholar": {
       "command": "uvx",
       "args": [
         "--with",
-        "pydantic-settings==2.16.2",
+        "pydantic-settings==2.16.3",
         "--with",
         "mcp[cli]==1.30.0",
         "semantic-scholar-mcp==0.4.0"
@@ -87,7 +87,7 @@
     "zotero": {
       "command": "uvx",
       "args": [
-        "zotero-mcp-server==0.15.2"
+        "zotero-mcp-server==0.17.2"
       ],
       "env": {
         "ZOTERO_API_KEY": "${ZOTERO_API_KEY}",
@@ -111,7 +111,7 @@
     "workspace": {
       "command": "uvx",
       "args": [
-        "workspace-mcp==2.3.0",
+        "workspace-mcp==2.5.0",
         "--single-user"
       ],
       "env": {
@@ -150,7 +150,7 @@
     "time": {
       "command": "uvx",
       "args": [
-        "mcp-server-time==2026.11.4"
+        "mcp-server-time==2026.11.11"
       ]
     }
   }

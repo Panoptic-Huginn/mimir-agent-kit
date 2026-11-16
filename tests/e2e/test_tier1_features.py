@@ -960,16 +960,16 @@ def test_f11_actionlint_and_zizmor_pass_on_workflows() -> None:
     )
 
 
-def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
-    """Verify renovate.jsonc and .github/dependabot.yml exist and configure digest updates."""
+def test_f11_renovate_config_present_valid_and_dependabot_absent() -> None:
+    """Verify renovate.jsonc is valid, enforces min-bump strategy, and Dependabot is absent."""
     renovate_path = REPO_ROOT / "renovate.jsonc"
     shadow_renovate_path = REPO_ROOT / "renovate.json"
-    dependabot_path = REPO_ROOT / ".github" / "dependabot.yml"
     assert renovate_path.is_file()
     assert not shadow_renovate_path.exists(), (
         "Duplicate renovate.json must not shadow renovate.jsonc"
     )
-    assert dependabot_path.is_file()
+    assert not (REPO_ROOT / ".github" / "dependabot.yml").exists()
+    assert not (REPO_ROOT / ".github" / "dependabot.yaml").exists()
 
     renovate_data = json.loads(
         strip_jsonc_comments(renovate_path.read_text(encoding="utf-8"))
@@ -977,7 +977,10 @@ def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
     assert "dependencyDashboard" not in renovate_data, (
         "Inherit dependencyDashboard from config:best-practices (#23)"
     )
-    assert "config:best-practices" in renovate_data.get("extends", [])
+    assert renovate_data.get("rangeStrategy") == "bump"
+    extends = renovate_data.get("extends", [])
+    assert "config:best-practices" in extends
+    assert "helpers:pinGitHubActionDigestsToSemver" in extends
     pkg_rules = renovate_data.get("packageRules", [])
     ubuntu_rules = [
         r
@@ -988,10 +991,6 @@ def test_f11_renovate_and_dependabot_configs_present_and_valid() -> None:
     assert len(ubuntu_rules) == 1
     assert ubuntu_rules[0].get("versioning") == "pep440"
     assert ubuntu_rules[0].get("allowedVersions") == "<=24.04"
-
-    dependabot_data = yaml.safe_load(dependabot_path.read_text(encoding="utf-8"))
-    ecosystems = {u["package-ecosystem"] for u in dependabot_data["updates"]}
-    assert {"github-actions", "uv"}.issubset(ecosystems)
 
 
 def test_f11_post_merge_main_pre_commit_skips_no_commit_to_branch(
