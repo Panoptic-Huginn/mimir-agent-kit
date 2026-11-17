@@ -1,7 +1,8 @@
-"""Supply-chain security & immutable SHA-pinning validator for CI, pre-commit, and Renovate/Dependabot."""
+"""Supply-chain security & immutable SHA-pinning validator for CI, pre-commit, Renovate, and pyproject bounds."""
 
 import json
 import re
+import tomllib
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -26,7 +27,14 @@ USES_LINE_PATTERN = re.compile(
 VERSION_COMMENT_PATTERN = re.compile(r"^v?\d+(?:\.\d+)*")
 PRE_COMMIT_RUN_PATTERN = re.compile(r"\b(?:pre-commit|prek)\s+run\b")
 INLINE_SKIP_PATTERN = re.compile(r"\bSKIP=([^\s]+)")
-DEPENDABOT_VERSION = 2
+DEPENDABOT_CONFIG_PATHS: tuple[str, ...] = (
+    ".github/dependabot.yml",
+    ".github/dependabot.yaml",
+)
+_PEP508_REQ_PATTERN = re.compile(
+    r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[A-Za-z0-9,._\s-]+\])?\s*(.*)$"
+)
+_DISALLOWED_BOUND_OPERATORS: tuple[str, ...] = ("<=", "<", "~=", "==", "!=")
 SHADOWING_RENOVATE_PATHS: tuple[str, ...] = (
     "renovate.json",
     "renovate.json5",
@@ -419,61 +427,124 @@ def validate_renovate_file(renovate_file: Path, report: ValidationReport) -> Non
                 )
 
 
-def validate_dependabot_file(dependabot_file: Path, report: ValidationReport) -> None:
-    """Validate .github/dependabot.yml syntax and ecosystem coverage.
+def validate_no_dependabot_config(repo_root: Path, report: ValidationReport) -> None:
+    """Reject Dependabot configuration files so Renovate manages updates exclusively.
 
     Args:
-        dependabot_file: Path to .github/dependabot.yml.
+        repo_root: Root directory of repository.
+        report: Aggregating ValidationReport.
+    """
+    for rel_path in DEPENDABOT_CONFIG_PATHS:
+        candidate = repo_root / rel_path
+        if candidate.is_file():
+            report.add(
+                code=ErrorCode.SUP004,
+                message=(
+                    f"Prohibited Dependabot configuration '{rel_path}' coexists with Renovate ('renovate.jsonc')."
+                ),
+                severity=Severity.ERROR,
+                path=candidate,
+                suggestion=f"Remove '{rel_path}' so Renovate ('renovate.jsonc') manages dependency updates exclusively.",
+            )
+
+
+def _iter_pyproject_dep_specs(data: dict[str, Any]) -> list[str]:
+    """Collect PEP 508 dependency specifier strings from a parsed pyproject mapping.
+
+    Args:
+        data: Parsed TOML mapping from ``pyproject.toml``.
+
+    Returns:
+        List of raw PEP 508 dependency specification strings.
+    """
+    specs: list[str] = []
+    project = data.get("project")
+    if isinstance(project, dict):
+        deps = project.get("dependencies")
+        if isinstance(deps, list):
+            specs.extend(item for item in deps if isinstance(item, str))
+        opt_deps = project.get("optional-dependencies")
+        if isinstance(opt_deps, dict):
+            for group_items in opt_deps.values():
+                if isinstance(group_items, list):
+                    specs.extend(item for item in group_items if isinstance(item, str))
+
+    dep_groups = data.get("dependency-groups")
+    if isinstance(dep_groups, dict):
+        for group_items in dep_groups.values():
+            if isinstance(group_items, list):
+                specs.extend(item for item in group_items if isinstance(item, str))
+
+    build_sys = data.get("build-system")
+    if isinstance(build_sys, dict):
+        requires = build_sys.get("requires")
+        if isinstance(requires, list):
+            specs.extend(item for item in requires if isinstance(item, str))
+
+    return specs
+
+
+def validate_pyproject_min_only_bounds(
+    pyproject_file: Path, report: ValidationReport
+) -> None:
+    """Enforce minimum-only (>=) bounds on all non-Python dependencies in pyproject.toml.
+
+    Args:
+        pyproject_file: Path to pyproject.toml.
         report: Aggregating ValidationReport.
     """
     try:
-        content = dependabot_file.read_text(encoding="utf-8")
+        raw_text = pyproject_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         report.add(
             code=ErrorCode.SUP004,
-            message=f"Failed to read {dependabot_file.name}: {exc}",
+            message=f"Failed to read {pyproject_file.name}: {exc}",
             severity=Severity.ERROR,
-            path=dependabot_file,
+            path=pyproject_file,
         )
         return
 
     try:
-        data = yaml.safe_load(content)
-    except yaml.YAMLError as exc:
+        data = tomllib.loads(raw_text)
+    except tomllib.TOMLDecodeError as exc:
         report.add(
             code=ErrorCode.SUP004,
-            message=f"Malformed YAML in {dependabot_file.name}: {exc}",
+            message=f"Malformed TOML in {pyproject_file.name}: {exc}",
             severity=Severity.ERROR,
-            path=dependabot_file,
+            path=pyproject_file,
         )
         return
 
-    if (
-        not isinstance(data, dict)
-        or data.get("version") != DEPENDABOT_VERSION
-        or not isinstance(data.get("updates"), list)
-    ):
-        report.add(
-            code=ErrorCode.SUP004,
-            message=f"{dependabot_file.name} must declare 'version: 2' and a valid 'updates' list.",
-            severity=Severity.ERROR,
-            path=dependabot_file,
-        )
-        return
+    for raw_spec in _iter_pyproject_dep_specs(data):
+        req_part = raw_spec.split(";", 1)[0].strip()
+        if not req_part or " @ " in req_part:
+            continue
 
-    ecosystems = {
-        str(entry.get("package-ecosystem", ""))
-        for entry in data["updates"]
-        if isinstance(entry, dict)
-    }
-    if "github-actions" not in ecosystems:
-        report.add(
-            code=ErrorCode.SUP004,
-            message=f"{dependabot_file.name} is missing the 'github-actions' package-ecosystem.",
-            severity=Severity.ERROR,
-            path=dependabot_file,
-            suggestion="Configure package-ecosystem: 'github-actions' in .github/dependabot.yml.",
+        match = _PEP508_REQ_PATTERN.match(req_part)
+        if not match:
+            continue
+
+        pkg_name = re.sub(r"[-_.]+", "-", match.group(1)).lower()
+        if pkg_name == "python":
+            continue
+
+        ver_spec = match.group(2).strip()
+        has_disallowed = (
+            not ver_spec.startswith(">=")
+            or not ver_spec[2:].strip()
+            or "," in ver_spec
+            or any(op in ver_spec for op in _DISALLOWED_BOUND_OPERATORS)
         )
+        if has_disallowed:
+            report.add(
+                code=ErrorCode.SUP004,
+                message=(
+                    f"Dependency '{raw_spec}' in {pyproject_file.name} must declare only a '>=' minimum version with no upper or exact restriction."
+                ),
+                severity=Severity.ERROR,
+                path=pyproject_file,
+                suggestion="Use a minimum-only bound such as 'pkg>=X.Y.Z' and remove any '<', '<=', '~=', '==', or '!=' restriction.",
+            )
 
 
 def validate_no_conflicting_renovate_configs(
@@ -691,7 +762,7 @@ def validate_pre_commit_ci_branch_guard(
 
 
 def validate_supply_chain(repo_root: Path, report: ValidationReport) -> None:
-    """Validate supply-chain pinning across workflows, pre-commit, Renovate, and Dependabot.
+    """Validate supply-chain pinning across workflows, pre-commit, Renovate, and pyproject bounds.
 
     Args:
         repo_root: Root directory of repository.
@@ -718,6 +789,8 @@ def validate_supply_chain(repo_root: Path, report: ValidationReport) -> None:
         validate_renovate_file(renovate_file, report)
         validate_no_conflicting_renovate_configs(repo_root, report)
 
-    dependabot_file = repo_root / ".github" / "dependabot.yml"
-    if dependabot_file.is_file():
-        validate_dependabot_file(dependabot_file, report)
+    validate_no_dependabot_config(repo_root, report)
+
+    pyproject_file = repo_root / "pyproject.toml"
+    if pyproject_file.is_file():
+        validate_pyproject_min_only_bounds(pyproject_file, report)

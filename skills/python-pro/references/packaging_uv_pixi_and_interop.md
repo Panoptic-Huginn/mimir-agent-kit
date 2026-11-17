@@ -29,12 +29,12 @@ name = "astro-telemetry"
 version = "0.1.0"
 requires-python = ">=3.15"
 dependencies = [
-    "numpy>=2.5.0",
-    "polars>=2.0.0",
+    "numpy>=2.5.5",
+    "polars>=2.1.0",
 ]
 
 [build-system]
-requires = ["uv_build>=0.12.0,<0.13.0"]
+requires = ["uv_build>=0.13.8"]
 build-backend = "uv_build"
 
 [tool.pixi.workspace]
@@ -87,7 +87,7 @@ my-python-project/
 
    ```toml
    [build-system]
-   requires = ["uv_build>=0.12.0,<0.13.0"]
+   requires = ["uv_build>=0.13.8"]
    build-backend = "uv_build"
    ```
 
@@ -95,7 +95,7 @@ my-python-project/
 
    ```toml
    [build-system]
-   requires = ["scikit-build-core>=1.1.0,<2.0", "nanobind>=3.1.0"]
+   requires = ["scikit-build-core>=1.1.2", "nanobind>=3.1.0"]
    build-backend = "scikit_build_core.build"
 
    [tool.scikit-build]
@@ -108,7 +108,7 @@ my-python-project/
 
    ```toml
    [build-system]
-   requires = ["maturin>=1.16.0,<2.0"]
+   requires = ["maturin>=1.16.0"]
    build-backend = "maturin"
 
    [tool.maturin]

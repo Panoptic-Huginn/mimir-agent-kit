@@ -84,9 +84,7 @@ class ErrorCode(enum.StrEnum):
     SUP001 = "SUP001"  # GitHub Actions external uses not pinned to 40-char commit SHA with version comment
     SUP002 = "SUP002"  # GitHub Actions workflow missing permissions or persist-credentials: false
     SUP003 = "SUP003"  # Pre-commit external repo rev not pinned to 40-char commit SHA
-    SUP004 = (
-        "SUP004"  # Malformed or non-compliant Renovate / Dependabot supply-chain config
-    )
+    SUP004 = "SUP004"  # Malformed or non-compliant Renovate or pyproject supply-chain configuration (or prohibited Dependabot config)
 
 
 CODE_DESCRIPTIONS: dict[ErrorCode, str] = {
@@ -133,5 +131,5 @@ CODE_DESCRIPTIONS: dict[ErrorCode, str] = {
     ErrorCode.SUP001: "GitHub Actions external action not pinned to 40-char commit SHA with version comment",
     ErrorCode.SUP002: "GitHub Actions workflow missing explicit permissions or persist-credentials: false",
     ErrorCode.SUP003: "Pre-commit external repository rev not pinned to 40-char commit SHA",
-    ErrorCode.SUP004: "Malformed or non-compliant Renovate / Dependabot supply-chain configuration",
+    ErrorCode.SUP004: "Malformed or non-compliant Renovate or pyproject supply-chain configuration (or prohibited Dependabot config)",
 }

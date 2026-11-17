@@ -1,7 +1,7 @@
 """Opaque-box E2E test suite for the refactored python-pro skill (Issue #32).
 
 Validates the modern Python 3.15/3.14 skill bundle, sibling skill alignment,
-repository-wide dogfooding across pyproject/hooks/CI/Renovate/Dependabot, and
+repository-wide dogfooding across pyproject/hooks/CI/Renovate, and
 live execution of Ruff, Basedpyright, Ty, uv PEP 723 scripts, actionlint,
 zizmor, rumdl, and pytest 9+ across four tiers:
 - Tier 1: Feature Coverage (33 tests)
@@ -36,6 +36,7 @@ from scripts.validation.supply_chain_validator import (
     strip_jsonc_comments,
     validate_pre_commit_ci_branch_guard,
     validate_pre_commit_file,
+    validate_pyproject_min_only_bounds,
     validate_workflow_file,
 )
 from tests.e2e.conftest import (
@@ -65,7 +66,6 @@ EXAMPLES_DIR = SKILL_DIR / "examples"
 
 ROOT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 ROOT_RENOVATE = REPO_ROOT / "renovate.jsonc"
-ROOT_DEPENDABOT = REPO_ROOT / ".github" / "dependabot.yml"
 ROOT_README = REPO_ROOT / "README.md"
 
 EXPECTED_RUFF_FAMILIES: set[str] = {
@@ -712,31 +712,36 @@ def test_t1_26_root_ci_workflow_preserves_ruleset_and_adds_315() -> None:
         assert check in raw
 
 
-def test_t1_27_root_renovate_and_dependabot_dogfooded() -> None:
-    """Verify renovate.jsonc allows >=3.14 <3.16 and dependabot tracks new dev tools."""
+def test_t1_27_root_renovate_only_and_min_bounds_dogfooded() -> None:
+    """Verify Renovate-only config and min-only pyproject.toml bounds across the repo."""
+    assert not (REPO_ROOT / ".github" / "dependabot.yml").exists()
+    assert not (REPO_ROOT / ".github" / "dependabot.yaml").exists()
+
     renovate_raw = ROOT_RENOVATE.read_text(encoding="utf-8")
     renovate_data = json.loads(strip_jsonc_comments(renovate_raw))
     assert isinstance(renovate_data, dict)
-    allowed_versions = [
-        rule.get("allowedVersions")
+    assert renovate_data.get("rangeStrategy") == "bump"
+    assert renovate_data.get("pre-commit", {}).get("enabled") is True
+    assert renovate_data.get("lockFileMaintenance", {}).get("enabled") is True
+    py_rules = [
+        rule
         for rule in renovate_data.get("packageRules", [])
-        if isinstance(rule, dict) and "allowedVersions" in rule
+        if isinstance(rule, dict) and "python" in rule.get("matchPackageNames", [])
     ]
-    assert ">=3.14 <3.16" in allowed_versions
+    assert len(py_rules) == 1
+    assert py_rules[0].get("allowedVersions") == ">=3.14 <3.16"
+    assert py_rules[0].get("rangeStrategy") == "auto"
 
-    dependabot_data = _load_yaml(ROOT_DEPENDABOT)
-    uv_updates = [
-        u for u in dependabot_data["updates"] if u.get("package-ecosystem") == "uv"
-    ]
-    assert len(uv_updates) == 1
-    patterns: list[str] = []
-    for group in uv_updates[0]["groups"].values():
-        patterns.extend(group.get("patterns", []))
-    for dep in ("basedpyright", "ty", "prek", "deptry", "pip-audit", "hypothesis"):
-        assert any(p.startswith(dep) for p in patterns), (
-            f"Missing '{dep}*' pattern in dependabot uv groups"
+    for pyproject_path in (
+        ROOT_PYPROJECT,
+        EXAMPLES_DIR / "pyproject.toml",
+        SKILLS_DIR / "marimo-pro" / "examples" / "pyproject.toml",
+    ):
+        report = ValidationReport()
+        validate_pyproject_min_only_bounds(pyproject_path, report)
+        assert report.is_clean, (
+            f"Upper/exact non-Python bounds detected in {pyproject_path}: {report.issues}"
         )
-    assert all(not p.startswith("mypy") for p in patterns)
 
 
 def test_t1_28_secret_hygiene_validator_exposes_public_patterns() -> None:

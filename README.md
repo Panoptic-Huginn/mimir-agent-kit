@@ -70,13 +70,13 @@ flowchart TD
 | `github` | `uv run --isolated --no-project ... scripts/github_mcp_launcher.py --cache-dir ${PLUGIN_DATA}` | SHA-256-verified native `github-mcp-server` `v2.1.0` binary (zero Docker) for Issues, PRs, Rulesets, Projects, Security & Logs across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
 | `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
-| `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.0` | PubMed / Europe PMC biomedical & life-science literature search | None |
-| `semscholar` | `uvx --with pydantic-settings==2.16.2 --with mcp[cli]==1.30.0 semantic-scholar-mcp==0.4.0` | Semantic Scholar paper graph, citations, and author lookup | None |
+| `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.2` | PubMed / Europe PMC biomedical & life-science literature search | None |
+| `semscholar` | `uvx --with pydantic-settings==2.16.3 --with mcp[cli]==1.30.0 semantic-scholar-mcp==0.4.0` | Semantic Scholar paper graph, citations, and author lookup | None |
 | `nasa_ads` | `uvx --with mcp==1.30.0 nasa-ads-mcp==0.1.0` | NASA Astrophysics Data System (ADS) astrodynamics & physics literature | `ADS_API_TOKEN` |
-| `zotero` | `uvx zotero-mcp-server==0.15.2` | Zotero library search, collections, annotations, and BibTeX export | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` |
-| `workspace` | `uvx workspace-mcp==2.3.0 --single-user` | Gmail, Google Drive, Docs, Sheets, Slides, and Calendar | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `USER_GOOGLE_EMAIL` |
+| `zotero` | `uvx zotero-mcp-server==0.17.2` | Zotero library search, collections, annotations, and BibTeX export | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` |
+| `workspace` | `uvx workspace-mcp==2.5.0 --single-user` | Gmail, Google Drive, Docs, Sheets, Slides, and Calendar | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `USER_GOOGLE_EMAIL` |
 | `jupyter` | `uvx --with mcp==1.30.0 mcp-server-jupyter==0.1.9` | Local Jupyter notebook cell inspection and execution | None |
-| `time` | `uvx mcp-server-time==2026.11.4` | Timezone-aware clock and timestamp conversion | None |
+| `time` | `uvx mcp-server-time==2026.11.11` | Timezone-aware clock and timestamp conversion | None |
 
 > [!IMPORTANT]
 > Antigravity registers plugin tools as `mcp_<plugin>_<server>_<tool>` and drops any identifier longer than 64 characters (`^[a-zA-Z0-9_-]{1,64}$`). With the 20-character prefix `mcp_mimir-agent-kit_`, server keys are kept short (`github`, `workspace`, `semscholar`), and GitHub tools that still don't fit are listed in `GITHUB_EXCLUDE_TOOLS`. After adding a server or bumping a pinned version, refresh the tool inventory with `uv run python scripts/ci/snapshot_mcp_tools.py`. Export the server's `${VAR}` secrets first. The script writes `scripts/validation/mcp_tool_manifest.json`, which `validate_agentic_settings.py --strict` (`MCP008`) and `pytest` enforce offline in CI.
@@ -211,7 +211,7 @@ Before committing any change on a feature branch (`<type>/<issue-number>-<slug>`
 
 ```bash
 # 1. Validate strict Antigravity plugin schema, hooks, MCP variables & 24 KB skill body limits
-agy plugin validate --strict .
+agy plugin validate .
 
 # 2. Run Python linter, formatter check, strict static typing, dependency/CVE audits, Markdown linter & tests
 uv sync --locked

@@ -37,7 +37,9 @@ from scripts.validation.skills_validator import (
 )
 from scripts.validation.supply_chain_validator import (
     strip_jsonc_comments,
+    validate_no_dependabot_config,
     validate_pre_commit_file,
+    validate_pyproject_min_only_bounds,
     validate_renovate_file,
     validate_supply_chain,
     validate_workflow_file,
@@ -1865,8 +1867,10 @@ def test_sup003_pre_commit_sha_pinning_validation(tmp_path: Path) -> None:
     assert rep_good.is_clean
 
 
-def test_sup004_renovate_jsonc_and_dependabot_validation(tmp_path: Path) -> None:
-    """SUP004: Validate JSONC comment stripping, Renovate digest presets, and Dependabot ecosystems."""
+def test_sup004_renovate_jsonc_and_prohibited_dependabot_validation(
+    tmp_path: Path,
+) -> None:
+    """SUP004: Validate JSONC comment stripping, Renovate presets, and Dependabot rejection."""
     sample_jsonc = """{
   // Line comment with https://url.example/test
   /* Block comment
@@ -1887,19 +1891,89 @@ def test_sup004_renovate_jsonc_and_dependabot_validation(tmp_path: Path) -> None
     sup004_ren = [i for i in rep_ren.issues if i.code == ErrorCode.SUP004]
     assert len(sup004_ren) == 2
 
-    dependabot_dir = tmp_path / ".github"
-    dependabot_dir.mkdir(parents=True)
-    dep_file = dependabot_dir / "dependabot.yml"
-    dep_file.write_text(
-        'version: 2\nupdates:\n  - package-ecosystem: "uv"\n    directory: "/"\n',
+    # Valid renovate.jsonc passes, while .github/dependabot.yml or .yaml triggers SUP004
+    renovate_file.write_text(
+        json.dumps({
+            "extends": [
+                "config:best-practices",
+                "helpers:pinGitHubActionDigestsToSemver",
+            ],
+            "pre-commit": {"enabled": True},
+        }),
         encoding="utf-8",
     )
-    rep_dep = ValidationReport()
-    validate_supply_chain(tmp_path, rep_dep)
-    assert any(
-        i.code == ErrorCode.SUP004 and "github-actions" in i.message
-        for i in rep_dep.issues
+    dependabot_dir = tmp_path / ".github"
+    dependabot_dir.mkdir(parents=True)
+    for filename in ("dependabot.yml", "dependabot.yaml"):
+        dep_file = dependabot_dir / filename
+        dep_file.write_text(
+            'version: 2\nupdates:\n  - package-ecosystem: "uv"\n    directory: "/"\n',
+            encoding="utf-8",
+        )
+        rep_dep = ValidationReport()
+        validate_supply_chain(tmp_path, rep_dep)
+        assert any(
+            i.code == ErrorCode.SUP004 and "Dependabot" in i.message
+            for i in rep_dep.issues
+        )
+        dep_file.unlink()
+
+    rep_clean = ValidationReport()
+    validate_no_dependabot_config(tmp_path, rep_clean)
+    assert rep_clean.is_clean
+
+
+def test_sup004_pyproject_rejects_max_bounds_except_python(tmp_path: Path) -> None:
+    """SUP004: Reject upper/exact version bounds in pyproject.toml except Python."""
+    pyproject_file = tmp_path / "pyproject.toml"
+    pyproject_file.write_text(
+        """[project]
+name = "sample"
+version = "0.1.0"
+requires-python = ">=3.14,<3.16"
+dependencies = ["mcp>=2.3.0"]
+
+[project.optional-dependencies]
+extra = ["httpx>=0.28.0"]
+
+[dependency-groups]
+lint = ["ruff>=0.17.5"]
+dev = [{ include-group = "lint" }, "pytest>=9.2.0"]
+
+[build-system]
+requires = ["uv_build>=0.13.8"]
+build-backend = "uv_build"
+""",
+        encoding="utf-8",
     )
+    rep_ok = ValidationReport()
+    validate_pyproject_min_only_bounds(pyproject_file, rep_ok)
+    assert rep_ok.is_clean, f"Unexpected issues: {rep_ok.issues}"
+
+    # Any upper, tilde, or exact bound on non-Python packages must fail with SUP004
+    pyproject_file.write_text(
+        """[project]
+name = "sample"
+version = "0.1.0"
+requires-python = ">=3.14,<3.16"
+dependencies = ["mcp>=2.3.0,<3.0"]
+
+[project.optional-dependencies]
+extra = ["httpx~=0.28.0"]
+
+[dependency-groups]
+dev = ["pytest==9.2.0"]
+
+[build-system]
+requires = ["uv_build>=0.13.8,<0.14.0"]
+build-backend = "uv_build"
+""",
+        encoding="utf-8",
+    )
+    rep_bad = ValidationReport()
+    validate_supply_chain(tmp_path, rep_bad)
+    sup004_issues = [i for i in rep_bad.issues if i.code == ErrorCode.SUP004]
+    assert len(sup004_issues) == 4
 
 
 def test_sup004_rejects_shadowing_renovate_json_alongside_renovate_jsonc(
