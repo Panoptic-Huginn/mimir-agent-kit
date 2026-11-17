@@ -18,15 +18,17 @@ permissions:
 
 jobs:
   validate-and-test:
-    name: Validate & Test (${{ matrix.os }})
+    name: Validate & Test (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-24.04
-          - macos-latest
+        include:
+          - platform: linux
+            os: ubuntu-26.04
+          - platform: macos
+            os: macos-latest
 
     steps:
       - name: Checkout repository

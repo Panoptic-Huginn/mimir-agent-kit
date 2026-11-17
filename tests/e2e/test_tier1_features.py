@@ -23,7 +23,7 @@ from tests.e2e.conftest import (
     ALLOWED_HOOK_EVENTS,
     ALLOWED_RULE_TRIGGERS,
     ALLOWED_SKILL_SUBDIRECTORIES,
-    CI_MATRIX_OS,
+    CI_MATRIX_PLATFORMS,
     CI_WORKFLOW_FILE,
     HOOKS_FILE,
     MANDATORY_PRE_COMMIT_HYGIENE_HOOKS,
@@ -44,6 +44,9 @@ from tests.e2e.conftest import (
     TOOL_NAME_PATTERN,
     VALIDATE_CLI_FILE,
     estimate_token_count,
+    extract_matrix_os,
+    extract_matrix_platforms,
+    is_supported_ubuntu_runner,
     oracle_validate_mcp_config,
     oracle_validate_pre_commit_config,
     oracle_validate_rule,
@@ -219,17 +222,26 @@ def test_f2_ci_workflow_triggers() -> None:
 
 
 def test_f2_ci_workflow_os_matrix() -> None:
-    """Verify CI workflow matrix covers both ubuntu-24.04 and macos-latest."""
+    """Verify CI workflow matrix covers decoupled linux/macos platforms on Ubuntu >=26.04 and macOS."""
     data = yaml.safe_load(CI_WORKFLOW_FILE.read_text(encoding="utf-8"))
     jobs = data.get("jobs", {})
     found_matrix = False
     for job_cfg in jobs.values():
         matrix = job_cfg.get("strategy", {}).get("matrix", {})
-        os_list = set(matrix.get("os", []))
-        if CI_MATRIX_OS.issubset(os_list):
+        if not isinstance(matrix, dict):
+            continue
+        platforms = extract_matrix_platforms(matrix)
+        os_list = extract_matrix_os(matrix)
+        if (
+            platforms == CI_MATRIX_PLATFORMS
+            and any(is_supported_ubuntu_runner(label) for label in os_list)
+            and any(label.startswith("macos-") for label in os_list)
+        ):
             found_matrix = True
             break
-    assert found_matrix, f"CI workflow must define an OS matrix covering {CI_MATRIX_OS}"
+    assert found_matrix, (
+        f"CI workflow must define a matrix covering {CI_MATRIX_PLATFORMS} on Ubuntu >=26.04 and macos-*"
+    )
 
 
 def test_f2_ci_workflow_ruleset_status_check_name() -> None:
@@ -990,7 +1002,16 @@ def test_f11_renovate_config_present_valid_and_dependabot_absent() -> None:
     ]
     assert len(ubuntu_rules) == 1
     assert ubuntu_rules[0].get("versioning") == "pep440"
-    assert ubuntu_rules[0].get("allowedVersions") == "<=24.04"
+    assert "allowedVersions" not in ubuntu_rules[0]
+    runner_managers = [
+        mgr
+        for mgr in renovate_data.get("customManagers", [])
+        if isinstance(mgr, dict)
+        and mgr.get("datasourceTemplate") == "github-runners"
+        and any("workflows" in p for p in mgr.get("managerFilePatterns", []))
+    ]
+    assert len(runner_managers) == 1
+    assert runner_managers[0].get("versioningTemplate") == "pep440"
 
 
 def test_f11_post_merge_main_pre_commit_skips_no_commit_to_branch(

@@ -78,6 +78,18 @@
         "\"(?<depName>(?:@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*)@(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+[a-zA-Z0-9._+-]*)\""
       ],
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "Track GitHub Actions Ubuntu matrix runner labels in workflow YAML files",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "(?:\\bos:\\s*|\\s-\\s+)['\"]?(?<depName>ubuntu)-(?<currentValue>[0-9]+\\.[0-9]+)['\"]?"
+      ],
+      "datasourceTemplate": "github-runners",
+      "versioningTemplate": "pep440"
     }
   ],
   "packageRules": [
@@ -135,7 +147,7 @@
       "allowedVersions": "<0.4.0"
     },
     {
-      "description": "Pin GitHub Actions Ubuntu runner to <= 24.04 until actionlint and repository ruleset 26711811 adopt ubuntu-26.04",
+      "description": "Use PEP 440 versioning for GitHub Actions Ubuntu runners and group updates with github-actions",
       "matchDatasources": [
         "github-runners"
       ],
@@ -143,7 +155,8 @@
         "ubuntu"
       ],
       "versioning": "pep440",
-      "allowedVersions": "<=24.04"
+      "groupName": "github-actions",
+      "groupSlug": "github-actions"
     },
     {
       "description": "Group all GitHub Actions SHA updates into a single weekly pull request",
@@ -165,6 +178,10 @@
       "description": "Group MCP server runtime updates in mcp_config.json into a single weekly pull request",
       "matchManagers": [
         "custom.regex"
+      ],
+      "matchFileNames": [
+        "mcp_config.json",
+        "scripts/github_mcp_launcher.py"
       ],
       "groupName": "mcp server dependencies",
       "groupSlug": "mcp-servers"

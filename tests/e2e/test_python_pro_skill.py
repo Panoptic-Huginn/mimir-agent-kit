@@ -42,6 +42,7 @@ from scripts.validation.supply_chain_validator import (
 from tests.e2e.conftest import (
     ALLOWED_SKILL_SUBDIRECTORIES,
     CI_MATRIX_OS,
+    CI_MATRIX_PLATFORMS,
     CI_WORKFLOW_FILE,
     MAX_FILE_BYTES,
     MIN_SKILL_DESCRIPTION_LENGTH,
@@ -52,6 +53,9 @@ from tests.e2e.conftest import (
     SKILL_NAME_PATTERN,
     SKILLS_DIR,
     estimate_token_count,
+    extract_matrix_os,
+    extract_matrix_platforms,
+    is_supported_ubuntu_runner,
     oracle_validate_ci_workflow,
     oracle_validate_pre_commit_config,
     oracle_validate_skill,
@@ -692,13 +696,17 @@ def test_t1_25_root_local_ci_script_five_gates() -> None:
 
 
 def test_t1_26_root_ci_workflow_preserves_ruleset_and_runs_315() -> None:
-    """Verify root CI workflow preserves ruleset job on Python 3.15 without 3.14/matrix bloat."""
+    """Verify root CI workflow preserves decoupled ruleset job on Python 3.15 and Ubuntu >=26.04."""
     raw = CI_WORKFLOW_FILE.read_text(encoding="utf-8")
     data = _load_yaml(CI_WORKFLOW_FILE)
     jobs = data["jobs"]
     validate_job = jobs["validate-and-test"]
     assert validate_job["name"] == RULESET_STATUS_CHECK_NAME
-    assert set(validate_job["strategy"]["matrix"]["os"]) == CI_MATRIX_OS
+    matrix = validate_job["strategy"]["matrix"]
+    assert extract_matrix_platforms(matrix) == CI_MATRIX_PLATFORMS
+    os_set = extract_matrix_os(matrix)
+    assert any(is_supported_ubuntu_runner(label) for label in os_set)
+    assert "macos-latest" in os_set
     assert "python-315-matrix" not in jobs
     setup_steps = [
         step
@@ -1787,7 +1795,12 @@ def test_t4_11_live_actionlint_and_zizmor_on_reference_release_workflow(
     wf_path.write_text(release_blocks[0], encoding="utf-8")
 
     al_res = subprocess.run(
-        [_tool_bin("actionlint"), str(wf_path)],
+        [
+            _tool_bin("actionlint"),
+            "-config-file",
+            str(REPO_ROOT / ".github" / "actionlint.yaml"),
+            str(wf_path),
+        ],
         capture_output=True,
         text=True,
         check=False,
