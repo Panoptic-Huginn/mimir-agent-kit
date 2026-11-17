@@ -65,11 +65,11 @@ def test_resolve_cache_root_handles_placeholders_and_os_defaults(
 def test_build_archive_url_enforces_github_https() -> None:
     """Release asset URLs always target https://github.com."""
     url = launcher.build_archive_url(
-        "github-mcp-server_Darwin_arm64.tar.gz", version="2.1.0"
+        "github-mcp-server_Darwin_arm64.tar.gz", version="2.2.0"
     )
     assert (
         url
-        == "https://github.com/github/github-mcp-server/releases/download/v2.1.0/github-mcp-server_Darwin_arm64.tar.gz"
+        == "https://github.com/github/github-mcp-server/releases/download/v2.2.0/github-mcp-server_Darwin_arm64.tar.gz"
     )
 
 

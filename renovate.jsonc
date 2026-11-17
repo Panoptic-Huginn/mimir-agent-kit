@@ -82,7 +82,7 @@
   ],
   "packageRules": [
     {
-      "description": "Allow Python 3.14.x and 3.15.x (< 3.16) across supported minor floor and default runtime",
+      "description": "Allow Python 3.15.x (< 3.16) across supported minimum floor and runtime",
       "matchManagers": [
         "github-actions",
         "pep621"
@@ -91,11 +91,11 @@
         "actions/python-versions",
         "python"
       ],
-      "allowedVersions": ">=3.14 <3.16",
+      "allowedVersions": ">=3.15 <3.16",
       "rangeStrategy": "auto"
     },
     {
-      "description": "Hold mcp on 1.x (<2.0.0) in mcp_config.json for legacy FastMCP servers (semantic-scholar-mcp, nasa-ads-mcp, mcp-server-jupyter) that import mcp.server.fastmcp removed in mcp 2.0, while academic-mcp tracks mcp 2.x",
+      "description": "Hold mcp on 1.x (<2.0.0) in mcp_config.json for legacy servers (semantic-scholar-mcp and nasa-ads-mcp import mcp.server.fastmcp; mcp-server-jupyter uses mcp.server.lowlevel.Server APIs removed in mcp 2.0), while academic-mcp tracks mcp 2.x",
       "matchManagers": [
         "custom.regex"
       ],
@@ -107,6 +107,32 @@
       ],
       "matchCurrentVersion": "/^1\\./",
       "allowedVersions": "<2.0.0"
+    },
+    {
+      "description": "Hold pymupdf (<2.0.0) in mcp_config.json for semscholar until onnxruntime publishes Python 3.15 and macOS <14/x86_64 wheels",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchFileNames": [
+        "mcp_config.json"
+      ],
+      "matchPackageNames": [
+        "pymupdf"
+      ],
+      "allowedVersions": "<2.0.0"
+    },
+    {
+      "description": "Hold pymupdf4llm (<0.4.0) in mcp_config.json for semscholar until onnxruntime publishes Python 3.15 and macOS <14/x86_64 wheels",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchFileNames": [
+        "mcp_config.json"
+      ],
+      "matchPackageNames": [
+        "pymupdf4llm"
+      ],
+      "allowedVersions": "<0.4.0"
     },
     {
       "description": "Pin GitHub Actions Ubuntu runner to <= 24.04 until actionlint and repository ruleset 26711811 adopt ubuntu-26.04",

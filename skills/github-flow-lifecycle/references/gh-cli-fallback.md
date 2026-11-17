@@ -21,7 +21,7 @@ gh auth login --hostname github.com --git-protocol ssh
 gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications
 
 # 4. Verify cached native github-mcp-server binary (zero Docker required)
-uv run --isolated --no-project --python ">=3.14" python scripts/github_mcp_launcher.py --print-binary-path
+uv run --isolated --no-project --python ">=3.15" python scripts/github_mcp_launcher.py --print-binary-path
 ```
 
 ### Extracting `OWNER` and `REPO` Safely

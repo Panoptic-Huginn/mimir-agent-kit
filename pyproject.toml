@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Cross-platform Google Antigravity plugin bundling custom systems engineering skills, GitHub Flow lifecycle rules, and portable research MCP servers."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 dependencies = [
     "mcp>=2.3.0",
 ]
@@ -16,14 +16,14 @@ dev = [
     "deptry>=0.25.1",
     "hypothesis>=6.170.15",
     "pip-audit>=2.10.1",
-    "prek>=0.5.10",
+    "prek>=0.5.11",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "pytest-randomly>=5.1.0",
     "pyyaml>=6.0.3",
     "ruff>=0.17.5",
     "rumdl>=0.3.4",
-    "ty>=0.0.104",
+    "ty>=0.0.105",
     "types-pyyaml>=6.0.12.20261113",
     "zizmor>=1.32.0",
 ]
@@ -35,7 +35,7 @@ package = false
 exclude = [".agents", ".venv"]
 line-length = 88
 preview = true
-target-version = "py314"
+target-version = "py315"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -121,7 +121,7 @@ convention = "google"
 
 [tool.basedpyright]
 include = ["scripts", "tests", "skills/python-pro/examples/pep723_script.py"]
-pythonVersion = "3.14"
+pythonVersion = "3.15"
 typeCheckingMode = "strict"
 # Dynamic yaml.safe_load() / json.loads() payloads resolve nested values as Unknown
 reportUnknownArgumentType = false
@@ -135,7 +135,7 @@ extraPaths = ["."]
 reportPrivateUsage = false
 
 [tool.ty.environment]
-python-version = "3.14"
+python-version = "3.15"
 
 [tool.ty.src]
 include = ["scripts", "tests", "skills/python-pro/examples/pep723_script.py"]

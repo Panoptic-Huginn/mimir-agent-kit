@@ -941,6 +941,32 @@ def test_secret_sec001_home_path_leak(tmp_path: Path) -> None:
     assert any(i.code == ErrorCode.SEC001 for i in report.issues)
 
 
+def test_secret_sec001_skips_gitignored_ide_and_runtime_dirs(tmp_path: Path) -> None:
+    """SEC001 ignores gitignored IDE/runtime directories (.vscode, .idea, .gemini) while flagging tracked paths."""
+    leaked_home = "/Users/" + "jamie" + "/project"
+    for ignored_dir, filename in (
+        (".vscode", "settings.json"),
+        (".idea", "workspace.xml"),
+        (".gemini", "state.json"),
+    ):
+        target = tmp_path / ignored_dir / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f'{{"path": "{leaked_home}"}}\n', encoding="utf-8")
+
+    clean_report = ValidationReport()
+    validate_secret_hygiene(tmp_path, clean_report)
+    assert clean_report.is_clean
+
+    tracked_file = tmp_path / "config.json"
+    tracked_file.write_text(f'{{"path": "{leaked_home}"}}\n', encoding="utf-8")
+    dirty_report = ValidationReport()
+    validate_secret_hygiene(tmp_path, dirty_report)
+    sec001_paths = {
+        issue.path for issue in dirty_report.issues if issue.code == ErrorCode.SEC001
+    }
+    assert sec001_paths == {tracked_file}
+
+
 def test_secret_sec002_token_leak(tmp_path: Path) -> None:
     """SEC002: Leaked authentication token in repository file."""
     bad_file = tmp_path / "leaked.txt"

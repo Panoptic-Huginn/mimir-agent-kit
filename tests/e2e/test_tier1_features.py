@@ -243,12 +243,12 @@ def test_f2_ci_workflow_ruleset_status_check_name() -> None:
 
 
 def test_f2_ci_workflow_setup_uv_and_caching() -> None:
-    """Verify CI workflow uses astral-sh/setup-uv action with Python 3.14 and cache enabled."""
+    """Verify CI workflow uses astral-sh/setup-uv action with Python 3.15 and cache enabled."""
     content = CI_WORKFLOW_FILE.read_text(encoding="utf-8")
     assert "astral-sh/setup-uv@" in content, (
         "Workflow must use astral-sh/setup-uv action"
     )
-    assert "python-version: '3.14'" in content or 'python-version: "3.14"' in content
+    assert "python-version: '3.15'" in content or 'python-version: "3.15"' in content
     assert "enable-cache: true" in content
 
 

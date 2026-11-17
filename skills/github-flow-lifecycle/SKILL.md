@@ -43,7 +43,7 @@ During your internal reasoning pass before every tool invocation, verify the fol
 1. **Branch Isolation Check:** Confirm the active local Git branch is **NEVER** `main`, `master`, or a detached `HEAD` before modifying, staging, or committing files.
 2. **Docker-Free Native MCP Primary / Keyring Auth / Local-Git Boundary:**
    - Use **`github-mcp-server`** (plugin-namespaced as lazy-loaded `mimir-agent-kit_github` via `call_mcp_tool`, or registered globally as `github`) as the primary interface for all remote GitHub operations.
-   - `mimir-agent-kit_github` runs natively without Docker via `scripts/github_mcp_launcher.py` (caching the official SHA-256-verified `v2.1.0` static binary in `${PLUGIN_DATA}` on Ubuntu Linux and macOS) and reads `gh auth token --hostname github.com` from the OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS). One keyring login spans both personal accounts (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`) with zero PATs on disk.
+   - `mimir-agent-kit_github` runs natively without Docker via `scripts/github_mcp_launcher.py` (caching the official SHA-256-verified `v2.2.0` static binary in `${PLUGIN_DATA}` on Ubuntu Linux and macOS) and reads `gh auth token --hostname github.com` from the OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS). One keyring login spans both personal accounts (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`) with zero PATs on disk.
    - **Partner & Cloud-Sandbox CLI (`gh` CLI):** Use `gh` CLI (`--body-file -` single-quoted heredocs) for GraphQL/REST endpoints not modeled by MCP, for the two org/notification tools excluded to fit Antigravity's 64-character tool-identifier limit, or inside Cloud Remote Agents where local stdio servers do not run (see [references/gh-cli-fallback.md](references/gh-cli-fallback.md)). If `gh auth status` reports logged out, halt and ask the user to run `gh auth login --hostname github.com`.
    - Use **local workspace file tools and local `git` CLI** for all file edits, staging (`git add`), committing (`git commit`), and pushing (`git push`). **NEVER** use remote file-mutation tools (`create_or_update_file`, `push_files`, `delete_file`), as they bypass `.pre-commit-config.yaml` hooks and local CI gates.
 3. **Verification-Before-Commit:** Never execute `git commit` (and never pass `--no-verify` or `-n`) until the full local CI suite—matching all applicable local tooling and `.github/workflows/*.yml` PR checks—has executed on the current working tree and exited with code `0`.
@@ -69,7 +69,7 @@ During your internal reasoning pass before every tool invocation, verify the fol
 
 ## 3. Entry-State Decision Tree
 
-Evaluate local workspace and remote GitHub state before modifying any repository files (consult [references/mcp-tool-reference.md](references/mcp-tool-reference.md) for `v2.1.0` parameter details):
+Evaluate local workspace and remote GitHub state before modifying any repository files (consult [references/mcp-tool-reference.md](references/mcp-tool-reference.md) for `v2.2.0` parameter details):
 
 1. **Workspace is on `main` or `master` with uncommitted edits:**
    - Stash local changes immediately: `git stash push -u -m "wip: pre-branching stash"`.
@@ -258,6 +258,6 @@ Once local and remote CI pass (`0` failures) and all review threads are resolved
 
 ## References
 
-- [references/mcp-tool-reference.md](references/mcp-tool-reference.md): `mimir-agent-kit_github` (`v2.1.0` native binary) schemas, dual-owner routing, JSON schema quirks, excluded tools.
+- [references/mcp-tool-reference.md](references/mcp-tool-reference.md): `mimir-agent-kit_github` (`v2.2.0` native binary) schemas, dual-owner routing, JSON schema quirks, excluded tools.
 - [references/gh-cli-fallback.md](references/gh-cli-fallback.md): Keyring `gh` auth & scope diagnostics, `--body-file -` LaTeX/Markdown safety, GraphQL `resolveReviewThread`, and Cloud Remote Agent `gh` recipes.
 - [references/local-ci-matrix.md](references/local-ci-matrix.md): Full multi-ecosystem Stage 3 pre-commit CI detection and command matrix.

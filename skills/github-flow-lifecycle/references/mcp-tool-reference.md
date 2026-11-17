@@ -1,8 +1,8 @@
-# `github-mcp-server` (`mimir-agent-kit_github`) Reference (`v2.1.0` Native Binary)
+# `github-mcp-server` (`mimir-agent-kit_github`) Reference (`v2.2.0` Native Binary)
 
 In Google Antigravity `2.31+`, all 89 tools on `mimir-agent-kit_github` are **lazy-loaded** and invoked via `call_mcp_tool` with `ServerName: "mimir-agent-kit_github"` (or `"github"` if registered globally without plugin prefixing). Detailed JSON schemas reside on disk under the Antigravity MCP directory (`~/.gemini/antigravity/mcp/mimir-agent-kit_github/<tool>.json` on Unix hosts).
 
-`scripts/github_mcp_launcher.py` bootstraps the official SHA-256-pinned `github/github-mcp-server` `v2.1.0` static binary into `${PLUGIN_DATA}` on both Ubuntu Linux and macOS (**zero Docker requirement**) and injects `gh auth token --hostname github.com` into `GITHUB_PERSONAL_ACCESS_TOKEN` in memory before calling `os.execve("github-mcp-server", ["github-mcp-server", "stdio"])`. A single `gh` keyring login accesses both personal repositories (`jamielapointe/*`) and GitHub Enterprise Cloud organization repositories (`Panoptic-Huginn/*`) with zero stored PATs.
+`scripts/github_mcp_launcher.py` bootstraps the official SHA-256-pinned `github/github-mcp-server` `v2.2.0` static binary into `${PLUGIN_DATA}` on both Ubuntu Linux and macOS (**zero Docker requirement**) and injects `gh auth token --hostname github.com` into `GITHUB_PERSONAL_ACCESS_TOKEN` in memory before calling `os.execve("github-mcp-server", ["github-mcp-server", "stdio"])`. A single `gh` keyring login accesses both personal repositories (`jamielapointe/*`) and GitHub Enterprise Cloud organization repositories (`Panoptic-Huginn/*`) with zero stored PATs.
 
 ---
 
@@ -25,7 +25,7 @@ In Google Antigravity `2.31+`, all 89 tools on `mimir-agent-kit_github` are **la
 
 ---
 
-## 2. Exact `v2.1.0` Parameter Reference & Traps
+## 2. Exact `v2.2.0` Parameter Reference & Traps
 
 | Lifecycle Step | Tool (`mimir-agent-kit_github`) | Exact Parameters & Edge Cases |
 | :--- | :--- | :--- |
@@ -39,7 +39,7 @@ In Google Antigravity `2.31+`, all 89 tools on `mimir-agent-kit_github` are **la
 | **Read PR / checks / threads** | `pull_request_read` | `method: "get" \| "get_diff" \| "get_status" \| "get_files" \| "get_commits" \| "get_review_comments" \| "get_reviews" \| "get_comments" \| "get_check_runs"`. Note: `get_review_comments` uses cursor pagination (`perPage`, `after`); others use `page`, `perPage`. |
 | **Reply to thread** | `add_reply_to_pull_request_comment` | Reply on an existing review comment before resolving its thread. |
 | **Resolve thread** | `pull_request_review_write` | `method: "resolve_thread"`, `threadId: "PRRT_..."`. **Schema Trap:** JSON schema marks `owner`, `repo`, `pullNumber`, and `method` as `required`, even though server ignores the first three for `resolve_thread` — **always include all four**. |
-| **Update PR branch** | `update_pull_request_branch` | **Merge-commit only** (`v2.1.0` exposes no `rebase` option). **Do NOT call** when `required_linear_history` is active; rebase locally (`git fetch origin main && git rebase origin/main && git push --force-with-lease origin HEAD`). |
+| **Update PR branch** | `update_pull_request_branch` | **Merge-commit only** (`v2.2.0` exposes no `rebase` option). **Do NOT call** when `required_linear_history` is active; rebase locally (`git fetch origin main && git rebase origin/main && git push --force-with-lease origin HEAD`). |
 | **Workflow & jobs** | `actions_list` | `method: "list_workflow_runs"` (`workflow_runs_filter: {"branch": "<branch>"}`, optional `resource_id: "<workflow.yml>"`); `method: "list_workflow_jobs"` (`resource_id: "<run_id>"`, optional `workflow_jobs_filter: {"filter": "latest"}`). |
 | **Failed logs** | `get_job_logs` | `owner`, `repo`, `run_id` (required with `failed_only: true`), `failed_only: true`, `return_content: true`, `tail_lines: 500` (or `job_id` for a single job). |
 

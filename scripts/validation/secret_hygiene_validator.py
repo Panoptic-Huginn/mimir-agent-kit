@@ -17,13 +17,16 @@ EXCLUDED_DIRS = frozenset({
     ".agents",
     ".agents/teamwork",
     ".basedpyright",
+    ".gemini",
     ".git",
+    ".idea",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
     ".rumdl_cache",
     ".ty_cache",
     ".venv",
+    ".vscode",
     "__pycache__",
 })
 
