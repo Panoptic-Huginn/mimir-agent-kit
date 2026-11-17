@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Final
 
 
-GITHUB_MCP_SERVER_VERSION: Final[str] = "2.1.0"
+GITHUB_MCP_SERVER_VERSION: Final[str] = "2.2.0"
 GITHUB_RELEASE_BASE_URL: Final[str] = (
     "https://github.com/github/github-mcp-server/releases/download"
 )
@@ -46,23 +46,23 @@ _UNEXPANDED_PLACEHOLDER_RE: Final[re.Pattern[str]] = re.compile(
     r"^\$\{[A-Za-z0-9_]+\}$"
 )
 
-# Official SHA-256 archive digests from github-mcp-server_2.1.0_checksums.txt.
+# Official SHA-256 archive digests from github-mcp-server_2.2.0_checksums.txt.
 PLATFORM_ARCHIVE_SPECS: Final[dict[tuple[str, str], tuple[str, str]]] = {
     ("Linux", "x86_64"): (
         "github-mcp-server_Linux_x86_64.tar.gz",
-        "a442f9db287cea01008bcb55fe6bc0292270301046c3edbd1a8b22d6e4157b2b",
+        "157c5664b273e5070126d414f88cbab765630acde588f75dafdf9998c2235c51",
     ),
     ("Linux", "aarch64"): (
         "github-mcp-server_Linux_arm64.tar.gz",
-        "34d5a268f65cd1e9b7107fa976f3571ccd575f9df00cec489fec79a039923a22",
+        "d21e4fca8603b59d99380f1c332aaea36d73033d52b389867adf2124ee150983",
     ),
     ("Darwin", "arm64"): (
         "github-mcp-server_Darwin_arm64.tar.gz",
-        "3fb2936c33416693a8b268442ab9b1e838d4fbb8c2a6813d8a77f87c3009ced6",
+        "5e46b05b87989d23267f0a69ee60a3acd1de51a72512ee5fcc2786ca60c54a6a",
     ),
     ("Darwin", "x86_64"): (
         "github-mcp-server_Darwin_x86_64.tar.gz",
-        "3c4b023b0d90bdc8f3a2ab63307ff55d293e98c27e733008eed0fa35aca55499",
+        "a42e667b99915cf368b92aa419fd2f753549ea7133cb3572a3e7f3e2d4a8675b",
     ),
 }
 

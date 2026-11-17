@@ -198,13 +198,16 @@ def test_zero_hardcoded_machine_paths_or_plaintext_secrets() -> None:
         ".agents",
         ".agents/teamwork",
         ".basedpyright",
+        ".gemini",
         ".git",
+        ".idea",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
         ".rumdl_cache",
         ".ty_cache",
         ".venv",
+        ".vscode",
         "__pycache__",
     }
     for path in REPO_ROOT.rglob("*"):

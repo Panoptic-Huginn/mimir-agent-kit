@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.13.8"]
+requires = ["uv_build>=0.13.9"]
 build-backend = "uv_build"
 
 [tool.pixi.workspace]
@@ -87,7 +87,7 @@ my-python-project/
 
    ```toml
    [build-system]
-   requires = ["uv_build>=0.13.8"]
+   requires = ["uv_build>=0.13.9"]
    build-backend = "uv_build"
    ```
 

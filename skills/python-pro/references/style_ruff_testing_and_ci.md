@@ -147,7 +147,7 @@ Every Python repository enforces these controls in `.github/workflows/ci.yml` ([
 
 1. **Minimal Permissions & SHA-Pinned Actions**: Top-level `permissions: contents: read`; third-party Actions pinned to immutable 40-char commit SHAs (`persist-credentials: false` on `actions/checkout`). Audit workflows with **`actionlint`** and **`zizmor --strict-collection --min-severity=low .github/workflows/`**.
 2. **Locked Environment Verification**: `uv lock --check && uv sync --locked --all-extras --dev` (or `pixi install --frozen`).
-3. **Full Version Matrix**: Test on both **`3.14`** and **`3.15`** (across `ubuntu-24.04` and `macos-latest` when cross-platform) — plus opt-in `3.15t` when claiming free-threaded compatibility.
+3. **Full Version Matrix**: Test on both **`3.14`** and **`3.15`** (across `ubuntu-26.04` and `macos-latest` when cross-platform) — plus opt-in `3.15t` when claiming free-threaded compatibility.
 4. **Dependency & Vulnerability Hygiene**:
    - **`deptry`**: Detects unused, missing, or transitive-only imports (`DEP001`–`DEP004`).
    - **`pip-audit`**: Scans the locked environment against known PyPI CVEs.
@@ -166,7 +166,7 @@ Add a dedicated `3.15t` job only once every runtime dependency publishes verifie
       fail-fast: false
       matrix:
         os:
-          - ubuntu-24.04
+          - ubuntu-26.04
           - macos-latest
         python-version:
           - "3.15t"
@@ -205,7 +205,7 @@ permissions:
 jobs:
   build:
     name: Build Wheel & Sdist
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Checkout repository
@@ -225,7 +225,7 @@ jobs:
   publish:
     name: Publish via OIDC + PEP 740
     needs: [build]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     environment:
       name: pypi

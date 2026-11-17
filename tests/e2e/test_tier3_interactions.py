@@ -25,6 +25,7 @@ from scripts.validation.codes import ErrorCode
 from scripts.validation.models import ValidationReport
 from tests.e2e.conftest import (
     CI_MATRIX_OS,
+    CI_MATRIX_PLATFORMS,
     CI_WORKFLOW_FILE,
     HOOKS_FILE,
     MCP_CONFIG_FILE,
@@ -33,6 +34,8 @@ from tests.e2e.conftest import (
     REPO_ROOT,
     RULES_DIR,
     SKILLS_DIR,
+    extract_matrix_os,
+    extract_matrix_platforms,
     oracle_validate_hooks,
     oracle_validate_mcp_config,
     oracle_validate_plugin_manifest,
@@ -185,13 +188,13 @@ def test_t3_ci_workflow_runs_pre_commit_and_pytest() -> None:
 
 
 def test_t3_ci_matrix_parity_ubuntu_macos() -> None:
-    """Interaction 6: CI matrix defines uniform testing across Ubuntu 24.04 and macOS."""
+    """Interaction 6: CI matrix defines uniform testing across Ubuntu 26.04 and macOS."""
     data = yaml.safe_load(CI_WORKFLOW_FILE.read_text(encoding="utf-8"))
     jobs = data.get("jobs", {})
     ci_job = jobs.get("validate-and-test", {})
     matrix = ci_job.get("strategy", {}).get("matrix", {})
-    os_set = set(matrix.get("os", []))
-    assert os_set == CI_MATRIX_OS
+    assert extract_matrix_platforms(matrix) == CI_MATRIX_PLATFORMS
+    assert extract_matrix_os(matrix) == CI_MATRIX_OS
 
 
 def test_t3_mcp_variables_and_secret_hygiene() -> None:

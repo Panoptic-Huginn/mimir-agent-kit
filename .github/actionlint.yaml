@@ -1,0 +1,5 @@
+# Allow Ubuntu 26.04 LTS GitHub-hosted runner labels until upstream rhysd/actionlint (> v1.7.12) adds native support.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm

@@ -116,8 +116,8 @@ def test_f2_b3_incomplete_matrix_os_missing_macos_rejected(tmp_path: Path) -> No
         "name": "CI",
         "jobs": {
             "validate-and-test": {
-                "name": "Validate & Test (${{ matrix.os }})",
-                "strategy": {"matrix": {"os": ["ubuntu-24.04"]}},
+                "name": "Validate & Test (${{ matrix.platform }})",
+                "strategy": {"matrix": {"os": ["ubuntu-26.04"]}},
             }
         },
     }
@@ -126,14 +126,30 @@ def test_f2_b3_incomplete_matrix_os_missing_macos_rejected(tmp_path: Path) -> No
 
 
 def test_f2_b4_incomplete_matrix_os_missing_ubuntu_rejected(tmp_path: Path) -> None:
-    """Boundary: CI workflow matrix missing ubuntu-24.04 rejected with CI002."""
+    """Boundary: CI workflow matrix missing supported Ubuntu (>=26.04) rejected with CI002."""
     ci_file = tmp_path / "ci.yml"
     workflow_data: dict[str, Any] = {
         "name": "CI",
         "jobs": {
             "validate-and-test": {
-                "name": "Validate & Test (${{ matrix.os }})",
+                "name": "Validate & Test (${{ matrix.platform }})",
                 "strategy": {"matrix": {"os": ["macos-latest"]}},
+            }
+        },
+    }
+    issues = oracle_validate_ci_workflow(workflow_data, ci_file)
+    assert any(i.code == "CI002" for i in issues)
+
+
+def test_f2_b4_legacy_ubuntu_2404_rejected(tmp_path: Path) -> None:
+    """Boundary: CI workflow matrix pinned to legacy ubuntu-24.04 is rejected with CI002."""
+    ci_file = tmp_path / "ci.yml"
+    workflow_data: dict[str, Any] = {
+        "name": "CI",
+        "jobs": {
+            "validate-and-test": {
+                "name": "Validate & Test (${{ matrix.platform }})",
+                "strategy": {"matrix": {"os": ["ubuntu-24.04", "macos-latest"]}},
             }
         },
     }
@@ -149,7 +165,7 @@ def test_f2_b5_missing_ruleset_check_name_rejected(tmp_path: Path) -> None:
         "jobs": {
             "build-and-run": {
                 "name": "Generic Build Step",
-                "strategy": {"matrix": {"os": ["ubuntu-24.04", "macos-latest"]}},
+                "strategy": {"matrix": {"os": ["ubuntu-26.04", "macos-latest"]}},
             }
         },
     }

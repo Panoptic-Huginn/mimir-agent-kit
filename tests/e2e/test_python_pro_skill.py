@@ -42,6 +42,7 @@ from scripts.validation.supply_chain_validator import (
 from tests.e2e.conftest import (
     ALLOWED_SKILL_SUBDIRECTORIES,
     CI_MATRIX_OS,
+    CI_MATRIX_PLATFORMS,
     CI_WORKFLOW_FILE,
     MAX_FILE_BYTES,
     MIN_SKILL_DESCRIPTION_LENGTH,
@@ -52,6 +53,9 @@ from tests.e2e.conftest import (
     SKILL_NAME_PATTERN,
     SKILLS_DIR,
     estimate_token_count,
+    extract_matrix_os,
+    extract_matrix_platforms,
+    is_supported_ubuntu_runner,
     oracle_validate_ci_workflow,
     oracle_validate_pre_commit_config,
     oracle_validate_skill,
@@ -626,8 +630,8 @@ def test_t1_22_skill_markdown_links_resolve() -> None:
         assert resolved.exists(), f"Broken local link in SKILL.md: {target}"
 
 
-def test_t1_23_root_pyproject_dogfooded_314_and_23_ruff() -> None:
-    """Verify root pyproject.toml dogfoods Python >=3.14, 23 Ruff families, ty, prek."""
+def test_t1_23_root_pyproject_dogfooded_315_and_23_ruff() -> None:
+    """Verify root pyproject.toml dogfoods Python >=3.15, 23 Ruff families, ty, prek."""
     data = _load_toml(ROOT_PYPROJECT)
     project = data["project"]
     tool = data["tool"]
@@ -635,8 +639,10 @@ def test_t1_23_root_pyproject_dogfooded_314_and_23_ruff() -> None:
     lint = ruff["lint"]
     dev_deps = data["dependency-groups"]["dev"]
     dev_str = "\n".join(str(item) for item in dev_deps).lower()
-    assert project["requires-python"] == ">=3.14"
-    assert ruff["target-version"] == "py314"
+    assert project["requires-python"] == ">=3.15"
+    assert ruff["target-version"] == "py315"
+    assert tool["basedpyright"]["pythonVersion"] == "3.15"
+    assert tool["ty"]["environment"]["python-version"] == "3.15"
     assert set(lint["select"]) == EXPECTED_RUFF_FAMILIES
     assert "__future__.annotations" in lint["flake8-tidy-imports"]["banned-api"]
     assert tool["basedpyright"]["typeCheckingMode"] == "strict"
@@ -689,25 +695,35 @@ def test_t1_25_root_local_ci_script_five_gates() -> None:
     assert "pre-commit run" not in raw
 
 
-def test_t1_26_root_ci_workflow_preserves_ruleset_and_adds_315() -> None:
-    """Verify root CI workflow preserves ruleset job on 3.14 and adds Python 3.15."""
+def test_t1_26_root_ci_workflow_preserves_ruleset_and_runs_315() -> None:
+    """Verify root CI workflow preserves decoupled ruleset job on Python 3.15 and Ubuntu >=26.04."""
     raw = CI_WORKFLOW_FILE.read_text(encoding="utf-8")
     data = _load_yaml(CI_WORKFLOW_FILE)
     jobs = data["jobs"]
-    assert jobs["validate-and-test"]["name"] == RULESET_STATUS_CHECK_NAME
-    assert set(jobs["validate-and-test"]["strategy"]["matrix"]["os"]) == CI_MATRIX_OS
-    assert "python-315-matrix" in jobs
-    py315_job = jobs["python-315-matrix"]
-    assert set(py315_job["strategy"]["matrix"]["os"]) == CI_MATRIX_OS
-    assert py315_job["name"] == "Python 3.15 Matrix (${{ matrix.os }})"
+    validate_job = jobs["validate-and-test"]
+    assert validate_job["name"] == RULESET_STATUS_CHECK_NAME
+    matrix = validate_job["strategy"]["matrix"]
+    assert extract_matrix_platforms(matrix) == CI_MATRIX_PLATFORMS
+    os_set = extract_matrix_os(matrix)
+    assert any(is_supported_ubuntu_runner(label) for label in os_set)
+    assert "macos-latest" in os_set
+    assert "python-315-matrix" not in jobs
+    setup_steps = [
+        step
+        for step in validate_job["steps"]
+        if str(step.get("uses", "")).startswith("astral-sh/setup-uv@")
+    ]
+    assert len(setup_steps) == 1
+    assert str(setup_steps[0]["with"]["python-version"]) == "3.15"
     for check in (
+        "uv lock --check",
+        "uv sync --locked --all-extras --dev",
+        "uv run actionlint",
+        "uv run zizmor",
         "uv run prek run",
-        "basedpyright",
-        "ty check",
         "uv run deptry .",
         "uv run pip-audit",
-        "uv run --python 3.15 basedpyright",
-        "uv run --python 3.15 ty check",
+        "uv run pytest",
     ):
         assert check in raw
 
@@ -729,7 +745,7 @@ def test_t1_27_root_renovate_only_and_min_bounds_dogfooded() -> None:
         if isinstance(rule, dict) and "python" in rule.get("matchPackageNames", [])
     ]
     assert len(py_rules) == 1
-    assert py_rules[0].get("allowedVersions") == ">=3.14 <3.16"
+    assert py_rules[0].get("allowedVersions") == ">=3.15 <3.16"
     assert py_rules[0].get("rangeStrategy") == "auto"
 
     for pyproject_path in (
@@ -1431,16 +1447,14 @@ def test_t3_07_cross_file_consistency_ruff_root_vs_example() -> None:
 
 
 def test_t3_08_cross_file_consistency_python_floor_vs_ci_and_renovate() -> None:
-    """Verify root >=3.14 floor harmonizes with CI 3.14/3.15 jobs and Renovate range."""
+    """Verify root >=3.15 floor harmonizes with CI 3.15 job and Renovate range."""
     root_req = _load_toml(ROOT_PYPROJECT)["project"]["requires-python"]
     ex_req = _load_toml(EXAMPLES_DIR / "pyproject.toml")["project"]["requires-python"]
     ci_raw = CI_WORKFLOW_FILE.read_text(encoding="utf-8")
     renovate_raw = ROOT_RENOVATE.read_text(encoding="utf-8")
-    assert root_req == ">=3.14"
-    assert ex_req == ">=3.15"
-    assert "3.14" in ci_raw
+    assert root_req == ex_req == ">=3.15"
     assert "3.15" in ci_raw
-    assert ">=3.14 <3.16" in renovate_raw
+    assert ">=3.15 <3.16" in renovate_raw
 
 
 def test_t3_09_cross_file_consistency_hooks_vs_ci_commands() -> None:
@@ -1657,10 +1671,7 @@ def test_t4_07_live_materialized_project_ruff_types_pytest9_cov_doctest(
         tmp_path: Ephemeral workspace root holding materialized src package and tests.
     """
     ex_pyproject = (EXAMPLES_DIR / "pyproject.toml").read_text(encoding="utf-8")
-    adapted = ex_pyproject.replace('>=3.15"', '>=3.14"').replace('"py315"', '"py314"')
-    adapted = adapted.replace('pythonVersion = "3.15"', 'pythonVersion = "3.14"')
-    adapted = adapted.replace('python-version = "3.15"', 'python-version = "3.14"')
-    (tmp_path / "pyproject.toml").write_text(adapted, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(ex_pyproject, encoding="utf-8")
 
     pkg_dir = tmp_path / "src" / "example_pkg"
     pkg_dir.mkdir(parents=True)
@@ -1784,7 +1795,12 @@ def test_t4_11_live_actionlint_and_zizmor_on_reference_release_workflow(
     wf_path.write_text(release_blocks[0], encoding="utf-8")
 
     al_res = subprocess.run(
-        [_tool_bin("actionlint"), str(wf_path)],
+        [
+            _tool_bin("actionlint"),
+            "-config-file",
+            str(REPO_ROOT / ".github" / "actionlint.yaml"),
+            str(wf_path),
+        ],
         capture_output=True,
         text=True,
         check=False,

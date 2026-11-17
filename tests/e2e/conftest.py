@@ -81,8 +81,70 @@ REJECTED_HEIMDALL_HOOKS: set[str] = {
     "build-dist",
 }
 
-RULESET_STATUS_CHECK_NAME: str = "Validate & Test (${{ matrix.os }})"
-CI_MATRIX_OS: set[str] = {"ubuntu-24.04", "macos-latest"}
+RULESET_STATUS_CHECK_NAME: str = "Validate & Test (${{ matrix.platform }})"
+CI_MATRIX_PLATFORMS: set[str] = {"linux", "macos"}
+CI_MATRIX_OS: set[str] = {"ubuntu-26.04", "macos-latest"}
+_UBUNTU_VERSION_RE: re.Pattern[str] = re.compile(r"^ubuntu-(\d+)\.(\d+)$")
+
+
+def is_supported_ubuntu_runner(label: str) -> bool:
+    """Return True when runner label is ubuntu-latest or Ubuntu >= 26.04 LTS.
+
+    Args:
+        label: GitHub Actions runner label.
+
+    Returns:
+        True if the label represents ubuntu-latest or Ubuntu 26.04 or newer.
+    """
+    if label == "ubuntu-latest":
+        return True
+    match = _UBUNTU_VERSION_RE.fullmatch(label)
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2))) >= (26, 4)
+
+
+def extract_matrix_os(matrix: dict[str, Any]) -> set[str]:
+    """Collect OS runner labels from ``matrix.os`` and ``matrix.include`` entries.
+
+    Args:
+        matrix: Parsed ``strategy.matrix`` mapping from a GitHub Actions job.
+
+    Returns:
+        Set of OS runner labels declared in the matrix.
+    """
+    os_set: set[str] = set()
+    raw_os = matrix.get("os", [])
+    if isinstance(raw_os, list):
+        os_set.update(item for item in raw_os if isinstance(item, str))
+    raw_include = matrix.get("include", [])
+    if isinstance(raw_include, list):
+        for entry in raw_include:
+            if isinstance(entry, dict) and isinstance(entry.get("os"), str):
+                os_set.add(entry["os"])
+    return os_set
+
+
+def extract_matrix_platforms(matrix: dict[str, Any]) -> set[str]:
+    """Collect decoupled platform names from ``matrix.platform`` and ``matrix.include``.
+
+    Args:
+        matrix: Parsed ``strategy.matrix`` mapping from a GitHub Actions job.
+
+    Returns:
+        Set of platform names declared in the matrix.
+    """
+    platforms: set[str] = set()
+    raw_platform = matrix.get("platform", [])
+    if isinstance(raw_platform, list):
+        platforms.update(item for item in raw_platform if isinstance(item, str))
+    raw_include = matrix.get("include", [])
+    if isinstance(raw_include, list):
+        for entry in raw_include:
+            if isinstance(entry, dict) and isinstance(entry.get("platform"), str):
+                platforms.add(entry["platform"])
+    return platforms
+
 
 BUILTIN_MCP_PLACEHOLDERS: set[str] = {"PLUGIN_ROOT", "PLUGIN_DATA"}
 TOOL_NAME_PATTERN: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
@@ -641,13 +703,18 @@ def oracle_validate_ci_workflow(
             found_ruleset_check = True
 
         strategy = job_cfg.get("strategy", {})
-        matrix = strategy.get("matrix", {})
-        os_list = set(matrix.get("os", []))
-        if os_list and not CI_MATRIX_OS.issubset(os_list):
+        matrix = strategy.get("matrix", {}) if isinstance(strategy, dict) else {}
+        os_list = extract_matrix_os(matrix) if isinstance(matrix, dict) else set()
+        if os_list and not (
+            any(is_supported_ubuntu_runner(label) for label in os_list)
+            and any(label.startswith("macos-") for label in os_list)
+        ):
             issues.append(
                 ValidationIssue(
                     code="CI002",
-                    message=f"CI matrix must include {CI_MATRIX_OS}, found {os_list}",
+                    message=(
+                        f"CI matrix must include a supported Ubuntu (>=26.04 or ubuntu-latest) and macos-* runner, found {os_list}"
+                    ),
                     severity=Severity.ERROR,
                     path=path,
                 )

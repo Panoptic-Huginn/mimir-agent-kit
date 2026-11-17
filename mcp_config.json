@@ -7,7 +7,7 @@
         "--isolated",
         "--no-project",
         "--python",
-        ">=3.14",
+        ">=3.15",
         "python",
         "${PLUGIN_ROOT}/scripts/github_mcp_launcher.py",
         "--cache-dir",
@@ -25,7 +25,7 @@
         "--isolated",
         "--no-project",
         "--python",
-        ">=3.14",
+        ">=3.15",
         "--with",
         "mcp==2.3.0",
         "python",
@@ -61,6 +61,10 @@
         "pydantic-settings==2.16.3",
         "--with",
         "mcp[cli]==1.30.0",
+        "--with",
+        "pymupdf==1.28.2",
+        "--with",
+        "pymupdf4llm==0.3.4",
         "semantic-scholar-mcp==0.4.0"
       ]
     },

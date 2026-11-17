@@ -32,7 +32,7 @@ lint = [
 ]
 typecheck = [
     "basedpyright>=1.40.2",
-    "ty>=0.0.104",
+    "ty>=0.0.105",
 ]
 test = [
     "hypothesis>=6.170.15",
@@ -51,11 +51,11 @@ dev = [
     { include-group = "typecheck" },
     { include-group = "test" },
     { include-group = "security" },
-    "prek>=0.5.10",
+    "prek>=0.5.11",
 ]
 
 [build-system]
-requires = ["uv_build>=0.13.8"]
+requires = ["uv_build>=0.13.9"]
 build-backend = "uv_build"
 
 [tool.ruff]
