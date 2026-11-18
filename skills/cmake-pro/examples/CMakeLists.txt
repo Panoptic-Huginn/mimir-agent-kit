@@ -13,8 +13,11 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are forbidden. Use `cmake --preset <name>` instead.")
 endif()
 
-# Enforce target-based commands (rejects include_directories, add_compile_options, etc.)
+# Enforce CMake 4.5+ diagnostics in CMakeLists.txt while CMakePresets.json stays pinned
+# to Schema v11 for VS Code and Antigravity IDE CMake Tools (ms-vscode.cmake-tools) compatibility.
+cmake_diagnostic(PROMOTE CMD_STRICT WARN)
 cmake_diagnostic(SET CMD_NON_TARGET_DIRECTIVE SEND_ERROR)
+cmake_diagnostic(SET CMD_INSTALL_ABSOLUTE_DESTINATION WARN)
 
 # Default C++20/23 module scanning OFF per /cpp-pro for ccache & clang-tidy determinism;
 # opt in explicitly for standalone CMake 4.5 GA `import std` projects.

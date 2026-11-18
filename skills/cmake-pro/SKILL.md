@@ -1,6 +1,6 @@
 ---
 name: cmake-pro
-description: Masters Modern CMake 4.5+ (November 2026) on Linux and macOS with target-based design, modular cmake/ architecture, pixi 0.84.2+ (conda-forge) dependencies, CMakePresets.json (Schema v13), FILE_SET (HEADERS and SOURCES), cmake_diagnostic() (CMD_NON_TARGET_DIRECTIVE), CPS (PACKAGE_INFO) and SPDX 3.0.1 SBOM packaging, ISA/SIMD probes, cross-compilation, CTest/GTest/discover_tests(), and gersemi formatting.
+description: Masters Modern CMake 4.5+ (November 2026) on Linux and macOS with target-based design, modular cmake/ architecture, pixi 0.84.2+ (conda-forge) dependencies, CMakePresets.json (Schema v11), FILE_SET (HEADERS and SOURCES), cmake_diagnostic() (CMD_NON_TARGET_DIRECTIVE), CPS (PACKAGE_INFO) and SPDX 3.0.1 SBOM packaging, ISA/SIMD probes, cross-compilation, CTest/GTest/discover_tests(), and gersemi formatting.
 metadata:
   version: v3
   publisher: jamielapointe
@@ -23,7 +23,7 @@ Build deterministic, target-based **CMake 4.5+** (November 2026) software system
 
 ## Use this skill when
 
-- Architecting, reviewing, or refactoring `CMakeLists.txt`, `cmake/*.cmake`, `CMakePresets.json` (v13), `pixi.toml`, `.gersemirc`, or `.pre-commit-config.yaml` on Linux or macOS.
+- Architecting, reviewing, or refactoring `CMakeLists.txt`, `cmake/*.cmake`, `CMakePresets.json` (v11), `pixi.toml`, `.gersemirc`, or `.pre-commit-config.yaml` on Linux or macOS.
 - Enforcing strict target encapsulation, `FILE_SET` (`HEADERS`/`SOURCES`), `cmake_diagnostic()` rules, sanitizers, or hardware ISA/SIMD feature probes.
 - Packaging artifacts with CMake 4.3–4.5 GA Common Package Specification (**CPS** via `PACKAGE_INFO`) and native **SPDX 3.0.1** JSON-LD **SBOM** generation (`install(SBOM ...)`).
 - Configuring cross-compilation toolchains (`aarch64-linux-gnu`, `riscv64-linux-gnu` RVA23), `cmake_instrumentation()`, or `CTest` + Google Test / `discover_tests()`.
@@ -38,7 +38,7 @@ Build deterministic, target-based **CMake 4.5+** (November 2026) software system
 ## Core Requirements & 8 Golden Rules
 
 1. **Target-Based CMake, File Sets & Strict Diagnostics (CMake 4.5+)**:
-   - Declare `cmake_minimum_required(VERSION 4.5)` and `cmake_diagnostic(SET CMD_NON_TARGET_DIRECTIVE SEND_ERROR)` at the root to hard-reject all 7 legacy non-target commands (`include_directories`, `link_libraries`, `link_directories`, `add_definitions`, `add_compile_definitions`, `add_compile_options`, `add_link_options`). Valid `cmake_diagnostic()` actions are `IGNORE`, `WARN`, `SEND_ERROR`, and `FATAL_ERROR` (`ERROR` is invalid).
+   - Declare `cmake_minimum_required(VERSION 4.5)` and `cmake_diagnostic(SET CMD_NON_TARGET_DIRECTIVE SEND_ERROR)` at the root (alongside `cmake_diagnostic(PROMOTE CMD_STRICT WARN)` and `cmake_diagnostic(SET CMD_INSTALL_ABSOLUTE_DESTINATION WARN)` while `CMakePresets.json` stays pinned to Schema v11) to hard-reject all 7 legacy non-target commands (`include_directories`, `link_libraries`, `link_directories`, `add_definitions`, `add_compile_definitions`, `add_compile_options`, `add_link_options`). Valid `cmake_diagnostic()` actions are `IGNORE`, `WARN`, `SEND_ERROR`, and `FATAL_ERROR` (`ERROR` is invalid).
    - Register headers and sources with `target_sources(<tgt> {PUBLIC|PRIVATE|INTERFACE} FILE_SET <name> [TYPE <HEADERS|SOURCES>] BASE_DIRS ... FILES ...)` (omit `TYPE` when `<name>` matches `HEADERS` or `SOURCES`). Apply fine-grained properties with `set_property(FILE_SET <name> TARGET <tgt> PROPERTY <PROP> <val>)` using CMake 4.4–4.5 properties: `SKIP_LINTING`, `SKIP_PRECOMPILE_HEADERS`, `SKIP_UNITY_BUILD_INCLUSION`, `CXX_SCAN_FOR_MODULES`, `INDEPENDENT_FILES`, and `JOB_POOL_COMPILE`.
    - Keep `CMAKE_VERIFY_INTERFACE_HEADER_SETS` and `CMAKE_VERIFY_PRIVATE_HEADER_SETS` as preset/CI controls rather than hardcoding `ON` in `CMakeLists.txt`; filter targets via `{INTERFACE,PRIVATE}_HEADER_SETS_TO_VERIFY`.
    - Take advantage of **CMake 4.5 `ALIAS` parity**: `target_*()`, `add_dependencies()`, `set_property()`, `set_target_properties()`, `install()`, and `export()` accept `ALIAS` targets directly (`ALIASED_TARGET` remains read-only).
@@ -60,11 +60,11 @@ Build deterministic, target-based **CMake 4.5+** (November 2026) software system
    - Default C++20/23 module scanning **`OFF`** via **non-cache** `set(CMAKE_CXX_SCAN_FOR_MODULES OFF)` gated by `option(ENABLE_CXX_MODULES "..." OFF)` so `ccache`, `clang-tidy`, and `misc-include-cleaner` stay deterministic. When `ENABLE_CXX_MODULES=ON` for standalone C++23 `import std` projects on Ninja (`>= 1.11`), CMake 4.5 treats `import std` and `import std.compat` as **GA** (do **not** use obsolete `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` UUIDs or `CXX_MODULE_STD`; override `CMAKE_CXX_STDLIB_MODULES_JSON` before `project()` only if compiler auto-discovery fails).
    - Enforce Clang 23.1+ and GCC strict C23/C++23 warnings in `CompilerWarnings.cmake` (`WARNINGS_AS_ERRORS` -> `-Werror`), and probe ASan, UBSan (`-fsanitize=undefined -fno-sanitize-recover=all`), TSan, and MSan (Clang+Linux only) with mutual exclusions in `Sanitizers.cmake`.
 
-5. **`CMakePresets.json` Schema v13 as the Sole Workflow Interface**:
-   - Standardize on `"version": 13` and `"cmakeMinimumRequired": {"major": 4, "minor": 5, "patch": 0}` with `"binaryDir": "${sourceDir}/build/${presetName}"`.
-   - Enable v12–v13 strict diagnostics in `"base"`: `warnings` (`author`, `deprecated`, `policy`, `strict`, `nonTargetDirective`, `installAbsoluteDestination`, `uninitialized`, `unusedCli`) and `errors` (`nonTargetDirective`, `deprecated`). **Never** emit `warnings.dev` or `errors.dev`—they were removed in Schema v12 and error in v13! Reserve `errors.unusedCli: true` for project-final presets rather than shared bases.
-   - Use `${configurePresetName}` (v13) in `buildPresets`/`testPresets`/`packagePresets` fields that support macro expansion (e.g., `outputJUnitFile`, `environment`) and optionally in `description`—**never** inside `workflowPresets` (macros do not expand in workflow steps) and note `displayName` renders literals verbatim. Use `${fileDir}` (v12+ file-local semantics) for cross-file toolchain paths.
-   - Use `--presets-file <file>` (4.4+) for out-of-tree presets, `--list-presets=all-defined` (4.5+) to inspect every defined preset and unavailability reasons, `execution.testPassthroughArguments` (v12+, e.g., `["--gtest_brief=1"]`), and `cmake --workflow --preset <name>` for full pipelines.
+5. **`CMakePresets.json` Schema v11 as the Sole Workflow Interface (CMake Tools Compatibility)**:
+   - Standardize on `"version": 11` (pinned because VS Code and Antigravity IDE's `ms-vscode.cmake-tools` extension caps preset schema support at v11) paired with `"cmakeMinimumRequired": {"major": 4, "minor": 5, "patch": 0}`, `"binaryDir": "${sourceDir}/build/${presetName}"`, and a root `"$comment"` array (Schema v10+) explaining the plugin restriction and future Schema v13+ upgrade trigger.
+   - Enable valid Schema v11 diagnostics in `"base"`: `warnings` (`dev`, `deprecated`, `uninitialized`, `unusedCli`) and `errors` (`deprecated`). Do **not** emit v12/v13-only preset keys (`author`, `policy`, `strict`, `nonTargetDirective`, `installAbsoluteDestination`, `errors.unusedCli`) in Schema v11 files—enforce `CMD_STRICT`, `CMD_NON_TARGET_DIRECTIVE`, and `CMD_INSTALL_ABSOLUTE_DESTINATION` inside `CMakeLists.txt` via `cmake_diagnostic()`.
+   - Use `${presetName}` (with 1:1 `name == configurePreset` parity across `buildPresets`/`testPresets`) for paths such as `outputJUnitFile` and `LLVM_PROFILE_FILE`, `${fileDir}` for toolchain paths, `"environment": {"GTEST_BRIEF": "1"}` instead of v12 `execution.testPassthroughArguments`, and `execution.jobs: ""` (v11) for default parallelism.
+   - Use `--presets-file <file>` (4.4+) for out-of-tree presets, `--list-presets=all-defined` (4.5+) to inspect every defined preset and unavailability reasons, and `cmake --workflow --preset <name>` for full pipelines. When `ms-vscode.cmake-tools` adds upstream Schema v13+ support, follow the upgrade checklist in [references/presets_toolchains_and_pixi.md](./references/presets_toolchains_and_pixi.md) (replacing `warnings.dev` with `author`/`policy`/`strict`/`nonTargetDirective`/`installAbsoluteDestination`, adopting `${configurePresetName}` outside `workflowPresets`, and migrating `GTEST_BRIEF` to `testPassthroughArguments`).
 
 6. **Modern Tooling, Instrumentation, Introspection & Testing**:
    - **Linkers & Launchers**: Default `CMAKE_LINKER_TYPE` (`LLD`, `MOLD`, `WILD` on Linux; `SYSTEM` `ld_prime` or probed `LLD` on Apple) inside `if(NOT DEFINED CMAKE_LINKER_TYPE)` only after `check_linker_flag()` validation. Wire `ccache`/`sccache` via `CMAKE_<LANG>_COMPILER_LAUNCHER`, `CMAKE_CXX_CLANG_TIDY`, and `CMAKE_EXPORT_COMPILE_COMMANDS ON`.
@@ -90,7 +90,7 @@ Build deterministic, target-based **CMake 4.5+** (November 2026) software system
 my_project/
 ├── pixi.toml                   # Hermetic conda-forge workspace (Linux + macOS)
 ├── CMakeLists.txt              # Declarative CMake 4.5+ root (CPS + SPDX SBOM)
-├── CMakePresets.json           # Schema v13 configure, build, test, workflow presets
+├── CMakePresets.json           # Schema v11 configure, build, test, workflow presets
 ├── .gersemirc                  # Deterministic gersemi 0.19.2+ formatting rules
 ├── .pre-commit-config.yaml     # SHA-frozen hygiene + gersemi + clang-format/tidy
 ├── cmake/
@@ -156,13 +156,13 @@ Publishing libraries or enabling C++23 modules?
 
 - **Turnkey Examples (`examples/`)**:
   - [examples/pixi.toml](./examples/pixi.toml): Hermetic Linux (`linux-64`, `linux-aarch64`) and macOS (`osx-arm64`) `conda-forge` workspace (`cmake >=4.5.0`, `clangxx >=23.1.5`, `libabseil`, `gtest`, `benchmark`, `gersemi`, `pre-commit`).
-  - [examples/CMakePresets.json](./examples/CMakePresets.json): Schema v13 presets (`base`, `pixi-base`, `ci-debug`, `dev-debug`, `dev-release`, `ci-tsan`, `sysroot-release`, `cross-aarch64`, `cross-riscv64`, plus matching build/test/workflow presets).
+  - [examples/CMakePresets.json](./examples/CMakePresets.json): Schema v11 presets (`base`, `pixi-base`, `ci-debug`, `dev-debug`, `dev-release`, `ci-tsan`, `sysroot-release`, `cross-aarch64`, `cross-riscv64`, plus matching build/test/workflow presets with root `"$comment"` CMake Tools rationale & upgrade path).
   - [examples/CMakeLists.txt](./examples/CMakeLists.txt): Validated CMake 4.5 root template with `CMD_NON_TARGET_DIRECTIVE`, `ENABLE_CXX_MODULES`, `FILE_SET HEADERS`/`SOURCES`, `ALIAS` install/export parity, CPS `PACKAGE_INFO`, and `# gersemi: off`/`on` SPDX 3.0.1 `SBOM`.
   - [examples/.gersemirc](./examples/.gersemirc): Deterministic `gersemi` (`0.19.2+` / `0.29.2`) formatting configuration.
   - [examples/.pre-commit-config.yaml](./examples/.pre-commit-config.yaml): SHA-frozen `pre-commit` hygiene plus `gersemi --check`, `clang-format`, and `clang-tidy -p build/ci-debug`.
 - **Deep-Dive Reference Manuals (`references/`)**:
   - [references/canonical_templates.md](./references/canonical_templates.md): Complete `cmake/*.cmake` modules (`ProjectOptions`, `CompilerWarnings`, `Sanitizers`, `Architecture` with RVA23 RVV 1.0 probes, `Dependencies`, `Testing` with `discover_tests()`, and `Coverage`).
-  - [references/presets_toolchains_and_pixi.md](./references/presets_toolchains_and_pixi.md): Schema v13 rules, `pixi 0.84.2+` `$env{CONDA_PREFIX}` wiring, air-gapped sysroot builds, AArch64/RISC-V RVA23 toolchains, `cmake_instrumentation()`, and `cmake_language(PRINT_*)`.
+  - [references/presets_toolchains_and_pixi.md](./references/presets_toolchains_and_pixi.md): Schema v11 rules, CMake Tools compatibility & future Schema v13+ upgrade checklist, `pixi 0.84.2+` `$env{CONDA_PREFIX}` wiring, air-gapped sysroot builds, AArch64/RISC-V RVA23 toolchains, `cmake_instrumentation()`, and `cmake_language(PRINT_*)`.
   - [references/packaging_cps_sbom_and_interop.md](./references/packaging_cps_sbom_and_interop.md): `FILE_SET` properties, header verification, GA CPS (`PACKAGE_INFO`), GA SPDX 3.0.1 `SBOM`, CMake 4.5 `ALIAS` parity, and C23 / Rust / SPARK Ada / `nanobind` interop recipes.
 
 ---

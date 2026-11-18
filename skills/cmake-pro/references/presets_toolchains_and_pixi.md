@@ -1,29 +1,45 @@
-# `CMakePresets.json` v13, Toolchains, Pixi & Build Instrumentation
+# `CMakePresets.json` v11, Toolchains, Pixi & Build Instrumentation
 
-Reference guide for driving CMake 4.5+ builds on Linux (`linux-64`, `linux-aarch64`, `riscv64` RVA23) and macOS (`osx-arm64`) through `CMakePresets.json` Schema v13, hermetic `pixi 0.84.2+` workspaces, air-gapped sysroots, cross-compilation toolchains, and build instrumentation.
+Reference guide for driving CMake 4.5+ builds on Linux (`linux-64`, `linux-aarch64`, `riscv64` RVA23) and macOS (`osx-arm64`) through `CMakePresets.json` Schema v11, hermetic `pixi 0.84.2+` workspaces, air-gapped sysroots, cross-compilation toolchains, and build instrumentation.
 
 ---
 
-## 1. `CMakePresets.json` Schema v13 Architecture
+## 1. `CMakePresets.json` Schema v11 Architecture
 
-Schema v13 (introduced in CMake 4.5) adds `strict` and `nonTargetDirective` diagnostic controls alongside `${configurePresetName}` macro expansion:
+Even with **CMake 4.5+** (`"cmakeMinimumRequired": { "major": 4, "minor": 5, "patch": 0 }`), standardize on **`"version": 11`** (Schema v11, introduced in CMake 4.3) because the **CMake Tools** extension (`ms-vscode.cmake-tools`) in **VS Code** and **Antigravity IDE** currently caps `CMakePresets.json` parsing at Schema v11. Presets targeting Schema v12 or v13 fail IDE preset discovery until that extension is updated upstream.
 
-- **Schema & Minimum Version**: Set `"version": 13` and `"cmakeMinimumRequired": { "major": 4, "minor": 5, "patch": 0 }`.
-- **`warnings` & `errors` on `configurePresets`**:
-  - Available keys: `author` (v12+), `deprecated`, `experimental` (v12+), `installAbsoluteDestination` (v12+, `CMD_INSTALL_ABSOLUTE_DESTINATION`), `nonTargetDirective` (v13, `CMD_NON_TARGET_DIRECTIVE`), `policy` (v12+), `strict` (v13, `CMD_STRICT`), `uninitialized`, `unusedCli`, plus `systemVars` (in `warnings` only).
-  - **Breaking v12+ removal**: `warnings.dev` and `errors.dev` were removed (`until: 12`); including `"dev"` in Schema v13 fails preset parsing.
-  - **`errors.unusedCli` pitfall**: Setting `"errors": { "unusedCli": true }` in shared base presets aborts configure whenever a downstream project omits one cached variable (note `CMAKE_PREFIX_PATH` does not trigger `unusedCli`). Keep `"warnings": { "unusedCli": true }` in shared presets and reserve `"errors": { "unusedCli": true }` for project-specific presets.
-- **Macros**:
-  - **`${configurePresetName}`** (v13): Expands to `${presetName}` in `configurePresets`, and to `configurePreset` in `buildPresets`, `testPresets`, and `packagePresets`. **Never** use `${configurePresetName}` inside `workflowPresets`—`workflowPresets[].steps[].name` performs no macro expansion and fails validation.
-  - **`${fileDir}`** (v12+): Consistently resolves to the directory of the presets file containing `${fileDir}`, governed by that file's `version` even when inherited across directories.
-- **Test Passthrough (`testPresets[].execution.testPassthroughArguments`)**: Added in v12 to forward extra CLI flags (e.g., `["--gtest_brief=1"]`) before any arguments passed after `--` on the `ctest` command line.
-- **CLI Flags (CMake 4.4–4.5)**:
+- **Schema & Minimum Version**: Set `"version": 11` and `"cmakeMinimumRequired": { "major": 4, "minor": 5, "patch": 0 }`.
+- **Native `"$comment"` Documentation (Schema v10+)**: Strict RFC 8259 JSON forbids `//` and `/* */` comments. Place a root-level `"$comment"` string or string array explaining why Schema v11 is pinned (`ms-vscode.cmake-tools` compatibility in VS Code / Antigravity IDE) and noting that the schema can be upgraded to v13+ once the extension supports newer versions.
+- **`warnings` & `errors` on `configurePresets` (Schema v11 Keys)**:
+  - **Valid v11 keys**: `warnings` supports `dev`, `deprecated`, `uninitialized`, `unusedCli`, and `systemVars`; `errors` supports `deprecated` and `dev`.
+  - **Do NOT use v12/v13-only preset keys in Schema v11**: `author`, `policy`, `experimental`, `installAbsoluteDestination`, `strict`, `nonTargetDirective`, `errors.uninitialized`, and `errors.unusedCli` were added (and `dev` was removed) in Schema v12–v13, so they fail Schema v11 parsing. Instead, enforce `CMD_STRICT`, `CMD_NON_TARGET_DIRECTIVE`, and `CMD_INSTALL_ABSOLUTE_DESTINATION` directly in root `CMakeLists.txt` via `cmake_diagnostic()`.
+  - **`unusedCli` pitfall**: Setting fatal unused-CLI errors in shared base presets aborts configure whenever a downstream project omits one cached variable (note `CMAKE_PREFIX_PATH` does not trigger `unusedCli`, and `errors.unusedCli` is also unavailable prior to Schema v12). Keep `"warnings": { "unusedCli": true }` in shared bases.
+- **Macros & Test Options under Schema v11**:
+  - **`${presetName}`** (v1+): Use `${presetName}` across `buildPresets`/`testPresets` fields (such as `outputJUnitFile`, `LLVM_PROFILE_FILE`, and `description`) backed by 1:1 `name == configurePreset` parity. Do **not** use `${configurePresetName}` (Schema v13) in Schema v11 files.
+  - **`${fileDir}`** (v4+): Resolves to the directory of the presets file defining the active preset in Schema v4–v11 (v12+ changed `${fileDir}` to file-local resolution across cross-directory `include`s).
+  - **`testPresets[].execution.jobs`** (v11): Accepts `""` (empty string) to pass `--parallel` without an explicit job count.
+  - **GoogleTest Brief Output**: `testPresets[].execution.testPassthroughArguments` requires Schema v12+; under Schema v11 set `"environment": { "GTEST_BRIEF": "1" }` on `testPresets` (or pass `ctest --preset ci-debug -- --gtest_brief=1` on the CLI).
+- **CLI Flags (CMake 4.4–4.5, Schema-Independent)**:
   - `--presets-file <file>` (4.4+): Selects an alternate preset file instead of `CMakePresets.json` / `CMakeUserPresets.json`. Mode flags (`--build`, `--workflow`, `--install`) must precede `--presets-file`.
   - `--list-presets=all-defined` (4.5+, alongside `defined` / `<type>-defined`): Lists unavailable presets and shows how a failed `configurePreset` condition disables dependent `buildPresets`, `testPresets`, and `workflowPresets`.
 
+### Future Upgrade Path to Schema v13+ (When CMake Tools Updates)
+
+Once `ms-vscode.cmake-tools` in VS Code and Antigravity IDE adds upstream support for Schema v13+, upgrade existing templates with these four steps:
+
+1. Bump root `"version"` from `11` to `13` and remove or update the root `"$comment"` restriction note.
+2. Replace `warnings.dev` (removed in Schema v12) with `warnings.author`, `policy`, `strict`, `nonTargetDirective`, and `installAbsoluteDestination`, and promote `errors.nonTargetDirective` (keeping `warnings.dev`/`errors.dev` absent, as they error in v12+).
+3. Optionally adopt `${configurePresetName}` (v13) in `buildPresets`/`testPresets`/`packagePresets` when names diverge from `configurePreset` (never inside `workflowPresets`, where macros do not expand) and rely on v12+ file-local `${fileDir}` across cross-directory `include`s.
+4. Optionally move `"environment": { "GTEST_BRIEF": "1" }` into `execution.testPassthroughArguments: ["--gtest_brief=1"]` (v12+).
+
 ```json
 {
-  "version": 13,
+  "version": 11,
+  "$comment": [
+    "Pinned to CMakePresets Schema v11 because the CMake Tools extension (ms-vscode.cmake-tools) in VS Code and Antigravity IDE currently caps preset schema support at v11.",
+    "Enforce CMake 4.5+ diagnostics (CMD_STRICT, CMD_NON_TARGET_DIRECTIVE, CMD_INSTALL_ABSOLUTE_DESTINATION) in CMakeLists.txt via cmake_diagnostic(), and use ${presetName} + environment.GTEST_BRIEF instead of v12/v13-only fields.",
+    "Upgrade to Schema v13+ once CMake Tools adds upstream v13 support (replace warnings.dev with author/policy/strict/nonTargetDirective/installAbsoluteDestination, adopt ${configurePresetName}, and migrate GTEST_BRIEF to testPassthroughArguments)."
+  ],
   "cmakeMinimumRequired": {
     "major": 4,
     "minor": 5,
@@ -36,18 +52,13 @@ Schema v13 (introduced in CMake 4.5) adds `strict` and `nonTargetDirective` diag
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "warnings": {
-        "author": true,
+        "dev": true,
         "deprecated": true,
-        "policy": true,
-        "strict": true,
-        "nonTargetDirective": true,
-        "installAbsoluteDestination": true,
         "uninitialized": true,
         "unusedCli": true
       },
       "errors": {
-        "deprecated": true,
-        "nonTargetDirective": true
+        "deprecated": true
       },
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
@@ -126,15 +137,15 @@ Schema v13 (introduced in CMake 4.5) adds `strict` and `nonTargetDirective` diag
       "configurePreset": "ci-debug",
       "displayName": "Test CI Debug",
       "environment": {
-        "LLVM_PROFILE_FILE": "${sourceDir}/build/${configurePresetName}/coverage/default-%p.profraw"
+        "GTEST_BRIEF": "1",
+        "LLVM_PROFILE_FILE": "${sourceDir}/build/${presetName}/coverage/default-%p.profraw"
       },
       "output": {
         "outputOnFailure": true
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "testPassthroughArguments": ["--gtest_brief=1"]
+        "stopOnFailure": false
       }
     }
   ],

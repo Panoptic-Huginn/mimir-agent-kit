@@ -201,11 +201,14 @@ def _resolve_configure_preset(
     return merged
 
 
-def _require_cmake_4_5() -> str:
-    """Locate a CMake >= 4.5 executable or skip the live-tooling test cleanly.
+def _require_cmake_min(min_version: tuple[int, int, int]) -> str:
+    """Locate a CMake executable meeting min_version or skip cleanly.
+
+    Args:
+        min_version: Minimum required (major, minor, patch) CMake version tuple.
 
     Returns:
-        Absolute path to a CMake >= 4.5 executable.
+        Absolute path to a compatible CMake executable.
     """
     cmake_exe = shutil.which("cmake")
     if cmake_exe is None:
@@ -219,11 +222,21 @@ def _require_cmake_4_5() -> str:
     if match is None:
         pytest.skip(f"Unable to parse cmake --version output: {result.stdout!r}")
     version_tuple = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
-    if version_tuple < (4, 5, 0):
+    if version_tuple < min_version:
+        min_str = ".".join(str(part) for part in min_version)
         pytest.skip(
-            f"CMake >= 4.5.0 required for live v13/diagnostic tests, found {version_tuple}"
+            f"CMake >= {min_str} required for live preset/diagnostic tests, found {version_tuple}"
         )
     return cmake_exe
+
+
+def _require_cmake_4_5() -> str:
+    """Locate a CMake >= 4.5 executable or skip the live-tooling test cleanly.
+
+    Returns:
+        Absolute path to a CMake >= 4.5 executable.
+    """
+    return _require_cmake_min((4, 5, 0))
 
 
 # ==============================================================================
@@ -274,7 +287,7 @@ def test_t1_05_skill_frontmatter_metadata() -> None:
 
 
 def test_t1_06_skill_frontmatter_description() -> None:
-    """Verify description covers CMake 4.5, pixi, v13, FILE_SET, CPS/SBOM, gersemi, and omits vcpkg/msvc."""
+    """Verify description covers CMake 4.5, pixi, v11, FILE_SET, CPS/SBOM, gersemi, and omits vcpkg/msvc."""
     frontmatter, _ = split_skill_frontmatter(SKILL_MD.read_text(encoding="utf-8"))
     desc = frontmatter.get("description", "")
     assert isinstance(desc, str), "Frontmatter description must be a string"
@@ -288,7 +301,7 @@ def test_t1_06_skill_frontmatter_description() -> None:
         "0.84.2+",
         "conda-forge",
         "cmakepresets.json",
-        "schema v13",
+        "schema v11",
         "file_set",
         "headers",
         "sources",
@@ -462,9 +475,13 @@ def test_t1_14_cmake_minimum_4_5_and_diagnostic_controls() -> None:
 
     assert "cmake_minimum_required(VERSION 4.5)" in body
     assert "cmake_minimum_required(VERSION 4.5)" in cmakelists_text
+    assert "cmake_diagnostic(PROMOTE CMD_STRICT WARN)" in cmakelists_text
     assert "cmake_diagnostic(SET CMD_NON_TARGET_DIRECTIVE SEND_ERROR)" in body
     assert (
         "cmake_diagnostic(SET CMD_NON_TARGET_DIRECTIVE SEND_ERROR)" in cmakelists_text
+    )
+    assert (
+        "cmake_diagnostic(SET CMD_INSTALL_ABSOLUTE_DESTINATION WARN)" in cmakelists_text
     )
     for action in ("IGNORE", "WARN", "SEND_ERROR", "FATAL_ERROR"):
         assert action in body, (
@@ -628,24 +645,28 @@ def test_t1_20_ga_spdx_3_0_1_sbom_and_link_only_guard() -> None:
     assert "export(\n    SBOM" in pkg_doc
 
 
-def test_t1_21_cmake_presets_v13_features_and_cli_flags() -> None:
-    """Verify Schema v13 macros (${configurePresetName}, ${fileDir}), CLI flags, and testPassthroughArguments."""
+def test_t1_21_cmake_presets_v11_features_upgrade_path_and_cli_flags() -> None:
+    """Verify Schema v11 ($comment, ${presetName}, GTEST_BRIEF, ${fileDir}), CMake Tools rationale, and v13+ upgrade notes."""
     _, body = split_skill_frontmatter(SKILL_MD.read_text(encoding="utf-8"))
     presets_doc = (REFERENCES_DIR / "presets_toolchains_and_pixi.md").read_text(
         encoding="utf-8"
     )
 
     for token in (
-        "${configurePresetName}",
+        '"$comment"',
+        "ms-vscode.cmake-tools",
+        "${presetName}",
         "${fileDir}",
+        "GTEST_BRIEF",
         "--presets-file",
         "--list-presets=all-defined",
-        "testPassthroughArguments",
         "workflowPresets",
+        "${configurePresetName}",
+        "testPassthroughArguments",
     ):
-        assert token in body, f"SKILL.md missing preset feature '{token}'"
+        assert token in body, f"SKILL.md missing preset/upgrade token '{token}'"
         assert token in presets_doc, (
-            f"presets_toolchains_and_pixi.md missing preset feature '{token}'"
+            f"presets_toolchains_and_pixi.md missing preset/upgrade token '{token}'"
         )
 
 
@@ -1042,11 +1063,42 @@ def test_t2_10_examples_pixi_toml_tasks_complete() -> None:
     assert {"configure", "build", "lint", "test", "cmake-fmt"}.issubset(ci_deps)
 
 
-def test_t2_11_examples_cmake_presets_schema_v13_and_no_dev_diagnostics() -> None:
-    """Verify examples/CMakePresets.json uses Schema v13, CMake 4.5.0, no warnings.dev, and strict errors."""
+ALLOWED_V11_WARNINGS = frozenset({
+    "dev",
+    "deprecated",
+    "uninitialized",
+    "unusedCli",
+    "systemVars",
+    "$comment",
+})
+ALLOWED_V11_ERRORS = frozenset({"dev", "deprecated", "$comment"})
+
+
+def _assert_v11_comment_rationale(comment: object, source_label: str) -> None:
+    """Assert root $comment array documents CMake Tools Schema v11 cap and future v13+ upgrade."""
+    assert isinstance(comment, list), (
+        f"{source_label} root '$comment' must be a list of strings"
+    )
+    assert comment, f"{source_label} root '$comment' list must not be empty"
+    lines: list[str] = []
+    for line in comment:
+        assert isinstance(line, str)
+        assert line.strip()
+        lines.append(line)
+    joined = " ".join(lines).lower()
+    assert "ms-vscode.cmake-tools" in joined or "cmake tools" in joined
+    assert "vs code" in joined
+    assert "antigravity ide" in joined
+    assert "v11" in joined
+    assert "v13" in joined or "upgrade" in joined
+
+
+def test_t2_11_examples_cmake_presets_schema_v11_comments_and_diagnostics() -> None:
+    """Verify examples/CMakePresets.json uses Schema v11, CMake 4.5.0, root $comment, and v11-legal diagnostics."""
     cfg = _load_json_dict(EXAMPLES_DIR / "CMakePresets.json")
-    assert cfg.get("version") == 13
+    assert cfg.get("version") == 11
     assert cfg.get("cmakeMinimumRequired") == {"major": 4, "minor": 5, "patch": 0}
+    _assert_v11_comment_rationale(cfg.get("$comment"), "examples/CMakePresets.json")
 
     configure_presets = cfg.get("configurePresets", [])
     assert isinstance(configure_presets, list)
@@ -1054,44 +1106,64 @@ def test_t2_11_examples_cmake_presets_schema_v13_and_no_dev_diagnostics() -> Non
         assert isinstance(preset, dict)
         warnings_cfg = preset.get("warnings", {})
         errors_cfg = preset.get("errors", {})
-        assert "dev" not in warnings_cfg, (
-            f"Removed Schema <12 'warnings.dev' found in '{preset.get('name')}'"
+        assert set(warnings_cfg.keys()).issubset(ALLOWED_V11_WARNINGS), (
+            f"Disallowed Schema v11 warnings keys in '{preset.get('name')}': "
+            f"{set(warnings_cfg.keys()) - ALLOWED_V11_WARNINGS}"
         )
-        assert "dev" not in errors_cfg, (
-            f"Removed Schema <12 'errors.dev' found in '{preset.get('name')}'"
+        assert set(errors_cfg.keys()).issubset(ALLOWED_V11_ERRORS), (
+            f"Disallowed Schema v11 errors keys in '{preset.get('name')}': "
+            f"{set(errors_cfg.keys()) - ALLOWED_V11_ERRORS}"
         )
 
     base = next(p for p in configure_presets if p.get("name") == "base")
     assert base["generator"] == "Ninja"
     assert base["binaryDir"] == "${sourceDir}/build/${presetName}"
-    assert base["warnings"]["strict"] is True
-    assert base["warnings"]["nonTargetDirective"] is True
-    assert base["warnings"]["installAbsoluteDestination"] is True
-    assert base["warnings"]["unusedCli"] is True
-    assert base["errors"]["nonTargetDirective"] is True
-    assert base["errors"]["deprecated"] is True
-    assert base["errors"].get("unusedCli") is not True
+    assert base["warnings"] == {
+        "dev": True,
+        "deprecated": True,
+        "uninitialized": True,
+        "unusedCli": True,
+    }
+    assert base["errors"] == {"deprecated": True}
 
 
-def test_t2_12_examples_cmake_presets_no_configure_preset_name_in_workflows() -> None:
-    """Verify ${configurePresetName} is used in build/test presets and excluded from workflowPresets."""
+def test_t2_12_examples_cmake_presets_v11_macros_and_no_v12_v13_only_fields() -> None:
+    """Verify ${presetName} parity, GTEST_BRIEF env, and exclusion of v12/v13 fields outside $comment."""
     cfg = _load_json_dict(EXAMPLES_DIR / "CMakePresets.json")
 
     build_presets = cfg.get("buildPresets", [])
     test_presets = cfg.get("testPresets", [])
     workflow_presets = cfg.get("workflowPresets", [])
 
+    for bp in build_presets:
+        assert bp["name"] == bp["configurePreset"], (
+            f"buildPreset '{bp['name']}' must match configurePreset for ${{presetName}}"
+        )
+    for tp in test_presets:
+        assert tp["name"] == tp["configurePreset"], (
+            f"testPreset '{tp['name']}' must match configurePreset for ${{presetName}}"
+        )
+        assert tp.get("environment", {}).get("GTEST_BRIEF") == "1"
+
     assert any(
-        "${configurePresetName}" in str(bp.get("description", ""))
-        for bp in build_presets
+        "${presetName}" in str(bp.get("description", "")) for bp in build_presets
     )
     assert any(
-        "${configurePresetName}" in str(tp.get("output", {}).get("outputJUnitFile", ""))
+        "${presetName}" in str(tp.get("output", {}).get("outputJUnitFile", ""))
         for tp in test_presets
     )
-    workflow_serialized = json.dumps(workflow_presets)
-    assert "${configurePresetName}" not in workflow_serialized, (
-        "${configurePresetName} is forbidden inside workflowPresets"
+
+    presets_without_comment = json.dumps({
+        k: v for k, v in cfg.items() if k != "$comment"
+    })
+    assert "${configurePresetName}" not in presets_without_comment, (
+        "Schema v13 ${configurePresetName} must not appear in Schema v11 preset definitions"
+    )
+    assert "testPassthroughArguments" not in presets_without_comment, (
+        "Schema v12 testPassthroughArguments must not appear in Schema v11 preset definitions"
+    )
+    assert "${" not in json.dumps(workflow_presets), (
+        "Macro expansion is forbidden inside workflowPresets"
     )
 
 
@@ -1134,7 +1206,7 @@ def test_t2_13_examples_cmake_presets_sysroot_and_cross_do_not_inherit_pixi_base
 
 
 def test_t2_14_examples_cmake_presets_ci_debug_in_all_four_arrays() -> None:
-    """Verify ci-debug exists across all 4 preset arrays with build/ci-debug binaryDir and passthrough args."""
+    """Verify ci-debug exists across all 4 preset arrays with build/ci-debug binaryDir and GTEST_BRIEF."""
     cfg = _load_json_dict(EXAMPLES_DIR / "CMakePresets.json")
     for array_key in (
         "configurePresets",
@@ -1153,7 +1225,8 @@ def test_t2_14_examples_cmake_presets_ci_debug_in_all_four_arrays() -> None:
     assert ci_resolved["cacheVariables"]["ENABLE_SANITIZER_UNDEFINED"] == "ON"
 
     ci_test = next(tp for tp in cfg["testPresets"] if tp["name"] == "ci-debug")
-    assert ci_test["execution"]["testPassthroughArguments"] == ["--gtest_brief=1"]
+    assert ci_test["environment"]["GTEST_BRIEF"] == "1"
+    assert "testPassthroughArguments" not in ci_test["execution"]
 
 
 def test_t2_15_examples_cmake_presets_referential_integrity() -> None:
@@ -1196,7 +1269,7 @@ def test_t2_15_examples_cmake_presets_referential_integrity() -> None:
 
 
 def test_t2_16_reference_embedded_presets_json_and_pixi_toml_parse_cleanly() -> None:
-    """Verify JSON and TOML code fences in presets_toolchains_and_pixi.md parse and follow v13/pixi rules."""
+    """Verify JSON and TOML code fences in presets_toolchains_and_pixi.md parse and follow v11/pixi rules."""
     presets_doc = (REFERENCES_DIR / "presets_toolchains_and_pixi.md").read_text(
         encoding="utf-8"
     )
@@ -1207,12 +1280,22 @@ def test_t2_16_reference_embedded_presets_json_and_pixi_toml_parse_cleanly() -> 
 
     preset_data: Any = json.loads(json_blocks[0])
     assert isinstance(preset_data, dict)
-    assert preset_data["version"] == 13
+    assert preset_data["version"] == 11
     assert preset_data["cmakeMinimumRequired"] == {"major": 4, "minor": 5, "patch": 0}
+    _assert_v11_comment_rationale(
+        preset_data.get("$comment"), "presets_toolchains_and_pixi.md JSON block"
+    )
     for cfg_preset in preset_data["configurePresets"]:
-        assert "dev" not in cfg_preset.get("warnings", {})
-        assert "dev" not in cfg_preset.get("errors", {})
-    assert "${configurePresetName}" not in json.dumps(preset_data["workflowPresets"])
+        assert set(cfg_preset.get("warnings", {}).keys()).issubset(ALLOWED_V11_WARNINGS)
+        assert set(cfg_preset.get("errors", {}).keys()).issubset(ALLOWED_V11_ERRORS)
+    presets_without_comment = json.dumps({
+        k: v for k, v in preset_data.items() if k != "$comment"
+    })
+    assert "${configurePresetName}" not in presets_without_comment
+    assert "testPassthroughArguments" not in presets_without_comment
+    first_test_env = preset_data["testPresets"][0]["environment"]
+    assert first_test_env["GTEST_BRIEF"] == "1"
+    assert "${presetName}" in first_test_env["LLVM_PROFILE_FILE"]
 
     pixi_data = tomllib.loads(toml_blocks[0])
     assert pixi_data["workspace"]["requires-pixi"] == ">=0.84.2"
@@ -1458,8 +1541,8 @@ def test_t3_02_pre_commit_hooks_sha_matches_repo_and_cpp_pro() -> None:
     assert re.match(r"^[0-9a-f]{40}$", revs[0])
 
 
-def test_t3_03_all_six_sibling_skills_reference_cmake_4_5_and_v13() -> None:
-    """Interaction: All 6 sibling skills reference CMake 4.5 and v13 with zero stale 4.4.3 or v10+."""
+def test_t3_03_all_six_sibling_skills_reference_cmake_4_5_and_v11() -> None:
+    """Interaction: All 6 sibling skills reference CMake 4.5 and v11 with zero stale v13, 4.4.3, or v10+."""
     siblings = (
         "cpp-pro",
         "c-pro",
@@ -1474,13 +1557,14 @@ def test_t3_03_all_six_sibling_skills_reference_cmake_4_5_and_v13() -> None:
         assert "CMake 4.5" in skill_text, (
             f"'{sibling}/SKILL.md' missing 'CMake 4.5' reference"
         )
-        assert "v13" in skill_text, (
-            f"'{sibling}/SKILL.md' missing Schema 'v13' reference"
+        assert "v11" in skill_text, (
+            f"'{sibling}/SKILL.md' missing Schema 'v11' reference"
         )
         for file_path in sibling_dir.rglob("*"):
             if not file_path.is_file():
                 continue
             content = file_path.read_text(encoding="utf-8")
+            assert "v13" not in content, f"Stale preset 'v13' found in '{file_path}'"
             assert "4.4.3" not in content, f"Stale CMake '4.4.3' found in '{file_path}'"
             assert "v10+" not in content, f"Stale preset 'v10+' found in '{file_path}'"
 
@@ -1536,7 +1620,7 @@ def test_t3_05_readme_cmake_pro_row_links_all_examples_and_references() -> None:
         "CPS",
         "SBOM",
         "CMakePresets.json",
-        "v13",
+        "v11",
         "gersemi",
         "pixi.toml",
         "CMakeLists.txt",
@@ -1733,7 +1817,7 @@ def test_t3_14_repo_validators_and_discovery_clean_for_cmake_pro() -> None:
 
 
 def test_t4_01_scenario_pixi_developer_preset_and_ci_chain() -> None:
-    """Scenario: End-to-end trace of Pixi developer workflow -> CMakePresets v13 -> compile_commands -> pre-commit."""
+    """Scenario: End-to-end trace of Pixi developer workflow -> CMakePresets v11 -> compile_commands -> pre-commit."""
     pixi = _load_toml_dict(EXAMPLES_DIR / "pixi.toml")
     presets = _load_json_dict(EXAMPLES_DIR / "CMakePresets.json")
     pre_commit = _load_yaml_dict(EXAMPLES_DIR / ".pre-commit-config.yaml")
@@ -1934,7 +2018,7 @@ def test_t4_06_scenario_live_cmake_list_presets_with_conda_prefix(
 
 
 def test_t4_07_scenario_live_cmake_presets_file_out_of_tree(tmp_path: Path) -> None:
-    """Scenario: Live cmake --presets-file loads Schema v13 presets from an out-of-tree path."""
+    """Scenario: Live cmake --presets-file loads Schema v11 presets from an out-of-tree path."""
     cmake_exe = _require_cmake_4_5()
     proj_dir = tmp_path / "project"
     proj_dir.mkdir()
@@ -1945,7 +2029,7 @@ def test_t4_07_scenario_live_cmake_presets_file_out_of_tree(tmp_path: Path) -> N
 
     external_dir = tmp_path / "external_presets"
     external_dir.mkdir()
-    custom_presets = external_dir / "custom-v13.json"
+    custom_presets = external_dir / "custom-v11.json"
     custom_presets.write_text(
         (EXAMPLES_DIR / "CMakePresets.json").read_text(encoding="utf-8"),
         encoding="utf-8",
@@ -2024,3 +2108,55 @@ def test_t4_08_scenario_live_cmake_diagnostic_and_file_set_configure(
         f"Compliant CMake 4.5 configure failed: {good_result.stderr}"
     )
     assert "modern_core (INTERFACE_LIBRARY)" in good_result.stdout
+
+
+def test_t4_09_scenario_live_cmake_4_3_plus_schema_v11_presets_parse(
+    tmp_path: Path,
+) -> None:
+    """Scenario: Live CMake >= 4.3 parses Schema v11 presets and root $comment without errors."""
+    cmake_exe = _require_cmake_min((4, 3, 0))
+    proj_dir = tmp_path / "v11_proj"
+    proj_dir.mkdir()
+    (proj_dir / "CMakeLists.txt").write_text(
+        "cmake_minimum_required(VERSION 4.3)\nproject(V11Presets LANGUAGES NONE)\n",
+        encoding="utf-8",
+    )
+
+    presets_cfg = _load_json_dict(EXAMPLES_DIR / "CMakePresets.json")
+    # Patch only cmakeMinimumRequired in the temp copy so CMake 4.3-4.4 hosts can parse v11 live.
+    presets_cfg["cmakeMinimumRequired"] = {"major": 4, "minor": 3, "patch": 0}
+    (proj_dir / "CMakePresets.json").write_text(
+        json.dumps(presets_cfg, indent=2) + "\n", encoding="utf-8"
+    )
+
+    env = os.environ.copy()
+    env.pop("CONDA_PREFIX", None)
+    without_conda = subprocess.run(
+        [cmake_exe, "-S", str(proj_dir), "--list-presets=all"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert without_conda.returncode == 0, (
+        f"cmake --list-presets=all failed without CONDA_PREFIX: {without_conda.stderr}"
+    )
+    configure_section = without_conda.stdout.split("Available build presets:")[0]
+    assert '"sysroot-release"' in configure_section
+    assert '"ci-debug"' not in configure_section
+
+    fake_conda_prefix = tmp_path / "pixi-env"
+    fake_conda_prefix.mkdir()
+    env["CONDA_PREFIX"] = str(fake_conda_prefix)
+    with_conda = subprocess.run(
+        [cmake_exe, "-S", str(proj_dir), "--list-presets=all"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert with_conda.returncode == 0, (
+        f"cmake --list-presets=all failed with CONDA_PREFIX: {with_conda.stderr}"
+    )
+    assert '"ci-debug"' in with_conda.stdout
+    assert '"ci-release"' in with_conda.stdout

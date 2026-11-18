@@ -1,5 +1,10 @@
 {
-  "version": 13,
+  "version": 11,
+  "$comment": [
+    "Pinned to CMakePresets Schema v11 because the CMake Tools extension (ms-vscode.cmake-tools) in VS Code and Antigravity IDE currently caps preset schema support at v11.",
+    "CMake 4.5+ diagnostics (CMD_STRICT, CMD_NON_TARGET_DIRECTIVE, CMD_INSTALL_ABSOLUTE_DESTINATION) are enforced in CMakeLists.txt via cmake_diagnostic(), while ${presetName} and environment.GTEST_BRIEF replace v12/v13-only fields.",
+    "Upgrade to Schema v13+ once CMake Tools adds upstream v13 support (migrate warnings.dev -> author/policy/strict/nonTargetDirective/installAbsoluteDestination, adopt ${configurePresetName}, and move GTEST_BRIEF to execution.testPassthroughArguments)."
+  ],
   "cmakeMinimumRequired": {
     "major": 4,
     "minor": 5,
@@ -12,17 +17,12 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "warnings": {
-        "author": true,
+        "dev": true,
         "deprecated": true,
-        "policy": true,
-        "strict": true,
-        "nonTargetDirective": true,
-        "installAbsoluteDestination": true,
         "uninitialized": true,
         "unusedCli": true
       },
       "errors": {
-        "nonTargetDirective": true,
         "deprecated": true
       },
       "cacheVariables": {
@@ -135,43 +135,43 @@
       "name": "ci-debug",
       "configurePreset": "ci-debug",
       "displayName": "Build CI Debug",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     },
     {
       "name": "dev-debug",
       "configurePreset": "dev-debug",
       "displayName": "Build Developer Debug",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     },
     {
       "name": "dev-release",
       "configurePreset": "dev-release",
       "displayName": "Build Developer Release",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     },
     {
       "name": "ci-tsan",
       "configurePreset": "ci-tsan",
       "displayName": "Build CI TSan",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     },
     {
       "name": "sysroot-release",
       "configurePreset": "sysroot-release",
       "displayName": "Build Sysroot Release",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     },
     {
       "name": "cross-aarch64",
       "configurePreset": "cross-aarch64",
       "displayName": "Build Cross AArch64",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     },
     {
       "name": "cross-riscv64",
       "configurePreset": "cross-riscv64",
       "displayName": "Build Cross RISC-V 64",
-      "description": "Build targets for configure preset ${configurePresetName}"
+      "description": "Build targets for configure preset ${presetName}"
     }
   ],
   "testPresets": [
@@ -179,64 +179,64 @@
       "name": "ci-debug",
       "configurePreset": "ci-debug",
       "displayName": "Test CI Debug",
+      "environment": {
+        "GTEST_BRIEF": "1"
+      },
       "output": {
         "outputOnFailure": true,
-        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+        "outputJUnitFile": "${sourceDir}/build/${presetName}/junit.xml"
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "testPassthroughArguments": [
-          "--gtest_brief=1"
-        ]
+        "stopOnFailure": false
       }
     },
     {
       "name": "dev-debug",
       "configurePreset": "dev-debug",
       "displayName": "Test Developer Debug",
+      "environment": {
+        "GTEST_BRIEF": "1"
+      },
       "output": {
         "outputOnFailure": true,
-        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+        "outputJUnitFile": "${sourceDir}/build/${presetName}/junit.xml"
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "testPassthroughArguments": [
-          "--gtest_brief=1"
-        ]
+        "stopOnFailure": false
       }
     },
     {
       "name": "dev-release",
       "configurePreset": "dev-release",
       "displayName": "Test Developer Release",
+      "environment": {
+        "GTEST_BRIEF": "1"
+      },
       "output": {
         "outputOnFailure": true,
-        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+        "outputJUnitFile": "${sourceDir}/build/${presetName}/junit.xml"
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "testPassthroughArguments": [
-          "--gtest_brief=1"
-        ]
+        "stopOnFailure": false
       }
     },
     {
       "name": "ci-tsan",
       "configurePreset": "ci-tsan",
       "displayName": "Test CI TSan",
+      "environment": {
+        "GTEST_BRIEF": "1"
+      },
       "output": {
         "outputOnFailure": true,
-        "outputJUnitFile": "${sourceDir}/build/${configurePresetName}/junit.xml"
+        "outputJUnitFile": "${sourceDir}/build/${presetName}/junit.xml"
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "testPassthroughArguments": [
-          "--gtest_brief=1"
-        ]
+        "stopOnFailure": false
       }
     }
   ],
