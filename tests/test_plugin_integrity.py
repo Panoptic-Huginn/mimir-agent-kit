@@ -31,9 +31,7 @@ EXPECTED_MCP_SERVERS = {
     "arxiv",
     "europe-pmc",
     "github",
-    "jupyter",
     "nasa_ads",
-    "semscholar",
     "time",
     "workspace",
     "zotero",
@@ -136,6 +134,7 @@ def test_bundled_executable_scripts() -> None:
     for script_path in (
         REPO_ROOT / "scripts" / "academic_mcp_server.py",
         REPO_ROOT / "scripts" / "github_mcp_launcher.py",
+        REPO_ROOT / "scripts" / "nasa_ads_mcp_server.py",
         REPO_ROOT / "scripts" / "ci" / "snapshot_mcp_tools.py",
     ):
         assert script_path.is_file()
