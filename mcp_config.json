@@ -54,30 +54,21 @@
         "@cyanheads/pubmed-mcp-server@2.12.2"
       ]
     },
-    "semscholar": {
-      "command": "uvx",
-      "args": [
-        "--with",
-        "pydantic-settings==2.16.3",
-        "--with",
-        "mcp[cli]==1.30.0",
-        "--with",
-        "pymupdf==1.28.2",
-        "--with",
-        "pymupdf4llm==0.3.4",
-        "semantic-scholar-mcp==0.4.0"
-      ]
-    },
     "nasa_ads": {
-      "command": "uvx",
+      "command": "uv",
       "args": [
+        "run",
+        "--isolated",
+        "--no-project",
+        "--python",
+        ">=3.15",
         "--with",
-        "mcp==1.30.0",
-        "nasa-ads-mcp==0.1.0"
+        "mcp==2.3.0",
+        "python",
+        "${PLUGIN_ROOT}/scripts/nasa_ads_mcp_server.py"
       ],
       "env": {
-        "ADS_API_TOKEN": "${ADS_API_TOKEN}",
-        "NASA_ADS_MCP_TRANSPORT": "stdio"
+        "ADS_API_TOKEN": "${ADS_API_TOKEN}"
       },
       "variables": [
         {
@@ -141,14 +132,6 @@
           "title": "Google Account Email",
           "description": "Primary Google Workspace / Gmail address used for single-user OAuth sessions."
         }
-      ]
-    },
-    "jupyter": {
-      "command": "uvx",
-      "args": [
-        "--with",
-        "mcp==1.30.0",
-        "mcp-server-jupyter==0.1.9"
       ]
     },
     "time": {
