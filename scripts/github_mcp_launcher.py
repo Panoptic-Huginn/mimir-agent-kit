@@ -40,10 +40,20 @@ GITHUB_RELEASE_BASE_URL: Final[str] = (
 )
 DEFAULT_GITHUB_HOSTNAME: Final[str] = "github.com"
 BINARY_NAME: Final[str] = "github-mcp-server"
-MACOS_EXTRA_PATH_DIRS: Final[tuple[str, ...]] = ("/opt/homebrew/bin", "/usr/local/bin")
+DISABLE_FORM_DEFERRAL_FEATURE: Final[str] = "mcp_apps_disable_form_deferral"
+MACOS_EXTRA_PATH_DIRS: Final[tuple[str, ...]] = (
+    str(Path.home() / ".local" / "bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/home/linuxbrew/.linuxbrew/bin",
+    "/snap/bin",
+)
 
 _UNEXPANDED_PLACEHOLDER_RE: Final[re.Pattern[str]] = re.compile(
     r"^\$\{[A-Za-z0-9_]+\}$"
+)
+_TOKEN_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b"
 )
 
 # Official SHA-256 archive digests from github-mcp-server_2.2.0_checksums.txt.
@@ -322,13 +332,41 @@ def ensure_binary(
     return binary_path
 
 
+def _sanitize_stderr(stderr_text: str) -> str:
+    """Collapse whitespace and redact any credential tokens in CLI error output.
+
+    Args:
+        stderr_text: Raw standard error text from ``gh``.
+
+    Returns:
+        Single-line redacted error summary, or an empty string if blank.
+    """
+    collapsed = " ".join(stderr_text.strip().split())
+    return _TOKEN_REDACTION_RE.sub("<redacted>", collapsed)
+
+
+def _scrub_placeholder_tokens(env: dict[str, str]) -> None:
+    """Remove unexpanded ``${VAR}`` placeholders from GitHub token env keys in place.
+
+    Prevents ``gh auth token`` from short-circuiting on literal placeholder strings
+    inherited from partially configured shell or project environments.
+
+    Args:
+        env: Mutable environment dictionary passed to ``gh``.
+    """
+    for key in ("GITHUB_PERSONAL_ACCESS_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+        value = env.get(key, "").strip()
+        if _UNEXPANDED_PLACEHOLDER_RE.match(value):
+            env.pop(key, None)
+
+
 def resolve_github_token(
     hostname: str = DEFAULT_GITHUB_HOSTNAME, env: dict[str, str] | None = None
 ) -> str:
     """Retrieve a GitHub token from the environment or ``gh auth token`` OS keyring.
 
-    Appends standard Homebrew paths (``/opt/homebrew/bin``, ``/usr/local/bin``)
-    when searching for ``gh`` so macOS GUI launches find Homebrew installations
+    Appends standard user, Homebrew, Linuxbrew, and Snap binary directories when
+    searching for ``gh`` so macOS and Linux GUI launches find ``gh`` installations
     without shell profile sourcing.
 
     Args:
@@ -346,6 +384,7 @@ def resolve_github_token(
     if existing and not _UNEXPANDED_PLACEHOLDER_RE.match(existing):
         return existing
 
+    _scrub_placeholder_tokens(active_env)
     path_entries = [p for p in active_env.get("PATH", "").split(os.pathsep) if p]
     for extra_dir in MACOS_EXTRA_PATH_DIRS:
         if extra_dir not in path_entries:
@@ -375,11 +414,46 @@ def resolve_github_token(
         ) from exc
 
     token = completed.stdout.strip()
-    if completed.returncode != 0 or not token:
+    if (
+        completed.returncode != 0
+        or not token
+        or _UNEXPANDED_PLACEHOLDER_RE.match(token)
+    ):
+        detail = _sanitize_stderr(completed.stderr)
+        suffix = f" ({detail})" if detail else ""
         raise LauncherError(
-            f"mimir-agent-kit github: gh auth token failed for {hostname}; run: gh auth login --hostname {hostname}",
+            f"mimir-agent-kit github: gh auth token failed for {hostname}{suffix}; run: gh auth login --hostname {hostname}",
         )
     return token
+
+
+def build_stdio_argv(
+    binary_path: Path | str,
+    server_args: list[str] | tuple[str, ...] = (),
+    *,
+    enable_form_deferral: bool = False,
+) -> list[str]:
+    """Construct the ``github-mcp-server stdio`` argument vector.
+
+    Enables ``--features=mcp_apps_disable_form_deferral`` by default so write tools
+    (``issue_write``, ``create_pull_request``, ``update_pull_request``) execute
+    directly via the GitHub API instead of returning an error-wrapped MCP App form
+    deferral when the host advertises ``io.modelcontextprotocol/ui`` (Antigravity
+    ``2.34+``) over lazy-loaded ``call_mcp_tool`` transport.
+
+    Args:
+        binary_path: Verified ``github-mcp-server`` executable path.
+        server_args: Extra CLI flags forwarded after ``stdio``.
+        enable_form_deferral: If ``True``, do not inject ``mcp_apps_disable_form_deferral``.
+
+    Returns:
+        Complete ``argv`` list starting with ``str(binary_path)`` and ``"stdio"``.
+    """
+    cleaned = [str(item) for item in server_args if str(item) != "--"]
+    has_disable_flag = any(DISABLE_FORM_DEFERRAL_FEATURE in item for item in cleaned)
+    if not enable_form_deferral and not has_disable_flag:
+        cleaned.append(f"--features={DISABLE_FORM_DEFERRAL_FEATURE}")
+    return [str(binary_path), "stdio", *cleaned]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -408,6 +482,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--print-binary-path",
         action="store_true",
         help="Ensure the verified binary is cached, print its path to stdout, and exit without starting stdio.",
+    )
+    parser.add_argument(
+        "--enable-form-deferral",
+        action="store_true",
+        help="Allow MCP Apps interactive form deferral on write tools instead of direct execution.",
     )
     parser.add_argument(
         "server_args",
@@ -439,8 +518,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     child_env = os.environ.copy()
+    _scrub_placeholder_tokens(child_env)
     child_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = token
-    exec_argv = [str(binary_path), "stdio", *(str(item) for item in args.server_args)]
+    exec_argv = build_stdio_argv(
+        binary_path,
+        args.server_args,
+        enable_form_deferral=bool(args.enable_form_deferral),
+    )
     os.execve(str(binary_path), exec_argv, child_env)  # ruff: ignore[start-process-with-no-shell] - replaces process with SHA-256-verified static binary
 
 

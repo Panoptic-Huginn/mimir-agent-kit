@@ -118,9 +118,9 @@ gh label clone Panoptic-Huginn/mimir-agent-kit -R "${OWNER}/${NEW_REPO}" --force
 
 ---
 
-## 5. Excluded MCP Endpoints (64-Character Antigravity Identifier Cap)
+## 5. Excluded MCP Endpoints (`GITHUB_EXCLUDE_TOOLS`)
 
-Two upstream `github-mcp-server` tools are excluded via `GITHUB_EXCLUDE_TOOLS` in `mcp_config.json` because `mcp_mimir-agent-kit_github_<tool>` exceeds 64 characters:
+`mcp_config.json` excludes the three forbidden remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files` — always use local Git + CI) plus two upstream tools whose `mcp_mimir-agent-kit_github_<tool>` names exceed Antigravity's 64-character identifier cap:
 
 ```bash
 # 1. Organization-wide security advisories (replaces list_org_repository_security_advisories)

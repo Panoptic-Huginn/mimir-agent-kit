@@ -11,11 +11,13 @@
         "python",
         "${PLUGIN_ROOT}/scripts/github_mcp_launcher.py",
         "--cache-dir",
-        "${PLUGIN_DATA}"
+        "${PLUGIN_DATA}",
+        "--",
+        "--features=mcp_apps_disable_form_deferral"
       ],
       "env": {
         "GITHUB_TOOLSETS": "all",
-        "GITHUB_EXCLUDE_TOOLS": "list_org_repository_security_advisories,manage_repository_notification_subscription"
+        "GITHUB_EXCLUDE_TOOLS": "create_or_update_file,delete_file,list_org_repository_security_advisories,manage_repository_notification_subscription,push_files"
       }
     },
     "academic-mcp": {

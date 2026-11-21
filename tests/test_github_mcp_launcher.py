@@ -187,9 +187,111 @@ def test_resolve_github_token_supports_env_and_gh_keyring(
     with pytest.raises(launcher.LauncherError, match="'gh' CLI not found"):
         launcher.resolve_github_token(env={"PATH": str(tmp_path / "empty")})
 
-    fake_gh.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-    with pytest.raises(launcher.LauncherError, match="gh auth token failed"):
+    leaked = "ghp_" + ("a" * 24)
+    fake_gh.write_text(
+        f'#!/bin/sh\necho "keychain locked: {leaked}" >&2\nexit 1\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        launcher.LauncherError,
+        match=r"gh auth token failed for github\.com \(keychain locked: <redacted>\)",
+    ):
         launcher.resolve_github_token(env={"PATH": str(fake_bin)})
+
+
+def test_resolve_github_token_scrubs_placeholder_gh_token_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unexpanded ${GH_TOKEN}/${GITHUB_TOKEN} env values are stripped before invoking gh."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        '#!/bin/sh\nif [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then echo "${GH_TOKEN:-$GITHUB_TOKEN}"; exit 0; fi\necho "clean_keyring_val"\n',
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    monkeypatch.setattr(launcher, "MACOS_EXTRA_PATH_DIRS", ())
+
+    resolved = launcher.resolve_github_token(
+        env={
+            "PATH": str(fake_bin),
+            "GH_TOKEN": "${GH_TOKEN}",
+            "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        },
+    )
+    assert resolved == "clean_keyring_val"
+
+
+def test_build_stdio_argv_disables_mcp_apps_form_deferral_by_default() -> None:
+    """build_stdio_argv injects mcp_apps_disable_form_deferral once unless explicitly re-enabled."""
+    default_argv = launcher.build_stdio_argv("/opt/bin/github-mcp-server")
+    assert default_argv == [
+        "/opt/bin/github-mcp-server",
+        "stdio",
+        "--features=mcp_apps_disable_form_deferral",
+    ]
+
+    deduped_argv = launcher.build_stdio_argv(
+        "/opt/bin/github-mcp-server",
+        ["--", "--features=mcp_apps_disable_form_deferral", "--read-only"],
+    )
+    assert deduped_argv == [
+        "/opt/bin/github-mcp-server",
+        "stdio",
+        "--features=mcp_apps_disable_form_deferral",
+        "--read-only",
+    ]
+
+    opted_in_argv = launcher.build_stdio_argv(
+        "/opt/bin/github-mcp-server",
+        ["--read-only"],
+        enable_form_deferral=True,
+    )
+    assert opted_in_argv == ["/opt/bin/github-mcp-server", "stdio", "--read-only"]
+
+
+def test_main_execve_passes_token_and_form_deferral_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """main() scrubs placeholder env vars, sets GITHUB_PERSONAL_ACCESS_TOKEN, and execs stdio."""
+    binary = tmp_path / "github-mcp-server"
+    binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    binary.chmod(0o755)
+
+    monkeypatch.setattr(launcher, "ensure_binary", lambda *_args, **_kwargs: binary)
+    monkeypatch.setattr(
+        launcher, "resolve_github_token", lambda **_kwargs: "tok_keyring"
+    )
+    monkeypatch.setenv("GH_TOKEN", "${GH_TOKEN}")
+
+    captured: dict[str, object] = {}
+
+    def _fake_execve(
+        path: str, argv: list[str], env: dict[str, str]
+    ) -> None:  # pragma: no cover - terminates via SystemExit
+        captured["path"] = path
+        captured["argv"] = argv
+        captured["env"] = env
+        raise SystemExit(0)
+
+    monkeypatch.setattr(os, "execve", _fake_execve)
+    with pytest.raises(SystemExit) as exc_info:
+        launcher.main(["--cache-dir", str(tmp_path), "--", "--read-only"])
+
+    assert exc_info.value.code == 0
+    assert captured["path"] == str(binary)
+    assert captured["argv"] == [
+        str(binary),
+        "stdio",
+        "--read-only",
+        "--features=mcp_apps_disable_form_deferral",
+    ]
+    exec_env = captured["env"]
+    assert isinstance(exec_env, dict)
+    injected = exec_env.get("GITHUB_PERSONAL_ACCESS_TOKEN")
+    assert injected == "tok_keyring"
+    assert "GH_TOKEN" not in exec_env
 
 
 def test_main_print_binary_path_outputs_verified_path(

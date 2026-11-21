@@ -165,6 +165,23 @@ def test_mcp_tool_manifest_covers_servers_and_fits_namespace_budget() -> None:
                 f"{identifier} is {len(identifier)} chars (> 64); Antigravity will drop it"
             )
 
+    forbidden_remote_file_tools = {
+        "create_or_update_file",
+        "delete_file",
+        "push_files",
+    }
+    github_spec = servers["github"]
+    assert "--features=mcp_apps_disable_form_deferral" in github_spec["args"], (
+        "github MCP server must pass --features=mcp_apps_disable_form_deferral"
+    )
+    excluded_github_tools = {
+        item.strip()
+        for item in github_spec["env"]["GITHUB_EXCLUDE_TOOLS"].split(",")
+        if item.strip()
+    }
+    assert forbidden_remote_file_tools <= excluded_github_tools
+    assert forbidden_remote_file_tools.isdisjoint(manifest["github"])
+
 
 def test_mcp_config_variables_and_secret_hygiene() -> None:
     """Ensure every bundled MCP server declares matching `variables` metadata for every `${VAR}` placeholder."""

@@ -67,20 +67,21 @@ Inspect active scopes with `gh auth status`. Different non-code operations requi
 - **Baseline (`repo`, `read:org`, `gist`):** Repo CRUD, issues, PRs, repo-level ruleset reads (`includes_parents: true`), releases, Gists.
 - **Projects v2 (`project`):** Required by `projects_list`, `projects_get`, `projects_write`.
 - **Notifications (`notifications`):** Required by `list_notifications`, `dismiss_notification`, `manage_notification_subscription`.
-- **Workflow Dispatch (`workflow`):** Required by `actions_run_trigger` (`gh workflow run` / `gh run rerun`) and workflow mutations.
+- **Security Alerts (`security_events` / `repo`):** Required by `list_dependabot_alerts`, `list_code_scanning_alerts` (returns `404 no analysis found` if CodeQL has never run), `list_secret_scanning_alerts`, and security advisory reads.
+- **Workflow Dispatch (`workflow`):** Required for workflow file/dispatch mutations outside `repo`.
 - **GHEC Organization Administration (`admin:org`):** Required for `repository_ruleset_read(level: "organization")`, authoring org-wide rulesets on `Panoptic-Huginn`, and org team/member mutations (returns `404` without `admin:org`).
 
 If a needed scope is missing, prompt the user (or run if interactive TTY is available):
 
 ```bash
-gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications
+gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications,security_events
 ```
 
 ---
 
 ## 3. Tool Routing: `mimir-agent-kit_github` MCP vs. `gh` CLI
 
-Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`) as primary for typed JSON operations, paired with **`gh` / `gh api`** where GitHub's REST/GraphQL surface extends beyond MCP's schema:
+Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, launched with `--features=mcp_apps_disable_form_deferral` so `issue_write` executes directly) as primary for typed JSON operations, paired with **`gh` / `gh api`** where GitHub's REST/GraphQL surface extends beyond MCP's schema. Note: in native **`/swarm`**, only the **Coordinator** receives `call_mcp_tool` (swarm workers lack MCP server access and must ask `@coordinator` to execute `mimir-agent-kit_github` calls or use permitted `gh` read-only queries); for `define_subagent`, set `EnableMCPTools: true`.
 
 | Domain | Primary (`mimir-agent-kit_github`) | `gh` / `gh api` Partner |
 | :--- | :--- | :--- |
@@ -125,7 +126,7 @@ Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`) as primary for ty
 
 ### Runbook D: Releases, Tags & Cross-Repo Research
 
-1. Inspect existing tags and releases via `list_tags` and `list_releases` (`get_latest_release`) to verify Semantic Versioning continuity (`vMAJOR.MINOR.PATCH`).
+1. Inspect existing tags and releases via `list_tags` and `list_releases` (`get_latest_release` returns `404 Not Found` on tag-only repos without GitHub Releases) to verify Semantic Versioning continuity (`vMAJOR.MINOR.PATCH`).
 2. Draft or publish releases with structured changelog notes (`gh release create vX.Y.Z -R "<owner>/<repo>" --target main --title "vX.Y.Z" --notes-file - <<'EOF'`). Never delete or overwrite an existing tag/release without explicit human confirmation.
 3. For cross-repository architecture questions across uncloned repos, use `search_code` (`query: "org:Panoptic-Huginn <symbol>"` or `query: "user:jamielapointe <symbol>"` — omit `sort:` from `query`), `get_repository_tree`, and `get_file_contents` instead of cloning full repositories unnecessarily.
 

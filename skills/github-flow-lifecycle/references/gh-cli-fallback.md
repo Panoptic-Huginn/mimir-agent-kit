@@ -17,8 +17,8 @@ gh auth status
 # 2. If logged out or token expired, authenticate interactively once per machine
 gh auth login --hostname github.com --git-protocol ssh
 
-# 3. Recommended one-time scope upgrade for GHEC Org Owner + Actions triggers + Projects
-gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications
+# 3. Recommended one-time scope upgrade for GHEC Org Owner + Security + Actions + Projects
+gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications,security_events
 
 # 4. Verify cached native github-mcp-server binary (zero Docker required)
 uv run --isolated --no-project --python ">=3.15" python scripts/github_mcp_launcher.py --print-binary-path
