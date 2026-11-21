@@ -10,10 +10,9 @@ immutable supply-chain digest pinning and zero-plaintext OS-keyring authenticati
    for the host ``(OS, architecture)`` once, verifies its exact 64-character
    SHA-256 digest in memory before extraction, and atomically installs the static
    binary under ``<cache-dir>/github-mcp-server/v<version>/<os>_<arch>/``.
-3. Reads the active multi-owner OAuth token from ``gh auth token --hostname github.com``
-   (spanning both personal accounts and GitHub Enterprise Cloud organizations via
-   Ubuntu ``libsecret`` / macOS Keychain) and replaces the current process via
-   ``os.execve`` with ``github-mcp-server stdio``.
+3. Reads the active multi-owner OAuth token from ``gh auth token --hostname <host>``
+   (or non-placeholder environment tokens in headless CI/container runtimes) and
+   replaces the current process via ``os.execve`` with ``github-mcp-server stdio``.
 """
 
 import argparse
@@ -27,11 +26,16 @@ import shutil
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - invokes resolved gh CLI binary with static argv
 import sys
 import tarfile
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 
 GITHUB_MCP_SERVER_VERSION: Final[str] = "2.2.0"
@@ -41,19 +45,43 @@ GITHUB_RELEASE_BASE_URL: Final[str] = (
 DEFAULT_GITHUB_HOSTNAME: Final[str] = "github.com"
 BINARY_NAME: Final[str] = "github-mcp-server"
 DISABLE_FORM_DEFERRAL_FEATURE: Final[str] = "mcp_apps_disable_form_deferral"
-MACOS_EXTRA_PATH_DIRS: Final[tuple[str, ...]] = (
-    str(Path.home() / ".local" / "bin"),
+
+EXTRA_PATH_DIRS: Final[tuple[str, ...]] = (
     "/opt/homebrew/bin",
     "/usr/local/bin",
     "/home/linuxbrew/.linuxbrew/bin",
     "/snap/bin",
 )
+# Retained as an alias of EXTRA_PATH_DIRS for backward compatibility with callers and tests.
+MACOS_EXTRA_PATH_DIRS: Final[tuple[str, ...]] = EXTRA_PATH_DIRS
+
+_TOKEN_ENV_KEYS: Final[tuple[str, ...]] = (
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+)
+_GITHUB_COM_ENV_TOKEN_KEYS: Final[tuple[str, ...]] = ("GH_TOKEN", "GITHUB_TOKEN")
+_ENTERPRISE_ENV_TOKEN_KEYS: Final[tuple[str, ...]] = (
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+)
 
 _UNEXPANDED_PLACEHOLDER_RE: Final[re.Pattern[str]] = re.compile(
-    r"^\$\{[A-Za-z0-9_]+\}$"
+    r"^\$(?:\{[^{}]+\}|[A-Za-z_][A-Za-z0-9_]*)$"
+)
+_EMBEDDED_PLACEHOLDER_RE: Final[re.Pattern[str]] = re.compile(
+    r"\$(?:\{[^{}]+\}|[A-Za-z_][A-Za-z0-9_]*)"
 )
 _TOKEN_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b"
+    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|v1\.[0-9a-fA-F]{30,})\b"
+)
+_AUTH_HEADER_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?i)(authorization\s*:\s*(?:bearer|token)\s+)[^\s\"';,]+"
+)
+_URL_CREDENTIAL_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
+    r"(://[^/\s:@]+:)[^/\s@]+(@)"
 )
 
 # Official SHA-256 archive digests from github-mcp-server_2.2.0_checksums.txt.
@@ -79,6 +107,47 @@ PLATFORM_ARCHIVE_SPECS: Final[dict[tuple[str, str], tuple[str, str]]] = {
 
 class LauncherError(RuntimeError):
     """Raised when platform resolution, binary verification, or keyring auth fails."""
+
+
+def _safe_home_dir(env: Mapping[str, str] | None = None) -> Path | None:
+    """Resolve the user home directory without crashing in UID-unmapped containers.
+
+    Args:
+        env: Optional environment mapping checked for ``HOME`` before ``Path.home()``.
+
+    Returns:
+        Resolved ``Path`` to the user home directory, or ``None`` if unavailable.
+    """
+    if env is not None:
+        home_raw = env.get("HOME", "").strip()
+        if home_raw and not _EMBEDDED_PLACEHOLDER_RE.search(home_raw):
+            return Path(home_raw)
+    try:
+        return Path.home()
+    except RuntimeError:
+        return None
+
+
+def _safe_expanduser(raw_path: str, env: Mapping[str, str]) -> Path | None:
+    """Expand a leading ``~`` using ``env['HOME']`` or ``Path.home()`` safely.
+
+    Args:
+        raw_path: Raw filesystem path string.
+        env: Active environment mapping.
+
+    Returns:
+        Expanded ``Path``, or ``None`` if ``~`` expansion fails in a headless runtime.
+    """
+    if raw_path == "~" or raw_path.startswith("~/"):
+        home_dir = _safe_home_dir(env)
+        if home_dir is None:
+            return None
+        suffix = raw_path[2:] if raw_path.startswith("~/") else ""
+        return home_dir / suffix if suffix else home_dir
+    try:
+        return Path(raw_path).expanduser()
+    except RuntimeError:
+        return None
 
 
 def normalize_platform(
@@ -121,36 +190,115 @@ def normalize_platform(
 
 
 def resolve_cache_root(
-    cache_dir: Path | str | None = None, system_name: str | None = None
+    cache_dir: Path | str | None = None,
+    system_name: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> Path:
     """Resolve the writable root directory for cached ``github-mcp-server`` binaries.
 
     Uses ``cache_dir`` (typically ``${PLUGIN_DATA}``) when provided and expanded;
-    otherwise falls back to ``~/Library/Caches/mimir-agent-kit`` on macOS or
-    ``${XDG_CACHE_HOME:-~/.cache}/mimir-agent-kit`` on Linux.
+    otherwise falls back to ``~/Library/Caches/mimir-agent-kit`` on macOS,
+    ``${XDG_CACHE_HOME:-~/.cache}/mimir-agent-kit`` on Linux, or the system
+    temporary directory when no home directory can be determined.
 
     Args:
         cache_dir: Optional directory path or unexpanded placeholder.
         system_name: Optional OS override for deterministic testing.
+        env: Optional environment mapping (defaults to ``os.environ``).
 
     Returns:
         Resolved ``Path`` to the root cache directory.
     """
+    active_env: Mapping[str, str] = os.environ if env is None else env
     candidate = (
         str(cache_dir).strip()
         if cache_dir is not None
-        else os.environ.get("PLUGIN_DATA", "").strip()
+        else active_env.get("PLUGIN_DATA", "").strip()
     )
-    if candidate and not _UNEXPANDED_PLACEHOLDER_RE.match(candidate):
-        return Path(candidate).expanduser().resolve()
+    if candidate and not _EMBEDDED_PLACEHOLDER_RE.search(candidate):
+        expanded = _safe_expanduser(candidate, active_env)
+        if expanded is not None:
+            return expanded.resolve()
 
+    home_dir = _safe_home_dir(active_env)
     active_sys = system_name if system_name is not None else platform.system()
     if active_sys == "Darwin":
-        return (Path.home() / "Library" / "Caches" / "mimir-agent-kit").resolve()
+        if home_dir is not None:
+            return (home_dir / "Library" / "Caches" / "mimir-agent-kit").resolve()
+        return (Path(tempfile.gettempdir()) / "mimir-agent-kit").resolve()
 
-    xdg_cache = os.environ.get("XDG_CACHE_HOME", "").strip()
-    base = Path(xdg_cache).expanduser() if xdg_cache else (Path.home() / ".cache")
+    xdg_cache = active_env.get("XDG_CACHE_HOME", "").strip()
+    base: Path | None = None
+    if xdg_cache and not _EMBEDDED_PLACEHOLDER_RE.search(xdg_cache):
+        base = _safe_expanduser(xdg_cache, active_env)
+    if base is None:
+        base = (
+            (home_dir / ".cache")
+            if home_dir is not None
+            else Path(tempfile.gettempdir())
+        )
     return (base / "mimir-agent-kit").resolve()
+
+
+def normalize_github_host(
+    raw_host: str | None = None, env: Mapping[str, str] | None = None
+) -> tuple[str, str | None]:
+    """Normalize a GitHub host CLI flag or ``GITHUB_HOST`` URL into CLI and API forms.
+
+    ``gh auth token --hostname`` requires a bare hostname without a URL scheme,
+    whereas ``github-mcp-server`` requires ``GITHUB_HOST`` / ``--gh-host`` to carry
+    an ``http`` or ``https`` scheme.
+
+    Args:
+        raw_host: Optional ``--hostname`` value or URL.
+        env: Optional environment mapping checked for ``GITHUB_HOST`` when ``raw_host`` is unset.
+
+    Returns:
+        Tuple of ``(bare_hostname, api_host_url_or_none)`` where ``api_host_url_or_none``
+        is ``None`` for standard ``github.com`` and ``scheme://netloc`` otherwise.
+
+    Raises:
+        LauncherError: If the supplied host starts with ``-``, contains whitespace, or uses an invalid URL scheme.
+    """
+    active_env: Mapping[str, str] = os.environ if env is None else env
+    candidate = (raw_host or "").strip()
+    if not candidate or _EMBEDDED_PLACEHOLDER_RE.search(candidate):
+        candidate = active_env.get("GITHUB_HOST", "").strip()
+    if not candidate or _EMBEDDED_PLACEHOLDER_RE.search(candidate):
+        return (DEFAULT_GITHUB_HOSTNAME, None)
+
+    if candidate.startswith("-") or any(ch.isspace() for ch in candidate):
+        raise LauncherError(f"Invalid GitHub hostname: {candidate!r}")
+
+    if "://" in candidate:
+        parsed = urllib.parse.urlsplit(candidate)
+        scheme = parsed.scheme.lower()
+        if (
+            scheme not in {"https", "http"}
+            or not parsed.hostname
+            or parsed.hostname.startswith("-")
+        ):
+            raise LauncherError(f"Invalid GitHub host URL: {candidate!r}")
+        bare_host = parsed.hostname.lower()
+        if (
+            bare_host == DEFAULT_GITHUB_HOSTNAME
+            and scheme == "https"
+            and parsed.port is None
+        ):
+            return (DEFAULT_GITHUB_HOSTNAME, None)
+        return (bare_host, f"{scheme}://{parsed.netloc}")
+
+    parsed = urllib.parse.urlsplit(f"https://{candidate}")
+    if (
+        not parsed.hostname
+        or parsed.hostname.startswith("-")
+        or parsed.path not in {"", "/"}
+    ):
+        raise LauncherError(f"Invalid GitHub hostname: {candidate!r}")
+    bare_host = parsed.hostname.lower()
+    if bare_host == DEFAULT_GITHUB_HOSTNAME and parsed.port is None:
+        return (DEFAULT_GITHUB_HOSTNAME, None)
+    return (bare_host, f"https://{parsed.netloc}")
 
 
 def build_archive_url(
@@ -205,6 +353,9 @@ def _download_bytes(url: str, timeout: float = 60.0) -> bytes:
 def _read_binary_from_archive(archive_bytes: bytes) -> bytes | None:
     """Extract the target binary payload from an in-memory ``.tar.gz`` archive.
 
+    Args:
+        archive_bytes: Raw ``.tar.gz`` archive bytes.
+
     Returns:
         Extracted binary bytes, or ``None`` if no matching entry exists.
     """
@@ -220,7 +371,13 @@ def _read_binary_from_archive(archive_bytes: bytes) -> bytes | None:
 def _write_executable_atomically(
     tmp_path: Path, payload: bytes, destination: Path
 ) -> None:
-    """Write ``payload`` to ``tmp_path``, mark executable, and atomically rename."""
+    """Write ``payload`` to ``tmp_path``, mark executable, and atomically rename.
+
+    Args:
+        tmp_path: Staging file path in the destination directory.
+        payload: Verified executable bytes.
+        destination: Final executable path.
+    """
     with tmp_path.open("wb") as handle:
         handle.write(payload)
         handle.flush()
@@ -342,65 +499,132 @@ def _sanitize_stderr(stderr_text: str) -> str:
         Single-line redacted error summary, or an empty string if blank.
     """
     collapsed = " ".join(stderr_text.strip().split())
-    return _TOKEN_REDACTION_RE.sub("<redacted>", collapsed)
+    redacted = _TOKEN_REDACTION_RE.sub("<redacted>", collapsed)
+    redacted = _AUTH_HEADER_REDACTION_RE.sub(r"\1<redacted>", redacted)
+    return _URL_CREDENTIAL_REDACTION_RE.sub(r"\1<redacted>\2", redacted)
 
 
 def _scrub_placeholder_tokens(env: dict[str, str]) -> None:
-    """Remove unexpanded ``${VAR}`` placeholders from GitHub token env keys in place.
+    """Remove unexpanded ``${VAR}`` or ``$VAR`` placeholders from GitHub env keys in place.
 
-    Prevents ``gh auth token`` from short-circuiting on literal placeholder strings
-    inherited from partially configured shell or project environments.
+    Prevents ``gh auth token`` and ``github-mcp-server`` from short-circuiting on
+    literal placeholder strings inherited from partially configured environments.
 
     Args:
-        env: Mutable environment dictionary passed to ``gh``.
+        env: Mutable environment dictionary.
     """
-    for key in ("GITHUB_PERSONAL_ACCESS_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+    for key in (*_TOKEN_ENV_KEYS, "GITHUB_HOST", "GITHUB_FEATURES"):
         value = env.get(key, "").strip()
-        if _UNEXPANDED_PLACEHOLDER_RE.match(value):
+        if value and (
+            _UNEXPANDED_PLACEHOLDER_RE.match(value)
+            or _EMBEDDED_PLACEHOLDER_RE.search(value)
+        ):
             env.pop(key, None)
 
 
+def _lookup_env_token(env: Mapping[str, str], keys: Sequence[str]) -> str | None:
+    """Return the first non-empty, non-placeholder token from ``keys`` in ``env``.
+
+    Args:
+        env: Scrubbed environment mapping.
+        keys: Ordered environment variable names to inspect.
+
+    Returns:
+        Token value if present, otherwise ``None``.
+    """
+    for key in keys:
+        candidate = env.get(key, "").strip()
+        if candidate and not _UNEXPANDED_PLACEHOLDER_RE.match(candidate):
+            return candidate
+    return None
+
+
+def _build_gh_search_path(active_env: Mapping[str, str]) -> str:
+    """Construct the ``PATH`` used to locate ``gh`` across shell and GUI launches.
+
+    Resolves ``HOME/.local/bin`` lazily from ``active_env`` (or ``Path.home()`` when
+    fallback search directories are enabled) alongside Homebrew, Linuxbrew, and Snap.
+
+    Args:
+        active_env: Environment mapping for the lookup.
+
+    Returns:
+        ``os.pathsep``-joined search path string.
+    """
+    path_entries = [p for p in active_env.get("PATH", "").split(os.pathsep) if p]
+    extra_candidates: list[str] = []
+    if "HOME" in active_env:
+        home_dir = _safe_home_dir(active_env)
+        if home_dir is not None:
+            extra_candidates.append(str(home_dir / ".local" / "bin"))
+    elif MACOS_EXTRA_PATH_DIRS:
+        home_dir = _safe_home_dir()
+        if home_dir is not None:
+            extra_candidates.append(str(home_dir / ".local" / "bin"))
+
+    extra_candidates.extend(MACOS_EXTRA_PATH_DIRS)
+    for extra_dir in extra_candidates:
+        if extra_dir not in path_entries:
+            path_entries.append(extra_dir)
+    return os.pathsep.join(path_entries)
+
+
 def resolve_github_token(
-    hostname: str = DEFAULT_GITHUB_HOSTNAME, env: dict[str, str] | None = None
+    hostname: str | None = DEFAULT_GITHUB_HOSTNAME,
+    env: Mapping[str, str] | None = None,
 ) -> str:
     """Retrieve a GitHub token from the environment or ``gh auth token`` OS keyring.
 
-    Appends standard user, Homebrew, Linuxbrew, and Snap binary directories when
-    searching for ``gh`` so macOS and Linux GUI launches find ``gh`` installations
-    without shell profile sourcing.
+    Honors ``GITHUB_PERSONAL_ACCESS_TOKEN`` directly, checks host-matched ``GH_TOKEN`` /
+    ``GITHUB_TOKEN`` (or ``GH_ENTERPRISE_TOKEN`` / ``GITHUB_ENTERPRISE_TOKEN``) after
+    placeholder scrubbing so headless CI/container environments work without ``gh``
+    installed, and otherwise queries ``gh auth token --hostname <bare_host>``.
 
     Args:
-        hostname: GitHub hostname passed to ``gh auth token --hostname`` (default ``github.com``).
+        hostname: GitHub hostname or URL (default ``github.com``).
         env: Optional environment mapping (defaults to ``os.environ``).
 
     Returns:
         Non-empty GitHub bearer token string.
 
     Raises:
-        LauncherError: If ``gh`` is not installed or ``gh auth token`` fails.
+        LauncherError: If ``hostname`` is invalid, ``gh`` is not installed, or ``gh auth token`` fails.
     """
     active_env = dict(os.environ if env is None else env)
+    bare_host, _ = normalize_github_host(hostname, active_env)
+
     existing = active_env.get("GITHUB_PERSONAL_ACCESS_TOKEN", "").strip()
-    if existing and not _UNEXPANDED_PLACEHOLDER_RE.match(existing):
+    if (
+        existing
+        and not _UNEXPANDED_PLACEHOLDER_RE.match(existing)
+        and not _EMBEDDED_PLACEHOLDER_RE.search(existing)
+    ):
         return existing
 
     _scrub_placeholder_tokens(active_env)
-    path_entries = [p for p in active_env.get("PATH", "").split(os.pathsep) if p]
-    for extra_dir in MACOS_EXTRA_PATH_DIRS:
-        if extra_dir not in path_entries:
-            path_entries.append(extra_dir)
-    search_path = os.pathsep.join(path_entries)
+    primary_env_keys = (
+        _GITHUB_COM_ENV_TOKEN_KEYS
+        if bare_host == DEFAULT_GITHUB_HOSTNAME
+        else _ENTERPRISE_ENV_TOKEN_KEYS
+    )
+    direct_env_token = _lookup_env_token(active_env, primary_env_keys)
+    if direct_env_token is not None:
+        return direct_env_token
 
+    search_path = _build_gh_search_path(active_env)
     gh_bin = shutil.which("gh", path=search_path)
     if gh_bin is None:
+        fallback_token = _lookup_env_token(active_env, _GITHUB_COM_ENV_TOKEN_KEYS)
+        if fallback_token is not None:
+            return fallback_token
         raise LauncherError(
-            f"mimir-agent-kit github: 'gh' CLI not found on PATH ({search_path}); install GitHub CLI and run: gh auth login --hostname {hostname}",
+            f"mimir-agent-kit github: 'gh' CLI not found on PATH ({search_path}); install GitHub CLI and run: gh auth login --hostname {bare_host}",
         )
 
     active_env["PATH"] = search_path
     try:
         completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - resolved gh binary with fixed argv
-            [gh_bin, "auth", "token", "--hostname", hostname],
+            [gh_bin, "auth", "token", "--hostname", bare_host],
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
@@ -418,42 +642,158 @@ def resolve_github_token(
         completed.returncode != 0
         or not token
         or _UNEXPANDED_PLACEHOLDER_RE.match(token)
+        or _EMBEDDED_PLACEHOLDER_RE.search(token)
     ):
         detail = _sanitize_stderr(completed.stderr)
         suffix = f" ({detail})" if detail else ""
         raise LauncherError(
-            f"mimir-agent-kit github: gh auth token failed for {hostname}{suffix}; run: gh auth login --hostname {hostname}",
+            f"mimir-agent-kit github: gh auth token failed for {bare_host}{suffix}; run: gh auth login --hostname {bare_host}",
         )
     return token
 
 
+def _append_csv_features(raw_csv: str, target: list[str]) -> None:
+    """Split a comma-separated feature string and append unique tokens in order.
+
+    Args:
+        raw_csv: Comma-separated feature names.
+        target: Mutable list accumulating deduplicated feature names.
+    """
+    for piece in raw_csv.split(","):
+        token = piece.strip()
+        if token and token not in target:
+            target.append(token)
+
+
+def _extract_features_and_passthrough(
+    server_args: Sequence[str], env: Mapping[str, str] | None
+) -> tuple[list[str], list[str], int | None]:
+    """Separate ``--features`` tokens (from ``env`` and ``server_args``) from other flags.
+
+    Args:
+        server_args: Forwarded CLI arguments for ``github-mcp-server stdio``.
+        env: Optional environment mapping inspected for ``GITHUB_FEATURES``.
+
+    Returns:
+        Tuple of ``(passthrough_args, merged_features, first_features_index)``.
+    """
+    features: list[str] = []
+    if env is not None:
+        env_raw = env.get("GITHUB_FEATURES", "").strip()
+        if env_raw and not _EMBEDDED_PLACEHOLDER_RE.search(env_raw):
+            _append_csv_features(env_raw, features)
+
+    cleaned = [str(item) for item in server_args if str(item) != "--"]
+    passthrough: list[str] = []
+    first_feature_idx: int | None = None
+    idx = 0
+    while idx < len(cleaned):
+        item = cleaned[idx]
+        if item == "--features":
+            if first_feature_idx is None:
+                first_feature_idx = len(passthrough)
+            if idx + 1 < len(cleaned):
+                _append_csv_features(cleaned[idx + 1], features)
+                idx += 2
+            else:
+                idx += 1
+        elif item.startswith("--features="):
+            if first_feature_idx is None:
+                first_feature_idx = len(passthrough)
+            _append_csv_features(item.split("=", 1)[1], features)
+            idx += 1
+        else:
+            passthrough.append(item)
+            idx += 1
+
+    return (passthrough, features, first_feature_idx)
+
+
 def build_stdio_argv(
     binary_path: Path | str,
-    server_args: list[str] | tuple[str, ...] = (),
+    server_args: Sequence[str] = (),
     *,
     enable_form_deferral: bool = False,
+    env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Construct the ``github-mcp-server stdio`` argument vector.
 
-    Enables ``--features=mcp_apps_disable_form_deferral`` by default so write tools
-    (``issue_write``, ``create_pull_request``, ``update_pull_request``) execute
-    directly via the GitHub API instead of returning an error-wrapped MCP App form
-    deferral when the host advertises ``io.modelcontextprotocol/ui`` (Antigravity
-    ``2.34+``) over lazy-loaded ``call_mcp_tool`` transport.
+    Merges feature flags from ``GITHUB_FEATURES`` (in ``env``) and ``--features``
+    CLI arguments so Cobra/Viper CLI flag precedence never drops environment
+    features. Injects ``mcp_apps_disable_form_deferral`` by default, or actively
+    strips it when ``enable_form_deferral=True``.
 
     Args:
         binary_path: Verified ``github-mcp-server`` executable path.
         server_args: Extra CLI flags forwarded after ``stdio``.
-        enable_form_deferral: If ``True``, do not inject ``mcp_apps_disable_form_deferral``.
+        enable_form_deferral: If ``True``, strip ``mcp_apps_disable_form_deferral``.
+        env: Optional environment mapping checked for ``GITHUB_FEATURES``.
 
     Returns:
         Complete ``argv`` list starting with ``str(binary_path)`` and ``"stdio"``.
     """
-    cleaned = [str(item) for item in server_args if str(item) != "--"]
-    has_disable_flag = any(DISABLE_FORM_DEFERRAL_FEATURE in item for item in cleaned)
-    if not enable_form_deferral and not has_disable_flag:
-        cleaned.append(f"--features={DISABLE_FORM_DEFERRAL_FEATURE}")
-    return [str(binary_path), "stdio", *cleaned]
+    passthrough, features, insert_idx = _extract_features_and_passthrough(
+        server_args, env
+    )
+    if enable_form_deferral:
+        features = [f for f in features if f != DISABLE_FORM_DEFERRAL_FEATURE]
+    elif DISABLE_FORM_DEFERRAL_FEATURE not in features:
+        features.append(DISABLE_FORM_DEFERRAL_FEATURE)
+
+    if features:
+        canonical_flag = f"--features={','.join(features)}"
+        if insert_idx is not None:
+            passthrough.insert(insert_idx, canonical_flag)
+        else:
+            passthrough.append(canonical_flag)
+
+    return [str(binary_path), "stdio", *passthrough]
+
+
+def _prepare_child_env(
+    base_env: Mapping[str, str],
+    token: str,
+    api_host_url: str | None,
+    server_args: Sequence[str],
+    *,
+    enable_form_deferral: bool,
+) -> dict[str, str]:
+    """Build the sanitized child environment passed to ``github-mcp-server stdio``.
+
+    Args:
+        base_env: Parent environment mapping.
+        token: Resolved GitHub bearer token.
+        api_host_url: Normalized ``scheme://netloc`` URL for non-default hosts, or ``None``.
+        server_args: Forwarded CLI arguments checked for explicit ``--gh-host``.
+        enable_form_deferral: Whether ``mcp_apps_disable_form_deferral`` should be stripped.
+
+    Returns:
+        Sanitized environment dictionary for ``os.execve``.
+    """
+    child_env = dict(base_env)
+    _scrub_placeholder_tokens(child_env)
+    child_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = token
+
+    has_gh_host_flag = any(
+        item == "--gh-host" or item.startswith("--gh-host=")
+        for item in server_args
+        if item != "--"
+    )
+    if api_host_url is not None and not has_gh_host_flag:
+        child_env["GITHUB_HOST"] = api_host_url
+    elif api_host_url is None:
+        child_env.pop("GITHUB_HOST", None)
+
+    if enable_form_deferral and "GITHUB_FEATURES" in child_env:
+        remaining: list[str] = []
+        _append_csv_features(child_env["GITHUB_FEATURES"], remaining)
+        filtered = [f for f in remaining if f != DISABLE_FORM_DEFERRAL_FEATURE]
+        if filtered:
+            child_env["GITHUB_FEATURES"] = ",".join(filtered)
+        else:
+            child_env.pop("GITHUB_FEATURES", None)
+
+    return child_env
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -475,8 +815,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--hostname",
         type=str,
-        default=os.environ.get("GITHUB_HOST", DEFAULT_GITHUB_HOSTNAME),
-        help="GitHub hostname for gh auth token lookup (default: github.com).",
+        default=None,
+        help="GitHub hostname or URL for gh auth token lookup (defaults to GITHUB_HOST or github.com).",
     )
     parser.add_argument(
         "--print-binary-path",
@@ -496,34 +836,41 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Ensure the pinned ``github-mcp-server`` binary is cached and ``exec`` stdio mode.
 
     Args:
-        argv: Optional CLI argument list (defaults to ``sys.argv[1:]``).
+        argv: Optional CLI argument sequence (defaults to ``sys.argv[1:]``).
 
     Returns:
         Process exit status when ``--print-binary-path`` is used or an error occurs.
     """
-    args = build_parser().parse_args(argv)
+    args = build_parser().parse_args(list(argv) if argv is not None else None)
     try:
         binary_path = ensure_binary(args.cache_dir)
         if args.print_binary_path:
             sys.stdout.write(f"{binary_path}\n")
             return 0
 
-        token = resolve_github_token(hostname=str(args.hostname))
+        bare_host, api_host_url = normalize_github_host(args.hostname, os.environ)
+        token = resolve_github_token(hostname=bare_host)
     except LauncherError as exc:
         sys.stderr.write(f"{exc}\n")
         return 1
 
-    child_env = os.environ.copy()
-    _scrub_placeholder_tokens(child_env)
-    child_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = token
+    enable_deferral = bool(args.enable_form_deferral)
+    child_env = _prepare_child_env(
+        os.environ,
+        token,
+        api_host_url,
+        args.server_args,
+        enable_form_deferral=enable_deferral,
+    )
     exec_argv = build_stdio_argv(
         binary_path,
         args.server_args,
-        enable_form_deferral=bool(args.enable_form_deferral),
+        enable_form_deferral=enable_deferral,
+        env=child_env,
     )
     os.execve(str(binary_path), exec_argv, child_env)  # ruff: ignore[start-process-with-no-shell] - replaces process with SHA-256-verified static binary
 

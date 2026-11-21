@@ -53,7 +53,7 @@ Both resource owners live on `github.com` and authenticate seamlessly through a 
 
 | Dimension | `Panoptic-Huginn/*` (GHEC Enterprise Org — Owner) | `jamielapointe/*` (Personal Account — Owner) |
 | :--- | :--- | :--- |
-| **MCP / API `owner` Param** | Always `"Panoptic-Huginn"` (never pass `get_me.login`) | `"jamielapointe"` |
+| **MCP / API `owner` vs. `org` Param** | Repo-level calls: `owner: "Panoptic-Huginn"` + `repo` (never pass `get_me.login`); org-level `repository_ruleset_read` / `create_repository_ruleset` / `custom_properties_*` (`level: "organization"`) and `get_team_members`: `org: "Panoptic-Huginn"` | `"jamielapointe"` (`owner`) |
 | **Ruleset Hierarchy** | **Org-level** (`level: "organization"`, inherited across repos) **+** **Repo-level** (`level: "repository"`) | **Repo-level only** (`level: "repository"`; `[]` or `404` when none configured) |
 | **Custom Properties** | **Supported** (`custom_properties_read`, `custom_properties_write`) | Not available on personal user accounts |
 | **Issue Types & Sub-Issues** | Org Issue Types (`Bug`, `Feature`, `Task`, etc.) + Sub-Issues | Sub-Issues supported; call `list_issue_types` before setting `type` |
@@ -81,12 +81,12 @@ gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,
 
 ## 3. Tool Routing: `mimir-agent-kit_github` MCP vs. `gh` CLI
 
-Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, launched with `--features=mcp_apps_disable_form_deferral` so `issue_write` executes directly) as primary for typed JSON operations, paired with **`gh` / `gh api`** where GitHub's REST/GraphQL surface extends beyond MCP's schema. Note: in native **`/swarm`**, only the **Coordinator** receives `call_mcp_tool` (swarm workers lack MCP server access and must ask `@coordinator` to execute `mimir-agent-kit_github` calls or use permitted `gh` read-only queries); for `define_subagent`, set `EnableMCPTools: true`.
+Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, launched with `--features=mcp_apps_disable_form_deferral` so `issue_write` executes directly) as primary for typed JSON operations, paired with **`gh` / `gh api`** where GitHub's REST/GraphQL surface extends beyond MCP's schema. Note: in native **`/swarm`**, only the **Coordinator** receives `call_mcp_tool` (swarm workers lack MCP server access and must ask `@coordinator` to execute `mimir-agent-kit_github` calls or use permitted `gh` read-only queries); for subagents, use `invoke_subagent(TypeName: "self")` or set `EnableMCPTools: true` on `define_subagent`.
 
 | Domain | Primary (`mimir-agent-kit_github`) | `gh` / `gh api` Partner |
 | :--- | :--- | :--- |
 | **Repo Discovery & Provisioning** | `search_repositories`, `create_repository`, `get_repository_tree`, `list_branches`, `list_tags` | `gh api -X PATCH "repos/<o>/<r>"` to enforce Squash-only merge, `delete_branch_on_merge`, description/topics (see [references/ghec-governance-and-recipes.md](references/ghec-governance-and-recipes.md)) |
-| **Rulesets & Custom Properties** | `repository_ruleset_read`, `create_repository_ruleset`, `custom_properties_read`, `custom_properties_write` | `gh api "orgs/Panoptic-Huginn/rulesets"` (create/update org-wide GHEC rulesets) |
+| **Rulesets & Custom Properties** | `repository_ruleset_read`, `create_repository_ruleset` (repo/org/enterprise creation), `custom_properties_read`, `custom_properties_write` | `gh api -X PUT/DELETE "orgs/Panoptic-Huginn/rulesets/<id>"` or `"repos/<o>/<r>/rulesets/<id>"` (update/delete existing rulesets) |
 | **Issues, Sub-Issues & Labels** | `search_issues`, `list_issues`, `issue_read`, `issue_write`, `sub_issue_write`, `list_issue_types`, `list_label`, `label_write` | `gh label clone <src-repo> -R <dst-repo>` to clone standard label taxonomy across repos |
 | **GitHub Projects v2** | `projects_list`, `projects_get`, `projects_write` | `gh project list/view/item-add --owner <owner>` |
 | **Security & Supply-Chain** | `list_dependabot_alerts`, `get_dependabot_alert`, `list_code_scanning_alerts`, `get_code_scanning_alert`, `list_secret_scanning_alerts`, `list_repository_security_advisories` | `gh api "/orgs/Panoptic-Huginn/security-advisories"` (excluded from MCP to stay `<= 64` chars) |
@@ -100,7 +100,7 @@ Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, launched with `--
 ### Runbook A: Provisioning & Hardening a New Repository
 
 1. Confirm target owner (`Panoptic-Huginn` vs. `jamielapointe`), repository name (kebab-case), visibility (`private` by default unless the user explicitly specifies `public`), and license/gitignore expectations.
-2. Create the repository via `create_repository` (note: `create_repository` creates under the authenticated user unless an organization parameter is supported in schema; inspect `~/.gemini/antigravity/mcp/mimir-agent-kit_github/create_repository.json` first, and use `gh repo create "Panoptic-Huginn/<repo>" --private --description "..."` when creating directly inside `Panoptic-Huginn`).
+2. Create the repository via `create_repository` (`name: "<repo>"`, `organization: "Panoptic-Huginn"` when creating inside the GHEC org or omit for personal `jamielapointe`, `private: true` by default, `description`, `autoInit`; use `gh repo create "Panoptic-Huginn/<repo>" --private ...` only when passing `--license` or `--gitignore` templates at creation time).
 3. Apply standard repository merge & hygiene settings via `gh api -X PATCH "repos/<owner>/<repo>"` (Squash-Merge only with `PR_TITLE` + `PR_BODY`, `allow_merge_commit: false`, `allow_rebase_merge: false`, `delete_branch_on_merge: true`, `allow_auto_merge: false` — exact payload in [references/ghec-governance-and-recipes.md](references/ghec-governance-and-recipes.md)).
 4. Verify inherited org rulesets (`repository_ruleset_read` with `level: "repository"`, `method: "get_rules_for_branch"`, `branch: "main"`). If the repo is under `jamielapointe` (or needs repo-specific status checks), apply the canonical `main` branch ruleset via `create_repository_ruleset` (`required_linear_history`, `pull_request` with `required_review_thread_resolution: true`, `non_fast_forward`, `deletion`).
 5. On `Panoptic-Huginn` repositories, populate any applicable Enterprise Custom Properties via `custom_properties_read` / `custom_properties_write`.
@@ -120,7 +120,7 @@ Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, launched with `--
 2. For each active repository, check:
    - **Dependabot Alerts:** `list_dependabot_alerts` (`state: "open"`)
    - **CodeQL / Code Scanning:** `list_code_scanning_alerts` (`state: "open"`)
-   - **Secret Scanning:** `list_secret_scanning_alerts` (`state: "open"`)
+   - **Secret Scanning:** `list_secret_scanning_alerts` (`state: "open"`, `hide_secret: true` — defaults to `false`, so always pass `true` to keep secret values out of transcripts)
    - **Renovate Dependency Dashboard & OpenSSF Scorecard:** `search_issues` (`"Dependency Dashboard"`) and `actions_list` (`list_workflow_runs` on `scorecard.yml` / `ci.yml`).
 3. Summarize findings prioritized by severity (`critical` -> `high` -> `medium` -> `low`) with clickable URLs. Do **not** dismiss security alerts without explicit user approval; if asked to patch a vulnerability in a repo, switch to **`/github-flow-lifecycle`**.
 

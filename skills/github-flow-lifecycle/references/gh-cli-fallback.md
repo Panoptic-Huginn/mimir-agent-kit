@@ -176,12 +176,14 @@ mutation($threadId: ID!, $body: String!) {
 
 ## 3. Replacements for Excluded MCP Tools (64-Char Cap)
 
-Two upstream tools are excluded in `mcp_config.json` via `GITHUB_EXCLUDE_TOOLS` because `mcp_mimir-agent-kit_github_<tool>` exceeds Antigravity's 64-character identifier limit. Invoke them with `gh api` when needed:
+`mcp_config.json` excludes the three forbidden remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files` — always use local Git + CI) plus two upstream tools via `GITHUB_EXCLUDE_TOOLS` whose `mcp_mimir-agent-kit_github_<tool>` names exceed Antigravity's 64-character identifier limit. Invoke those two with `gh api` when needed:
 
 ```bash
 # Replacement for list_org_repository_security_advisories
 gh api "/orgs/${OWNER}/security-advisories"
 
-# Replacement for manage_repository_notification_subscription
-gh api -X PUT "/repos/${OWNER}/${REPO}/notifications" -F ignored=false
+# Replacement for manage_repository_notification_subscription (watch / ignore / unsubscribe)
+gh api -X PUT "/repos/${OWNER}/${REPO}/subscription" -F subscribed=true -F ignored=false
+gh api -X PUT "/repos/${OWNER}/${REPO}/subscription" -F subscribed=false -F ignored=true
+gh api -X DELETE "/repos/${OWNER}/${REPO}/subscription"
 ```

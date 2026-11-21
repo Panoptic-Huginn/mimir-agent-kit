@@ -32,7 +32,7 @@ EOF
 
 ### A. Repo-Level Ruleset (`jamielapointe/*` or Repo-Specific Status Checks)
 
-Can be created via `mimir-agent-kit_github` (`create_repository_ruleset`) or `gh api`:
+Can be created via `mimir-agent-kit_github` (`create_repository_ruleset` — `additionalProperties: false`, requires `level: "repository"`, `owner`, `repo` alongside `name`, `enforcement`, `rules`; also supports `level: "organization"` with `org: "Panoptic-Huginn"`) or `gh api`:
 
 ```bash
 gh api -X POST "repos/${OWNER}/${REPO}/rulesets" --input - <<'EOF'
@@ -126,6 +126,8 @@ gh label clone Panoptic-Huginn/mimir-agent-kit -R "${OWNER}/${NEW_REPO}" --force
 # 1. Organization-wide security advisories (replaces list_org_repository_security_advisories)
 gh api "/orgs/Panoptic-Huginn/security-advisories"
 
-# 2. Repository notification subscription state (replaces manage_repository_notification_subscription)
-gh api -X PUT "/repos/${OWNER}/${REPO}/notifications" -F subscribed=true -F ignored=false
+# 2. Repository notification subscription state (replaces manage_repository_notification_subscription: watch / ignore / unsubscribe)
+gh api -X PUT "/repos/${OWNER}/${REPO}/subscription" -F subscribed=true -F ignored=false
+gh api -X PUT "/repos/${OWNER}/${REPO}/subscription" -F subscribed=false -F ignored=true
+gh api -X DELETE "/repos/${OWNER}/${REPO}/subscription"
 ```
