@@ -17,8 +17,8 @@ gh auth status
 # 2. If logged out or token expired, authenticate interactively once per machine
 gh auth login --hostname github.com --git-protocol ssh
 
-# 3. Recommended one-time scope upgrade for GHEC Org Owner + Actions triggers + Projects
-gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications
+# 3. Recommended one-time scope upgrade for GHEC Org Owner + Security + Actions + Projects
+gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications,security_events
 
 # 4. Verify cached native github-mcp-server binary (zero Docker required)
 uv run --isolated --no-project --python ">=3.15" python scripts/github_mcp_launcher.py --print-binary-path
@@ -176,12 +176,14 @@ mutation($threadId: ID!, $body: String!) {
 
 ## 3. Replacements for Excluded MCP Tools (64-Char Cap)
 
-Two upstream tools are excluded in `mcp_config.json` via `GITHUB_EXCLUDE_TOOLS` because `mcp_mimir-agent-kit_github_<tool>` exceeds Antigravity's 64-character identifier limit. Invoke them with `gh api` when needed:
+`mcp_config.json` excludes the three forbidden remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files` — always use local Git + CI) plus two upstream tools via `GITHUB_EXCLUDE_TOOLS` whose `mcp_mimir-agent-kit_github_<tool>` names exceed Antigravity's 64-character identifier limit. Invoke those two with `gh api` when needed:
 
 ```bash
 # Replacement for list_org_repository_security_advisories
 gh api "/orgs/${OWNER}/security-advisories"
 
-# Replacement for manage_repository_notification_subscription
-gh api -X PUT "/repos/${OWNER}/${REPO}/notifications" -F ignored=false
+# Replacement for manage_repository_notification_subscription (watch / ignore / unsubscribe)
+gh api -X PUT "/repos/${OWNER}/${REPO}/subscription" -F subscribed=true -F ignored=false
+gh api -X PUT "/repos/${OWNER}/${REPO}/subscription" -F subscribed=false -F ignored=true
+gh api -X DELETE "/repos/${OWNER}/${REPO}/subscription"
 ```

@@ -67,7 +67,7 @@ flowchart TD
 
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
-| `github` | `uv run --isolated --no-project ... scripts/github_mcp_launcher.py --cache-dir ${PLUGIN_DATA}` | SHA-256-verified native `github-mcp-server` `v2.2.0` binary (zero Docker) for Issues, PRs, Rulesets, Projects, Security & Logs across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
+| `github` | `uv run --isolated --no-project ... scripts/github_mcp_launcher.py --cache-dir ${PLUGIN_DATA} -- --features=mcp_apps_disable_form_deferral` | SHA-256-verified native `github-mcp-server` `v2.2.0` binary (zero Docker) for Issues, PRs, Rulesets, Projects, Security & Logs across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
 | `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
 | `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.2` | PubMed / Europe PMC biomedical & life-science literature search | None |
@@ -77,7 +77,7 @@ flowchart TD
 | `time` | `uvx mcp-server-time==2026.11.11` | Timezone-aware clock and timestamp conversion | None |
 
 > [!IMPORTANT]
-> Antigravity registers plugin tools as `mcp_<plugin>_<server>_<tool>` and drops any identifier longer than 64 characters (`^[a-zA-Z0-9_-]{1,64}$`). With the 20-character prefix `mcp_mimir-agent-kit_`, server keys are kept short (`github`, `workspace`, `zotero`), and GitHub tools that still don't fit are listed in `GITHUB_EXCLUDE_TOOLS`. After adding a server or bumping a pinned version, refresh the tool inventory with `uv run python scripts/ci/snapshot_mcp_tools.py`. Export the server's `${VAR}` secrets first. The script writes `scripts/validation/mcp_tool_manifest.json`, which `validate_agentic_settings.py --strict` (`MCP008`) and `pytest` enforce offline in CI.
+> Antigravity registers plugin tools as `mcp_<plugin>_<server>_<tool>` and drops any identifier longer than 64 characters (`^[a-zA-Z0-9_-]{1,64}$`). With the 20-character prefix `mcp_mimir-agent-kit_`, server keys are kept short (`github`, `workspace`, `zotero`), and `GITHUB_EXCLUDE_TOOLS` excludes the two GitHub tools that still exceed 64 characters alongside the three forbidden remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files`). After adding a server or bumping a pinned version, refresh the tool inventory with `uv run python scripts/ci/snapshot_mcp_tools.py`. Export the server's `${VAR}` secrets first. The script writes `scripts/validation/mcp_tool_manifest.json`, which `validate_agentic_settings.py --strict` (`MCP008`) and `pytest` enforce offline in CI.
 
 ---
 
@@ -90,7 +90,7 @@ flowchart TD
    - **macOS**: Encrypted inside **macOS Login Keychain** (`Keychain Access.app`).
    - **Headless Linux Fallback**: Only if D-Bus Secret Service is absent does Antigravity fall back to a `0600` local credential store under `~/.gemini/`.
 2. **In-Memory Runtime Injection**: Whenever Antigravity spawns an MCP child process (`uvx`, `uv`, `npx`), the Language Server reads the secret from the OS Keyring and injects it directly into the child process's environment in memory. Your Git working tree (`~/development/mimir-agent-kit`) stays 100% clean across `git status` and `git pull`.
-3. **GitHub uses a Docker-free SHA-256-pinned native binary + `gh` keyring token**: `scripts/github_mcp_launcher.py` downloads the official `github/github-mcp-server` `v2.2.0` release archive once into `${PLUGIN_DATA}`, verifies its 64-character SHA-256 digest in memory before extraction, reads `gh auth token --hostname github.com` from your OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS), and `exec`s `github-mcp-server stdio` directly with `GITHUB_PERSONAL_ACCESS_TOKEN` in memory (never in `argv` or on disk). One `gh` OAuth login covers both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`), with **zero Docker daemon required** on macOS or Linux.
+3. **GitHub uses a Docker-free SHA-256-pinned native binary + `gh` keyring token**: `scripts/github_mcp_launcher.py` downloads the official `github/github-mcp-server` `v2.2.0` release archive once into `${PLUGIN_DATA}`, verifies its 64-character SHA-256 digest in memory before extraction, reads `gh auth token --hostname github.com` from your OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS), and `exec`s `github-mcp-server stdio --features=mcp_apps_disable_form_deferral` directly with `GITHUB_PERSONAL_ACCESS_TOKEN` in memory (never in `argv` or on disk). Disabling MCP Apps form deferral ensures `issue_write`, `create_pull_request`, and `update_pull_request` execute directly over lazy-loaded `call_mcp_tool` in Antigravity `2.34+` while preserving read-only MCP App result views, and `GITHUB_EXCLUDE_TOOLS` enforces server-level exclusion of remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files`) alongside the two >64-character upstream tool names. One `gh` OAuth login covers both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`), with **zero Docker daemon required** on macOS or Linux.
 4. **Safe First-Boot Gating**: Because `mcp_config.json` declares `variables`, Antigravity automatically keeps `mimir-agent-kit` in a **Configure / Setup Required** state on a newly cloned machine until you fill in its variables once. (If enabled beforehand, `scripts/academic_mcp_server.py` safely falls back to `~/.local/share/mimir-agent-kit/academic_corpus.db`.)
 
 ---
@@ -103,7 +103,7 @@ Ensure these CLI runtimes are installed and on `PATH` on both Ubuntu 24.04 and m
 
 - **`git`** and **`uv`** (`>= 0.10`, provides both `uv` and `uvx`) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Node.js / `npx`** (`>= 22`, used by `europe-pmc`)
-- **GitHub CLI** (`gh`, authenticated once per machine with `gh auth login --hostname github.com --git-protocol ssh`). Recommended full-capability scope refresh for `Panoptic-Huginn` Enterprise Organization Owner + Actions + Projects: `gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications`.
+- **GitHub CLI** (`gh`, authenticated once per machine with `gh auth login --hostname github.com --git-protocol ssh`). Recommended full-capability scope refresh for `Panoptic-Huginn` Enterprise Organization Owner + Security + Actions + Projects: `gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,project,notifications,security_events`.
 
 ### Step 1: Clone & Symlink into Antigravity's Global Plugins Directory
 

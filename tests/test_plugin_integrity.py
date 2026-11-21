@@ -104,7 +104,7 @@ def test_plugin_manifest_and_workspace_discovery_configs() -> None:
 
 
 def test_all_custom_skills_valid_and_within_plugin_byte_limit() -> None:
-    """Ensure all 7 custom skills match directory names, stay under 24 KB body cap, and have valid links."""
+    """Ensure all 11 custom skills match directory names, stay under 24 KB body cap, and have valid links."""
     skills_dir = REPO_ROOT / "skills"
     discovered = {p.name for p in skills_dir.iterdir() if p.is_dir()}
     assert discovered == EXPECTED_SKILLS
@@ -164,6 +164,29 @@ def test_mcp_tool_manifest_covers_servers_and_fits_namespace_budget() -> None:
             assert len(identifier) <= MAX_NAMESPACED_TOOL_IDENTIFIER, (
                 f"{identifier} is {len(identifier)} chars (> 64); Antigravity will drop it"
             )
+
+    forbidden_remote_file_tools = {
+        "create_or_update_file",
+        "delete_file",
+        "push_files",
+    }
+    oversized_github_tools = {
+        "list_org_repository_security_advisories",
+        "manage_repository_notification_subscription",
+    }
+    github_spec = servers["github"]
+    assert "--features=mcp_apps_disable_form_deferral" in github_spec["args"], (
+        "github MCP server must pass --features=mcp_apps_disable_form_deferral"
+    )
+    excluded_github_tools = {
+        item.strip()
+        for item in github_spec["env"]["GITHUB_EXCLUDE_TOOLS"].split(",")
+        if item.strip()
+    }
+    assert forbidden_remote_file_tools <= excluded_github_tools
+    assert oversized_github_tools <= excluded_github_tools
+    assert forbidden_remote_file_tools.isdisjoint(manifest["github"])
+    assert oversized_github_tools.isdisjoint(manifest["github"])
 
 
 def test_mcp_config_variables_and_secret_hygiene() -> None:
