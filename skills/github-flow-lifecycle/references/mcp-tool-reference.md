@@ -1,12 +1,32 @@
 # `github-mcp-server` (`mimir-agent-kit_github`) Reference (`v2.2.0` Native Binary)
 
-In Google Antigravity `2.34+`, all 86 exposed tools on `mimir-agent-kit_github` are **lazy-loaded** and invoked via `call_mcp_tool` with `ServerName: "mimir-agent-kit_github"` (or `"github"` if registered globally without plugin prefixing). Always inspect `~/.gemini/antigravity/mcp/mimir-agent-kit_github/<tool>.json` before first invocation so nested object and enum parameters match the exact JSON schema.
+In Google Antigravity `2.34.0+`, `mimir-agent-kit_github` (`github-mcp-server` `v2.2.0` with `GITHUB_TOOLSETS=all` minus five excluded tools) exposes **`87` `tools/list` entries** (`scripts/validation/mcp_tool_manifest.json` / `GetMcpServerStates.toolCount`, including `delete_repository` and the app-only `ui_get` helper) and **`86` model-visible lazy-loaded tools** written as `.json` schema files under `~/.gemini/antigravity/mcp/mimir-agent-kit_github/` (Antigravity omits app-only `ui_get.json` and writes `instructions.md`). All `86` model-visible tools are invoked via `call_mcp_tool` with `ServerName: "mimir-agent-kit_github"` (or `"github"` if registered globally without plugin prefixing). Always inspect `~/.gemini/antigravity/mcp/mimir-agent-kit_github/<tool>.json` before first invocation so nested object and enum parameters match the exact JSON schema.
 
-`scripts/github_mcp_launcher.py` bootstraps the official SHA-256-pinned `github/github-mcp-server` `v2.2.0` static binary into `${PLUGIN_DATA}` on both Ubuntu Linux and macOS (**zero Docker requirement**), scrubs unexpanded `${VAR}` token placeholders, injects `gh auth token --hostname github.com` into `GITHUB_PERSONAL_ACCESS_TOKEN` in memory, and `exec`s `github-mcp-server stdio --features=mcp_apps_disable_form_deferral`. Disabling MCP Apps form deferral ensures `issue_write`, `create_pull_request`, and `update_pull_request` execute directly via the GitHub API when Antigravity `2.34+` advertises `io.modelcontextprotocol/ui`, rather than aborting with an unrendered interactive form error over `call_mcp_tool`.
+`scripts/github_mcp_launcher.py` bootstraps the official SHA-256-pinned `github/github-mcp-server` `v2.2.0` static binary into `${PLUGIN_DATA}` on both Ubuntu Linux and macOS (**zero Docker requirement**), scrubs unexpanded `${VAR}` token placeholders, injects `gh auth token --hostname github.com` into `GITHUB_PERSONAL_ACCESS_TOKEN` in memory, sets `GITHUB_FEATURES=mcp_apps_disable_form_deferral` (merged with any existing `GITHUB_FEATURES`), and `exec`s `github-mcp-server stdio --features=mcp_apps_disable_form_deferral` (dual CLI + env feature defense; `build_stdio_argv()` merges both because upstream Cobra/Viper `--features` overrides `GITHUB_FEATURES` when unmerged).
 
 ---
 
-## 1. Dual-Owner Routing, Multi-Agent Context & Keyring Scopes
+## 1. MCP Apps Anti-Hallucination & `--refresh-live` Self-Healing (`Antigravity 2.34.0+`)
+
+1. **Why NO Interactive Form EVER Renders Over `call_mcp_tool`:**
+   - Antigravity App `2.34.0+` advertises `capabilities.extensions["io.modelcontextprotocol/ui"]` (`text/html;profile=mcp-app`) during `initialize`, which causes `github-mcp-server` `v2.2.0`'s `shouldDeferToForm()` to evaluate `clientSupportsUI() == true` on `issue_write`, `create_pull_request`, and `update_pull_request` whenever `mcp_apps_disable_form_deferral` is absent.
+   - However, because `mimir-agent-kit_github` is **lazy-loaded** (`~/.gemini/antigravity/mcp/mimir-agent-kit_github/*.json` strips `_meta.ui` and tools execute through the generic `call_mcp_tool` wrapper, which mounts no `ui://` `resourceUri` card) **and** `github-mcp-server` sets `isError: true` on deferred stubs (causing `go-sdk` to drop `structuredContent` and `call_mcp_tool` to fail the step), **no interactive MCP App form is EVER rendered in chat**.
+2. **Strict Anti-Hallucination Prohibition:**
+   - Agents MUST **NEVER** claim an interactive PR or Issue form was shown/rendered in chat and MUST **NEVER** ask the user to review or click "Submit" if `issue_write`, `create_pull_request`, or `update_pull_request` ever returns `"An interactive form has been shown to the user..."`.
+3. **Mandatory Autonomous `--refresh-live` Self-Healing:**
+   - Receiving `"An interactive form has been shown to the user..."` proves the running `mimir-agent-kit_github` `stdio` process predates a `git pull` / `mcp_config.json` update (since `github_mcp_launcher.py` `os.execve`s into `github-mcp-server` at spawn and evaluates feature flags once at startup).
+   - Instead of halting or mentioning a form, **immediately** hot-reload the live MCP server:
+
+     ```bash
+     uv run --isolated --no-project --python '>=3.15' python ~/.gemini/config/plugins/mimir-agent-kit/scripts/github_mcp_launcher.py --refresh-live
+     ```
+
+     (or workspace `${PLUGIN_ROOT}/scripts/github_mcp_launcher.py --refresh-live`, which `POST`s `RefreshMcpServers` on loopback `${ANTIGRAVITY_LS_ADDRESS}`, polls `GetMcpServerStates` until `MCP_SERVER_STATUS_READY` with `mcp_apps_disable_form_deferral` active, and regenerates `~/.gemini/antigravity/mcp/mimir-agent-kit_github/*.json`), then **immediately retry** the `mimir-agent-kit_github` MCP call!
+   - **Separate `antigravity-ide` (`agy --hub`) Windows:** Each open Antigravity IDE window runs its own `agy --hub` Language Server whose CSRF token is not exported to other processes. If `ANTIGRAVITY_LS_ADDRESS` is unavailable in that environment, fall back to permitted `gh` CLI (`gh issue create/edit` or `gh pr create/edit` with `--body-file - <<'EOF'`) or ask the user to run **Developer: Reload Window** (or restart `mimir-agent-kit_github` under **MCP Servers**) — **never** mention a Submit button.
+
+---
+
+## 2. Dual-Owner Routing, Multi-Agent Context & Keyring Scopes
 
 1. **Always distinguish repository `owner` from `get_me.login`:**
    - Parse `owner` and `repo` from `git remote get-url origin`.
@@ -28,7 +48,7 @@ In Google Antigravity `2.34+`, all 86 exposed tools on `mimir-agent-kit_github` 
 
 ---
 
-## 2. Exact `v2.2.0` Parameter Reference & Traps
+## 3. Exact `v2.2.0` Parameter Reference & Traps
 
 | Lifecycle Step | Tool (`mimir-agent-kit_github`) | Exact Parameters & Edge Cases |
 | :--- | :--- | :--- |
@@ -36,9 +56,9 @@ In Google Antigravity `2.34+`, all 86 exposed tools on `mimir-agent-kit_github` 
 | **Branch rules** | `repository_ruleset_read` | `level: "repository"`, `method: "get_rules_for_branch"`, `owner`, `repo`, `branch: "main"`. (`includes_parents: true` defaults on `get`/`list`.) |
 | **Issue search / list** | `search_issues` / `list_issues` | `search_issues`: pass `owner`, `repo`, `query: "is:open <keywords>"` (scopes `is:issue`, **not** `is:open`), `perPage: 10`, `fields` (omit `body`, `reactions`, `field_values`), and `sort`/`order` params (never `sort:` in `query`). `list_issues`: requires uppercase `state: "OPEN" \| "CLOSED"` and restricts `fields` to 11 items (`number`, `title`, `body`, `state`, `user`, `labels`, `assignees`, `comments`, `created_at`, `updated_at`, `field_values` — **no `"html_url"` or `"reactions"`**). |
 | **Issue read** | `issue_read` | `method: "get" \| "get_comments" \| "get_sub_issues" \| "get_parent" \| "get_labels"`, `owner`, `repo`, `issue_number`. |
-| **Issue write** | `issue_write` | `method: "create" \| "update"`, `owner`, `repo`, optional `type` (only if enabled), `labels` (validated against `list_label`), `state_reason` when closing. |
+| **Issue write** | `issue_write` | `method: "create" \| "update"`, `owner`, `repo`, optional `type` (only if enabled), `labels` (validated against `list_label`), `state_reason` when closing. Executes directly; if a stale server returns `"An interactive form has been shown..."`, run `--refresh-live` and retry immediately (never mention a Submit button). |
 | **List PRs** | `list_pull_requests` | `owner`, `repo`, `head: "<head-owner>:<branch-name>"`, `state: "open"`. Pass `fields` (e.g., `["number","title","state","html_url","head","mergeable_state"]`, omitting `"body"`) to cut response size. Use `search_pull_requests` instead when filtering by author. |
-| **Create PR** | `create_pull_request` | `owner`, `repo`, `title`, `head: "<branch-name>"` (bare branch for same-repo PRs; `"<fork-owner>:<branch>"` for cross-fork PRs), `base: "main"`, `body`, `draft`. |
+| **Create / update PR** | `create_pull_request` / `update_pull_request` | `create_pull_request`: `owner`, `repo`, `title`, `head: "<branch-name>"` (bare branch for same-repo PRs; `"<fork-owner>:<branch>"` for cross-fork PRs), `base: "main"`, `body`, `draft`. `update_pull_request`: `owner`, `repo`, `pullNumber`, updated fields. Both execute directly; self-heal via `--refresh-live` + retry if a stale server returns `"An interactive form has been shown..."`. |
 | **Read PR / checks / threads** | `pull_request_read` | `method: "get" \| "get_diff" \| "get_status" \| "get_files" \| "get_commits" \| "get_review_comments" \| "get_reviews" \| "get_comments" \| "get_check_runs"`. Note: `get_review_comments` uses cursor pagination (`perPage`, `after`); others use `page`, `perPage`. |
 | **Reply to thread** | `add_reply_to_pull_request_comment` | Reply on an existing review comment before resolving its thread. **Schema Trap:** Top-level `required` lists only `owner`, `repo`, `commentId`, yet `pullNumber` (`number`) is mandatory whenever `body` is set, and `commentId` must be the numeric comment ID (`number`, from `#discussion_r...`), **never** the GraphQL `PRRT_...` `threadId`. |
 | **Resolve thread** | `pull_request_review_write` | `method: "resolve_thread"`, `threadId: "PRRT_..."`. **Schema Trap:** JSON schema marks `owner`, `repo`, `pullNumber`, and `method` as `required`, even though server ignores the first three for `resolve_thread` — **always include all four**. |
@@ -48,9 +68,9 @@ In Google Antigravity `2.34+`, all 86 exposed tools on `mimir-agent-kit_github` 
 
 ---
 
-## 3. Excluded Tools Notice (`GITHUB_EXCLUDE_TOOLS`)
+## 4. Excluded Tools Notice (`GITHUB_EXCLUDE_TOOLS`)
 
-`mcp_config.json` excludes five upstream tools via `GITHUB_EXCLUDE_TOOLS`:
+`mcp_config.json` excludes five upstream tools via `GITHUB_EXCLUDE_TOOLS`, leaving `87` `tools/list` entries in `scripts/validation/mcp_tool_manifest.json` (`86` model-visible `.json` schemas including `delete_repository`, which remains gated on explicit prior human confirmation per `rules/AGENTS.md`, plus app-only `ui_get`):
 
 1. **64-character Antigravity identifier cap** (`^[a-zA-Z0-9_-]{1,64}$` — use `gh api` equivalents in [gh-cli-fallback.md](./gh-cli-fallback.md#3-replacements-for-excluded-mcp-tools-64-char-cap)):
    - `list_org_repository_security_advisories`

@@ -61,13 +61,13 @@ flowchart TD
 
 ### 2. Always-On Rules
 
-- **`rules/AGENTS.md`**: Always-on Git & GitHub governance mandate enforcing dual-owner routing (`jamielapointe` vs. `Panoptic-Huginn`), `github-mcp-server` remote operations, `/github-flow-lifecycle` code-delivery gates vs. `/github-ops` control-plane routing, destructive-action human consent, and human-only PR merges.
+- **`rules/AGENTS.md`**: Always-on Git & GitHub governance mandate enforcing dual-owner routing (`jamielapointe` vs. `Panoptic-Huginn`), `github-mcp-server` remote operations, strict MCP Apps no-form anti-hallucination & autonomous `--refresh-live` hot-reload self-healing, `/github-flow-lifecycle` code-delivery gates vs. `/github-ops` control-plane routing, destructive-action human consent, and human-only PR merges.
 
 ### 3. Portable Research & Developer MCP Suite (`mcp_config.json`)
 
 | MCP Server | Launcher | Purpose | OS Keyring Variables (`variables`) |
 | :--- | :--- | :--- | :--- |
-| `github` | `uv run --isolated --no-project ... scripts/github_mcp_launcher.py --cache-dir ${PLUGIN_DATA} -- --features=mcp_apps_disable_form_deferral` | SHA-256-verified native `github-mcp-server` `v2.2.0` binary (zero Docker) for Issues, PRs, Rulesets, Projects, Security & Logs across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
+| `github` | `uv run --isolated --no-project ... scripts/github_mcp_launcher.py --cache-dir ${PLUGIN_DATA} -- --features=mcp_apps_disable_form_deferral` (`GITHUB_FEATURES=mcp_apps_disable_form_deferral`) | SHA-256-verified native `github-mcp-server` `v2.2.0` binary (zero Docker; `86` model-visible tools / `87` `tools/list` entries including app-only `ui_get`) for Issues, PRs, Rulesets, Projects, Security & Logs across **all** owners your `gh` login can reach | None (token from `gh auth token` at launch) |
 | `academic-mcp` | `uv run --isolated --no-project --with mcp==2.3.0 ... scripts/academic_mcp_server.py` | Standalone zero-repo-dependency SQLite FTS5 BM25 paper/chunk search (Pixi-safe) | `ACADEMIC_CORPUS_DB_PATH` |
 | `arxiv` | `uvx mcp-arxiv==0.1.0` | arXiv preprint search and metadata retrieval | None |
 | `europe-pmc` | `npx -y @cyanheads/pubmed-mcp-server@2.12.2` | PubMed / Europe PMC biomedical & life-science literature search | None |
@@ -77,7 +77,7 @@ flowchart TD
 | `time` | `uvx mcp-server-time==2026.11.11` | Timezone-aware clock and timestamp conversion | None |
 
 > [!IMPORTANT]
-> Antigravity registers plugin tools as `mcp_<plugin>_<server>_<tool>` and drops any identifier longer than 64 characters (`^[a-zA-Z0-9_-]{1,64}$`). With the 20-character prefix `mcp_mimir-agent-kit_`, server keys are kept short (`github`, `workspace`, `zotero`), and `GITHUB_EXCLUDE_TOOLS` excludes the two GitHub tools that still exceed 64 characters alongside the three forbidden remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files`). After adding a server or bumping a pinned version, refresh the tool inventory with `uv run python scripts/ci/snapshot_mcp_tools.py`. Export the server's `${VAR}` secrets first. The script writes `scripts/validation/mcp_tool_manifest.json`, which `validate_agentic_settings.py --strict` (`MCP008`) and `pytest` enforce offline in CI.
+> Antigravity registers plugin tools as `mcp_<plugin>_<server>_<tool>` and drops any identifier longer than 64 characters (`^[a-zA-Z0-9_-]{1,64}$`). With the 20-character prefix `mcp_mimir-agent-kit_`, server keys are kept short (`github`, `workspace`, `zotero`), and `GITHUB_EXCLUDE_TOOLS` excludes the two GitHub tools that still exceed 64 characters alongside the three forbidden remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files`), leaving `87` `tools/list` entries on `github` `v2.2.0` (`86` model-visible `.json` schemas + app-only `ui_get`). After adding a server or bumping a pinned version, refresh the tool inventory with `uv run python scripts/ci/snapshot_mcp_tools.py`. Export the server's `${VAR}` secrets first. The script writes `scripts/validation/mcp_tool_manifest.json`, which `validate_agentic_settings.py --strict` (`MCP008`) and `pytest` enforce offline in CI.
 
 ---
 
@@ -90,7 +90,7 @@ flowchart TD
    - **macOS**: Encrypted inside **macOS Login Keychain** (`Keychain Access.app`).
    - **Headless Linux Fallback**: Only if D-Bus Secret Service is absent does Antigravity fall back to a `0600` local credential store under `~/.gemini/`.
 2. **In-Memory Runtime Injection**: Whenever Antigravity spawns an MCP child process (`uvx`, `uv`, `npx`), the Language Server reads the secret from the OS Keyring and injects it directly into the child process's environment in memory. Your Git working tree (`~/development/mimir-agent-kit`) stays 100% clean across `git status` and `git pull`.
-3. **GitHub uses a Docker-free SHA-256-pinned native binary + `gh` keyring token**: `scripts/github_mcp_launcher.py` downloads the official `github/github-mcp-server` `v2.2.0` release archive once into `${PLUGIN_DATA}`, verifies its 64-character SHA-256 digest in memory before extraction, reads `gh auth token --hostname github.com` from your OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS), and `exec`s `github-mcp-server stdio --features=mcp_apps_disable_form_deferral` directly with `GITHUB_PERSONAL_ACCESS_TOKEN` in memory (never in `argv` or on disk). Disabling MCP Apps form deferral ensures `issue_write`, `create_pull_request`, and `update_pull_request` execute directly over lazy-loaded `call_mcp_tool` in Antigravity `2.34+` while preserving read-only MCP App result views, and `GITHUB_EXCLUDE_TOOLS` enforces server-level exclusion of remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files`) alongside the two >64-character upstream tool names. One `gh` OAuth login covers both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`), with **zero Docker daemon required** on macOS or Linux.
+3. **GitHub uses a Docker-free SHA-256-pinned native binary + `gh` keyring token**: `scripts/github_mcp_launcher.py` downloads the official `github/github-mcp-server` `v2.2.0` release archive once into `${PLUGIN_DATA}`, verifies its 64-character SHA-256 digest in memory before extraction, reads `gh auth token --hostname github.com` from your OS keyring (`libsecret` on Ubuntu, Login Keychain on macOS), sets `GITHUB_FEATURES=mcp_apps_disable_form_deferral` (merged with any existing `GITHUB_FEATURES`), and `exec`s `github-mcp-server stdio --features=mcp_apps_disable_form_deferral` directly with `GITHUB_PERSONAL_ACCESS_TOKEN` in memory (never in `argv` or on disk). Dual CLI + `GITHUB_FEATURES` enforcement ensures `issue_write`, `create_pull_request`, and `update_pull_request` execute directly via the GitHub API when Antigravity `2.34.0+` advertises `io.modelcontextprotocol/ui` (since lazy-loaded `call_mcp_tool` + `isError: true` never renders interactive MCP App forms in chat), and `GITHUB_EXCLUDE_TOOLS` enforces server-level exclusion of remote file-mutation tools (`create_or_update_file`, `delete_file`, `push_files`) alongside the two >64-character upstream tool names. One `gh` OAuth login covers both your personal account (`jamielapointe`) and GitHub Enterprise Cloud organizations (`Panoptic-Huginn`), with **zero Docker daemon required** on macOS or Linux.
 4. **Safe First-Boot Gating**: Because `mcp_config.json` declares `variables`, Antigravity automatically keeps `mimir-agent-kit` in a **Configure / Setup Required** state on a newly cloned machine until you fill in its variables once. (If enabled beforehand, `scripts/academic_mcp_server.py` safely falls back to `~/.local/share/mimir-agent-kit/academic_corpus.db`.)
 
 ---
@@ -193,25 +193,39 @@ git commit -m "chore(agents): attach mimir-agent-kit plugin submodule"
 
 ## Day-to-Day Sync & Contribution Workflow
 
-### Pulling Updates on Ubuntu 24.04 or macOS
+### Pulling Updates & Hot-Reloading MCP Servers on Ubuntu 24.04 or macOS
 
-Because `~/.gemini/config/plugins/mimir-agent-kit` is a symlink to `~/development/mimir-agent-kit`, pulling `main` updates every skill, rule, hook, and MCP definition in place:
+Because `~/.gemini/config/plugins/mimir-agent-kit` is a symlink to `~/development/mimir-agent-kit`, pulling `main` updates every skill, rule, hook, and MCP definition on disk in place:
 
 ```bash
 git -C ~/development/mimir-agent-kit pull --ff-only origin main
 ```
 
-*(Restart Antigravity only if `plugin.json`, `mcp_config.json`, or newly added skill directories changed; edits to existing `SKILL.md` bodies apply immediately.)*
+Edits to existing `SKILL.md` and `rules/AGENTS.md` files take effect immediately, **whereas already-running `stdio` MCP child processes** (such as `mimir-agent-kit_github`, which `exec`s into the Go `github-mcp-server` binary at spawn) **persist in memory across `git pull`** with their startup flags, environment variables (`GITHUB_FEATURES`, `GITHUB_EXCLUDE_TOOLS`), and cached tool schemas (`~/.gemini/antigravity/mcp/mimir-agent-kit_github/*.json`). After any update that modifies `mcp_config.json` or `scripts/github_mcp_launcher.py`, reload `mimir-agent-kit_github`:
+
+- **Antigravity Desktop App** (inside any agent session or integrated terminal where `ANTIGRAVITY_LS_ADDRESS` and `ANTIGRAVITY_CSRF_TOKEN` are set): hot-reload live without restarting the app:
+
+  ```bash
+  uv run --isolated --no-project --python '>=3.15' python ~/.gemini/config/plugins/mimir-agent-kit/scripts/github_mcp_launcher.py --refresh-live
+  ```
+
+  This calls `RefreshMcpServers` on the loopback Language Server (`--server-name mimir-agent-kit_github` by default), verifies `MCP_SERVER_STATUS_READY` with `mcp_apps_disable_form_deferral` active (`toolCount=87`: `86` model-visible tools + app-only `ui_get`), and regenerates `~/.gemini/antigravity/mcp/mimir-agent-kit_github/*.json`.
+- **Antigravity IDE (`antigravity-ide` / `agy --hub` windows)**: each open IDE window runs an isolated `agy --hub` Language Server instance, so run **Developer: Reload Window** from the Command Palette (or click **Restart** on `mimir-agent-kit_github` under **Additional Options (`...`) > MCP Servers**) in each open IDE window.
+- **Full App Restart**: required only if `plugin.json` metadata or newly added skill directory names changed.
 
 ### Local CI & Validation Gate
 
-Before committing any change on a feature branch (`<type>/<issue-number>-<slug>` per `/github-flow-lifecycle`), run the full local verification gate:
+Before committing any change on a feature branch (`<type>/<issue-number>-<slug>` per `/github-flow-lifecycle`), run the full local verification gate (`./scripts/ci/run_local_ci.sh` plus `rumdl` across edited skills):
 
 ```bash
 # 1. Validate strict Antigravity plugin schema, hooks, MCP variables & 24 KB skill body limits
 agy plugin validate .
 
-# 2. Run Python linter, formatter check, strict static typing, dependency/CVE audits, Markdown linter & tests
+# 2. Run the 5-stage local CI gate (uv lock, prek, deptry, pip-audit, pytest) + skill Markdown linting
+./scripts/ci/run_local_ci.sh
+uv run rumdl check --no-exclude skills/github-flow-lifecycle skills/github-ops rules/AGENTS.md README.md
+
+# Equivalent individual checks run by prek & CI:
 uv sync --locked
 uv run ruff check .
 uv run ruff format --check .

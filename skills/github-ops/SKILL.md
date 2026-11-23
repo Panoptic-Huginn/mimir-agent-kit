@@ -81,7 +81,19 @@ gh auth refresh --hostname github.com --scopes repo,read:org,workflow,admin:org,
 
 ## 3. Tool Routing: `mimir-agent-kit_github` MCP vs. `gh` CLI
 
-Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, launched with `--features=mcp_apps_disable_form_deferral` so `issue_write` executes directly) as primary for typed JSON operations, paired with **`gh` / `gh api`** where GitHub's REST/GraphQL surface extends beyond MCP's schema. Note: in native **`/swarm`**, only the **Coordinator** receives `call_mcp_tool` (swarm workers lack MCP server access and must ask `@coordinator` to execute `mimir-agent-kit_github` calls or use permitted `gh` read-only queries); for subagents, use `invoke_subagent(TypeName: "self")` or set `EnableMCPTools: true` on `define_subagent`.
+Use **lazy-loaded `mimir-agent-kit_github`** (`call_mcp_tool`, `86` model-visible tools / `87` `tools/list` entries in `v2.2.0`, launched with dual `--features=mcp_apps_disable_form_deferral` + `GITHUB_FEATURES=mcp_apps_disable_form_deferral` so `issue_write`, `create_pull_request`, and `update_pull_request` execute directly) as primary for typed JSON operations, paired with **`gh` / `gh api`** where GitHub's REST/GraphQL surface extends beyond MCP's schema. Note: in native **`/swarm`**, only the **Coordinator** receives `call_mcp_tool` (swarm workers lack MCP server access and must ask `@coordinator` to execute `mimir-agent-kit_github` calls or use permitted `gh` read-only queries); for subagents, use `invoke_subagent(TypeName: "self")` or set `EnableMCPTools: true` on `define_subagent`.
+
+### MCP Apps Anti-Hallucination & Autonomous `--refresh-live` Self-Healing
+
+- **Why No Form Renders in Chat:** Antigravity `2.34.0+` advertises `io.modelcontextprotocol/ui` during `initialize`, but because `mimir-agent-kit_github` is lazy-loaded and invoked via the generic `call_mcp_tool` wrapper (which strips `_meta.ui.resourceUri`) and `github-mcp-server` sets `isError: true` on deferred stubs, **no interactive MCP App form is EVER rendered in chat**.
+- **Strict Prohibition:** Agents MUST **NEVER** claim an interactive Issue or PR form was shown/rendered or ask the user to click "Submit" if `issue_write`, `create_pull_request`, or `update_pull_request` ever returns `"An interactive form has been shown to the user..."`.
+- **Mandatory Autonomous Self-Healing:** That error proves the running `mimir-agent-kit_github` `stdio` process predates a plugin/config update and lacks `--features=mcp_apps_disable_form_deferral`. Immediately run:
+
+  ```bash
+  uv run --isolated --no-project --python '>=3.15' python ~/.gemini/config/plugins/mimir-agent-kit/scripts/github_mcp_launcher.py --refresh-live
+  ```
+
+  (or workspace `${PLUGIN_ROOT}/scripts/github_mcp_launcher.py --refresh-live`, which calls `RefreshMcpServers` on loopback `${ANTIGRAVITY_LS_ADDRESS}` and verifies `MCP_SERVER_STATUS_READY`), and **immediately retry** the `mimir-agent-kit_github` MCP call! Inside a separate `antigravity-ide` (`agy --hub`) window where `ANTIGRAVITY_LS_ADDRESS` is unavailable, fall back to permitted `gh` CLI (`--body-file - <<'EOF'`) or ask the user to run **Developer: Reload Window** — **never** mention a Submit button.
 
 | Domain | Primary (`mimir-agent-kit_github`) | `gh` / `gh api` Partner |
 | :--- | :--- | :--- |
