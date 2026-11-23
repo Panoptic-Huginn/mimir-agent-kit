@@ -17,6 +17,7 @@
       ],
       "env": {
         "GITHUB_TOOLSETS": "all",
+        "GITHUB_FEATURES": "mcp_apps_disable_form_deferral",
         "GITHUB_EXCLUDE_TOOLS": "create_or_update_file,delete_file,list_org_repository_security_advisories,manage_repository_notification_subscription,push_files"
       }
     },

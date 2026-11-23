@@ -34,7 +34,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "scripts" / "validation" / "mcp_tool_manifest.json"
 MAX_TOOL_IDENTIFIER_LENGTH = 64
 PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z0-9_]+)\}")
-PROTOCOL_VERSION = "2025-06-18"
+PROTOCOL_VERSION = "2026-07-28"
+CLIENT_CAPABILITIES: dict[str, Any] = {
+    "elicitation": {"form": {}, "url": {}},
+}
 
 
 class SnapshotError(RuntimeError):
@@ -192,7 +195,7 @@ def list_server_tools(
                     "method": "initialize",
                     "params": {
                         "protocolVersion": PROTOCOL_VERSION,
-                        "capabilities": {},
+                        "capabilities": CLIENT_CAPABILITIES,
                         "clientInfo": {"name": "mimir-snapshot", "version": "1"},
                     },
                 },

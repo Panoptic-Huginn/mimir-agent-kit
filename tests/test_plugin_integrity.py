@@ -178,6 +178,9 @@ def test_mcp_tool_manifest_covers_servers_and_fits_namespace_budget() -> None:
     assert "--features=mcp_apps_disable_form_deferral" in github_spec["args"], (
         "github MCP server must pass --features=mcp_apps_disable_form_deferral"
     )
+    assert (
+        github_spec["env"].get("GITHUB_FEATURES") == "mcp_apps_disable_form_deferral"
+    ), "github MCP server must set GITHUB_FEATURES=mcp_apps_disable_form_deferral"
     excluded_github_tools = {
         item.strip()
         for item in github_spec["env"]["GITHUB_EXCLUDE_TOOLS"].split(",")
@@ -187,6 +190,7 @@ def test_mcp_tool_manifest_covers_servers_and_fits_namespace_budget() -> None:
     assert oversized_github_tools <= excluded_github_tools
     assert forbidden_remote_file_tools.isdisjoint(manifest["github"])
     assert oversized_github_tools.isdisjoint(manifest["github"])
+    assert "delete_repository" in manifest["github"]
 
 
 def test_mcp_config_variables_and_secret_hygiene() -> None:

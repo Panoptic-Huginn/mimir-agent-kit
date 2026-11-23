@@ -19,6 +19,7 @@ import argparse
 import fcntl
 import hashlib
 import io
+import json
 import os
 import platform
 import re
@@ -27,15 +28,17 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - invokes resolv
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 
 GITHUB_MCP_SERVER_VERSION: Final[str] = "2.2.0"
@@ -43,8 +46,18 @@ GITHUB_RELEASE_BASE_URL: Final[str] = (
     "https://github.com/github/github-mcp-server/releases/download"
 )
 DEFAULT_GITHUB_HOSTNAME: Final[str] = "github.com"
+DEFAULT_MCP_SERVER_NAME: Final[str] = "mimir-agent-kit_github"
 BINARY_NAME: Final[str] = "github-mcp-server"
 DISABLE_FORM_DEFERRAL_FEATURE: Final[str] = "mcp_apps_disable_form_deferral"
+
+_LS_SERVICE_PREFIX: Final[str] = "/exa.language_server_pb.LanguageServerService"
+_LOOPBACK_HOSTS: Final[frozenset[str]] = frozenset({"localhost", "127.0.0.1", "::1"})
+_MAX_TCP_PORT: Final[int] = 65535
+_ERROR_SERVER_STATUSES: Final[frozenset[str]] = frozenset({
+    "MCP_SERVER_STATUS_ERROR",
+    "MCP_SERVER_STATUS_FAILED",
+})
+_REFRESH_POLL_INTERVAL_SECONDS: Final[float] = 0.2
 
 EXTRA_PATH_DIRS: Final[tuple[str, ...]] = (
     "/opt/homebrew/bin",
@@ -79,6 +92,9 @@ _TOKEN_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
 )
 _AUTH_HEADER_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
     r"(?i)(authorization\s*:\s*(?:bearer|token)\s+)[^\s\"';,]+"
+)
+_CSRF_HEADER_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?i)(x-codeium-csrf-token\s*[:=]\s*)[^\s\"';,]+"
 )
 _URL_CREDENTIAL_REDACTION_RE: Final[re.Pattern[str]] = re.compile(
     r"(://[^/\s:@]+:)[^/\s@]+(@)"
@@ -489,11 +505,12 @@ def ensure_binary(
     return binary_path
 
 
-def _sanitize_stderr(stderr_text: str) -> str:
-    """Collapse whitespace and redact any credential tokens in CLI error output.
+def _sanitize_stderr(stderr_text: str, *, extra_secrets: Sequence[str] = ()) -> str:
+    """Collapse whitespace and redact any credential or CSRF tokens in error output.
 
     Args:
-        stderr_text: Raw standard error text from ``gh``.
+        stderr_text: Raw error text from ``gh`` or Language Server RPCs.
+        extra_secrets: Exact secret values (such as ``ANTIGRAVITY_CSRF_TOKEN``) to scrub.
 
     Returns:
         Single-line redacted error summary, or an empty string if blank.
@@ -501,7 +518,12 @@ def _sanitize_stderr(stderr_text: str) -> str:
     collapsed = " ".join(stderr_text.strip().split())
     redacted = _TOKEN_REDACTION_RE.sub("<redacted>", collapsed)
     redacted = _AUTH_HEADER_REDACTION_RE.sub(r"\1<redacted>", redacted)
-    return _URL_CREDENTIAL_REDACTION_RE.sub(r"\1<redacted>\2", redacted)
+    redacted = _CSRF_HEADER_REDACTION_RE.sub(r"\1<redacted>", redacted)
+    redacted = _URL_CREDENTIAL_REDACTION_RE.sub(r"\1<redacted>\2", redacted)
+    for secret in extra_secrets:
+        if secret:
+            redacted = redacted.replace(secret, "<redacted>")
+    return redacted
 
 
 def _scrub_placeholder_tokens(env: dict[str, str]) -> None:
@@ -784,16 +806,374 @@ def _prepare_child_env(
     elif api_host_url is None:
         child_env.pop("GITHUB_HOST", None)
 
-    if enable_form_deferral and "GITHUB_FEATURES" in child_env:
-        remaining: list[str] = []
-        _append_csv_features(child_env["GITHUB_FEATURES"], remaining)
-        filtered = [f for f in remaining if f != DISABLE_FORM_DEFERRAL_FEATURE]
+    env_features: list[str] = []
+    if "GITHUB_FEATURES" in child_env:
+        _append_csv_features(child_env["GITHUB_FEATURES"], env_features)
+
+    if enable_form_deferral:
+        filtered = [f for f in env_features if f != DISABLE_FORM_DEFERRAL_FEATURE]
         if filtered:
             child_env["GITHUB_FEATURES"] = ",".join(filtered)
         else:
             child_env.pop("GITHUB_FEATURES", None)
+    else:
+        if DISABLE_FORM_DEFERRAL_FEATURE not in env_features:
+            env_features.append(DISABLE_FORM_DEFERRAL_FEATURE)
+        child_env["GITHUB_FEATURES"] = ",".join(env_features)
 
     return child_env
+
+
+def _normalize_ls_base_url(raw_address: str) -> str:
+    """Normalize ``ANTIGRAVITY_LS_ADDRESS`` and enforce loopback-only ``host:port``.
+
+    Args:
+        raw_address: Raw ``host:port`` or ``http(s)://host:port`` string.
+
+    Returns:
+        Normalized ``scheme://host:port`` base URL without trailing slash.
+
+    Raises:
+        LauncherError: If ``raw_address`` uses an invalid scheme/path/port or non-loopback host.
+    """
+    candidate = raw_address.strip()
+    if (
+        not candidate
+        or candidate.startswith("/")
+        or any(ch.isspace() for ch in candidate)
+        or _UNEXPANDED_PLACEHOLDER_RE.match(candidate)
+        or _EMBEDDED_PLACEHOLDER_RE.search(candidate)
+    ):
+        raise LauncherError(
+            f"Invalid ANTIGRAVITY_LS_ADDRESS {_sanitize_stderr(candidate)!r}."
+        )
+
+    url_input = candidate if "://" in candidate else f"http://{candidate}"
+    try:
+        parsed = urllib.parse.urlsplit(url_input)
+        port = parsed.port
+    except ValueError as exc:
+        raise LauncherError(
+            f"Invalid ANTIGRAVITY_LS_ADDRESS {_sanitize_stderr(candidate)!r}."
+        ) from exc
+
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise LauncherError(
+            f"Unsupported ANTIGRAVITY_LS_ADDRESS scheme {parsed.scheme!r}; expected http or https."
+        )
+    if parsed.username is not None or parsed.password is not None:
+        raise LauncherError(
+            "ANTIGRAVITY_LS_ADDRESS must not embed userinfo credentials."
+        )
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise LauncherError(
+            f"Invalid ANTIGRAVITY_LS_ADDRESS {_sanitize_stderr(candidate)!r}; path, query, and fragment are not permitted."
+        )
+
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in _LOOPBACK_HOSTS:
+        raise LauncherError(
+            f"Refusing non-loopback ANTIGRAVITY_LS_ADDRESS host {hostname!r}; expected localhost, 127.0.0.1, or ::1."
+        )
+    if port is None or not (1 <= port <= _MAX_TCP_PORT):
+        raise LauncherError(
+            f"ANTIGRAVITY_LS_ADDRESS {_sanitize_stderr(candidate)!r} must include a valid TCP port (1-{_MAX_TCP_PORT})."
+        )
+
+    host_literal = f"[{hostname}]" if ":" in hostname else hostname
+    return f"{scheme}://{host_literal}:{port}"
+
+
+def _resolve_ls_connection(env: Mapping[str, str] | None) -> tuple[str, str]:
+    """Extract and validate ``ANTIGRAVITY_LS_ADDRESS`` and ``ANTIGRAVITY_CSRF_TOKEN``.
+
+    Args:
+        env: Optional environment mapping (defaults to ``os.environ``).
+
+    Returns:
+        Tuple of ``(normalized_base_url, csrf_token)``.
+
+    Raises:
+        LauncherError: If either environment variable is missing, blank, or unexpanded.
+    """
+    active_env: Mapping[str, str] = os.environ if env is None else env
+    raw_address = active_env.get("ANTIGRAVITY_LS_ADDRESS", "").strip()
+    if (
+        not raw_address
+        or _UNEXPANDED_PLACEHOLDER_RE.match(raw_address)
+        or _EMBEDDED_PLACEHOLDER_RE.search(raw_address)
+    ):
+        raise LauncherError(
+            "ANTIGRAVITY_LS_ADDRESS is unset or unexpanded; run --refresh-live from an Antigravity agent session or reload via 'Developer: Reload Window' / MCP Servers settings."
+        )
+
+    csrf_token = active_env.get("ANTIGRAVITY_CSRF_TOKEN", "").strip()
+    if (
+        not csrf_token
+        or _UNEXPANDED_PLACEHOLDER_RE.match(csrf_token)
+        or _EMBEDDED_PLACEHOLDER_RE.search(csrf_token)
+    ):
+        raise LauncherError(
+            "ANTIGRAVITY_CSRF_TOKEN is unset or unexpanded; run --refresh-live from an Antigravity agent session or reload via 'Developer: Reload Window' / MCP Servers settings."
+        )
+
+    return (_normalize_ls_base_url(raw_address), csrf_token)
+
+
+def _post_ls_json(
+    base_url: str,
+    endpoint: str,
+    payload: Mapping[str, object],
+    *,
+    csrf_token: str,
+    timeout: float,
+) -> dict[str, object]:
+    """Send a JSON POST to the loopback Antigravity Language Server with CSRF protection.
+
+    Args:
+        base_url: Loopback-verified ``http(s)://host:port`` base URL.
+        endpoint: Connect-RPC endpoint path beginning with ``/``.
+        payload: JSON-serializable request dictionary.
+        csrf_token: Per-session ``x-codeium-csrf-token`` value (never logged).
+        timeout: Socket timeout in seconds.
+
+    Returns:
+        Decoded JSON response dictionary.
+
+    Raises:
+        LauncherError: If loopback validation fails, HTTP fails, or the response is invalid JSON.
+    """
+    parsed = urllib.parse.urlsplit(base_url)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or (parsed.hostname or "").lower() not in _LOOPBACK_HOSTS
+    ):
+        raise LauncherError(f"Refusing non-loopback Language Server URL: {base_url!r}")
+
+    url = f"{base_url}{endpoint}"
+    request = urllib.request.Request(  # ruff: ignore[suspicious-url-open-usage] - loopback http/https URL verified above
+        url,
+        data=json.dumps(dict(payload)).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-codeium-csrf-token": csrf_token,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # ruff: ignore[suspicious-url-open-usage] - loopback http/https URL verified above
+            raw_bytes: bytes = response.read()
+    except urllib.error.HTTPError as exc:
+        try:
+            err_body = exc.read().decode("utf-8", errors="replace")
+        except OSError:
+            err_body = ""
+        finally:
+            exc.close()
+        detail = _sanitize_stderr(err_body or str(exc), extra_secrets=(csrf_token,))
+        suffix = f" ({detail})" if detail else ""
+        raise LauncherError(
+            f"Language Server RPC {endpoint} failed with HTTP {exc.code}{suffix}"
+        ) from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        detail = _sanitize_stderr(str(exc), extra_secrets=(csrf_token,))
+        raise LauncherError(f"Language Server RPC {endpoint} failed: {detail}") from exc
+
+    try:
+        decoded: object = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        snippet = _sanitize_stderr(
+            raw_bytes.decode("utf-8", errors="replace"),
+            extra_secrets=(csrf_token,),
+        )
+        raise LauncherError(
+            f"Language Server RPC {endpoint} returned invalid JSON: {snippet}"
+        ) from exc
+
+    if not isinstance(decoded, dict):
+        raise LauncherError(
+            f"Language Server RPC {endpoint} returned non-object JSON payload."
+        )
+    return decoded
+
+
+def _find_server_state(
+    states_payload: Mapping[str, object], server_name: str
+) -> dict[str, object] | None:
+    """Locate ``server_name`` inside a ``GetMcpServerStates`` response dictionary.
+
+    Args:
+        states_payload: Decoded JSON dictionary from ``GetMcpServerStates``.
+        server_name: Target MCP server name (e.g., ``mimir-agent-kit_github``).
+
+    Returns:
+        Matching server state dictionary, or ``None`` if absent.
+
+    Raises:
+        LauncherError: If ``states`` is not a list in ``states_payload``.
+    """
+    raw_states = states_payload.get("states")
+    if not isinstance(raw_states, list):
+        raise LauncherError(
+            "Language Server GetMcpServerStates response missing 'states' list."
+        )
+    for item in raw_states:
+        if not isinstance(item, dict):
+            continue
+        spec = item.get("spec")
+        candidate_name = (
+            spec.get("serverName") if isinstance(spec, Mapping) else None
+        ) or item.get("serverName")
+        if candidate_name == server_name:
+            return item
+    return None
+
+
+def _verify_github_form_deferral_disabled(
+    server_name: str, state_entry: Mapping[str, object]
+) -> None:
+    """Verify a refreshed GitHub MCP server has ``mcp_apps_disable_form_deferral`` active.
+
+    Args:
+        server_name: Target MCP server identifier.
+        state_entry: Matching server entry from ``GetMcpServerStates``.
+
+    Raises:
+        LauncherError: If ``spec`` lacks ``mcp_apps_disable_form_deferral`` or opts into form deferral.
+    """
+    spec = state_entry.get("spec")
+    if not isinstance(spec, Mapping):
+        raise LauncherError(
+            f"MCP server {server_name!r} reported ready without a valid server spec."
+        )
+
+    raw_args = spec.get("args")
+    spec_args: list[str] = (
+        [str(item) for item in raw_args] if isinstance(raw_args, list) else []
+    )
+    if "--enable-form-deferral" in spec_args:
+        raise LauncherError(
+            f"MCP server {server_name!r} has --enable-form-deferral enabled in spec.args."
+        )
+
+    raw_env = spec.get("env")
+    spec_env: dict[str, str] = (
+        {str(k): str(v) for k, v in raw_env.items()}
+        if isinstance(raw_env, Mapping)
+        else {}
+    )
+    _, active_features, _ = _extract_features_and_passthrough(spec_args, spec_env)
+    if DISABLE_FORM_DEFERRAL_FEATURE not in active_features:
+        raise LauncherError(
+            f"MCP server {server_name!r} reached MCP_SERVER_STATUS_READY without {DISABLE_FORM_DEFERRAL_FEATURE!r} in spec.args or spec.env.GITHUB_FEATURES."
+        )
+
+
+def _extract_tool_count(state_entry: Mapping[str, object]) -> int:
+    """Extract the registered tool count from a ``GetMcpServerStates`` server entry.
+
+    Args:
+        state_entry: Server state dictionary.
+
+    Returns:
+        Non-negative integer count of advertised tools.
+    """
+    raw_count = state_entry.get("toolCount")
+    if isinstance(raw_count, int) and not isinstance(raw_count, bool):
+        return raw_count
+    raw_tools = state_entry.get("tools")
+    if isinstance(raw_tools, list):
+        return len(raw_tools)
+    return 0
+
+
+def refresh_live_mcp_server(
+    server_name: str = DEFAULT_MCP_SERVER_NAME,
+    *,
+    env: Mapping[str, str] | None = None,
+    timeout: float = 15.0,
+) -> dict[str, object]:
+    """Hot-reload a running Antigravity MCP server and wait until ``MCP_SERVER_STATUS_READY``.
+
+    Calls ``RefreshMcpServers`` on the loopback ``ANTIGRAVITY_LS_ADDRESS`` endpoint and
+    polls ``GetMcpServerStates`` until ``server_name`` reaches ``MCP_SERVER_STATUS_READY``.
+    For GitHub MCP servers (``server_name.endswith("github")``), also verifies that
+    ``mcp_apps_disable_form_deferral`` is active in ``spec.args`` or ``spec.env.GITHUB_FEATURES``.
+
+    Args:
+        server_name: Namespaced MCP server identifier (default ``mimir-agent-kit_github``).
+        env: Optional environment mapping (defaults to ``os.environ``).
+        timeout: Maximum seconds to wait for ``MCP_SERVER_STATUS_READY``.
+
+    Returns:
+        Server state dictionary containing ``serverName``, ``status``, and ``toolCount``.
+
+    Raises:
+        LauncherError: If env vars or loopback URL are invalid, the server errors/is missing, or polling times out.
+    """
+    target_server = server_name.strip()
+    if not target_server:
+        raise LauncherError("MCP server name must not be empty.")
+    if timeout <= 0:
+        raise LauncherError("Refresh timeout must be positive.")
+
+    base_url, csrf_token = _resolve_ls_connection(env)
+    deadline = time.monotonic() + timeout
+    _post_ls_json(
+        base_url,
+        f"{_LS_SERVICE_PREFIX}/RefreshMcpServers",
+        {"serverName": target_server},
+        csrf_token=csrf_token,
+        timeout=min(timeout, 10.0),
+    )
+
+    while True:
+        rpc_timeout = max(0.1, min(5.0, deadline - time.monotonic()))
+        states_payload = _post_ls_json(
+            base_url,
+            f"{_LS_SERVICE_PREFIX}/GetMcpServerStates",
+            {},
+            csrf_token=csrf_token,
+            timeout=rpc_timeout,
+        )
+        entry = _find_server_state(states_payload, target_server)
+        if entry is None:
+            raise LauncherError(
+                f"MCP server {target_server!r} was not found in GetMcpServerStates."
+            )
+
+        status = str(entry.get("status", "")).strip()
+        raw_error = entry.get("error")
+        error_text = (
+            _sanitize_stderr(raw_error, extra_secrets=(csrf_token,))
+            if isinstance(raw_error, str) and raw_error.strip()
+            else ""
+        )
+        if status in _ERROR_SERVER_STATUSES or (
+            status != "MCP_SERVER_STATUS_READY" and error_text
+        ):
+            suffix = f": {error_text}" if error_text else ""
+            raise LauncherError(
+                f"MCP server {target_server!r} failed after refresh ({status or 'unspecified'}){suffix}"
+            )
+
+        if status == "MCP_SERVER_STATUS_READY":
+            if target_server.endswith("github"):
+                _verify_github_form_deferral_disabled(target_server, entry)
+            return {
+                **entry,
+                "serverName": target_server,
+                "status": status,
+                "toolCount": _extract_tool_count(entry),
+            }
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise LauncherError(
+                f"Timed out after {timeout:.1f}s waiting for MCP server {target_server!r} to reach MCP_SERVER_STATUS_READY (last status: {status or 'unspecified'})."
+            )
+        time.sleep(min(_REFRESH_POLL_INTERVAL_SECONDS, remaining))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -824,6 +1204,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ensure the verified binary is cached, print its path to stdout, and exit without starting stdio.",
     )
     parser.add_argument(
+        "--refresh-live",
+        action="store_true",
+        help="Hot-reload the live Antigravity MCP server via RefreshMcpServers and exit without starting stdio.",
+    )
+    parser.add_argument(
+        "--server-name",
+        type=str,
+        default=DEFAULT_MCP_SERVER_NAME,
+        help=f"Target Antigravity MCP server name for --refresh-live (default: {DEFAULT_MCP_SERVER_NAME}).",
+    )
+    parser.add_argument(
         "--enable-form-deferral",
         action="store_true",
         help="Allow MCP Apps interactive form deferral on write tools instead of direct execution.",
@@ -836,6 +1227,26 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_refresh_cli(server_name: str) -> int:
+    """Execute ``--refresh-live`` and write status confirmation or diagnostics.
+
+    Args:
+        server_name: Target Antigravity MCP server identifier.
+
+    Returns:
+        Exit status ``0`` on success or ``1`` on ``LauncherError``.
+    """
+    try:
+        state = refresh_live_mcp_server(server_name)
+    except LauncherError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 1
+    sys.stdout.write(
+        f"Refreshed {state['serverName']} ({state['status']}, toolCount={state['toolCount']})\n"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Ensure the pinned ``github-mcp-server`` binary is cached and ``exec`` stdio mode.
 
@@ -843,9 +1254,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: Optional CLI argument sequence (defaults to ``sys.argv[1:]``).
 
     Returns:
-        Process exit status when ``--print-binary-path`` is used or an error occurs.
+        Process exit status when ``--refresh-live`` or ``--print-binary-path`` is used, or an error occurs.
     """
     args = build_parser().parse_args(list(argv) if argv is not None else None)
+    if args.refresh_live:
+        return _run_refresh_cli(args.server_name)
+
     try:
         binary_path = ensure_binary(args.cache_dir)
         if args.print_binary_path:
