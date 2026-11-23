@@ -39,6 +39,7 @@
     "create_repository_ruleset",
     "custom_properties_read",
     "custom_properties_write",
+    "delete_repository",
     "discussion_comment_write",
     "dismiss_notification",
     "fork_repository",

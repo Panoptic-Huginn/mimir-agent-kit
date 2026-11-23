@@ -2,15 +2,24 @@
 
 import hashlib
 import io
+import json
 import os
 import subprocess
 import sys
 import tarfile
+import urllib.error
+import urllib.request
+from email.message import Message
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from scripts import github_mcp_launcher as launcher
+
+
+if TYPE_CHECKING:
+    from typing import Self
 
 
 def _build_tar_gz(entries: dict[str, bytes]) -> bytes:
@@ -618,6 +627,7 @@ def test_main_execve_passes_token_and_form_deferral_flag(
     assert isinstance(exec_env, dict)
     injected = exec_env.get("GITHUB_PERSONAL_ACCESS_TOKEN")
     assert injected == "tok_keyring"
+    assert exec_env.get("GITHUB_FEATURES") == "mcp_apps_disable_form_deferral"
     assert "GH_TOKEN" not in exec_env
 
 
@@ -704,3 +714,508 @@ def test_main_print_binary_path_outputs_verified_path(
     assert rc == 0
     out = capsys.readouterr().out.strip()
     assert Path(out).is_file()
+
+
+class _FakeHttpResponse:
+    """Minimal context-manager stub returned by mocked ``urllib.request.urlopen``."""
+
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def read(self) -> bytes:
+        """Return raw HTTP response bytes.
+
+        Returns:
+            Raw response body bytes.
+        """
+        return self._payload
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+
+def test_prepare_child_env_injects_and_deduplicates_github_features() -> None:
+    """_prepare_child_env merges mcp_apps_disable_form_deferral when enabled=False and strips when True."""
+    injected = launcher._prepare_child_env(
+        {},
+        "tok_test",
+        None,
+        (),
+        enable_form_deferral=False,
+    )
+    assert injected["GITHUB_FEATURES"] == "mcp_apps_disable_form_deferral"
+
+    merged = launcher._prepare_child_env(
+        {"GITHUB_FEATURES": "feat_a, feat_b, feat_a"},
+        "tok_test",
+        None,
+        (),
+        enable_form_deferral=False,
+    )
+    assert merged["GITHUB_FEATURES"] == "feat_a,feat_b,mcp_apps_disable_form_deferral"
+
+    already_present = launcher._prepare_child_env(
+        {"GITHUB_FEATURES": "mcp_apps_disable_form_deferral,feat_a"},
+        "tok_test",
+        None,
+        (),
+        enable_form_deferral=False,
+    )
+    assert already_present["GITHUB_FEATURES"] == "mcp_apps_disable_form_deferral,feat_a"
+
+    scrubbed_placeholder = launcher._prepare_child_env(
+        {"GITHUB_FEATURES": "${GITHUB_FEATURES}"},
+        "tok_test",
+        None,
+        (),
+        enable_form_deferral=False,
+    )
+    assert scrubbed_placeholder["GITHUB_FEATURES"] == "mcp_apps_disable_form_deferral"
+
+    stripped = launcher._prepare_child_env(
+        {"GITHUB_FEATURES": "feat_a,mcp_apps_disable_form_deferral"},
+        "tok_test",
+        None,
+        (),
+        enable_form_deferral=True,
+    )
+    assert stripped["GITHUB_FEATURES"] == "feat_a"
+
+
+def test_normalize_ls_base_url_enforces_loopback_and_valid_ports() -> None:
+    """_normalize_ls_base_url accepts loopback host:port forms and rejects remote or malformed URLs."""
+    assert launcher._normalize_ls_base_url("localhost:40801") == (
+        "http://localhost:40801"
+    )
+    assert launcher._normalize_ls_base_url("127.0.0.1:5387") == "http://127.0.0.1:5387"
+    assert launcher._normalize_ls_base_url("[::1]:40801") == "http://[::1]:40801"
+    assert launcher._normalize_ls_base_url("http://LOCALHOST:40801/") == (
+        "http://localhost:40801"
+    )
+    assert launcher._normalize_ls_base_url("https://127.0.0.1:44445") == (
+        "https://127.0.0.1:44445"
+    )
+
+    rejected_inputs = (
+        "",
+        "   ",
+        "${ANTIGRAVITY_LS_ADDRESS}",
+        "/var/ls.sock",
+        "localhost:40801 trailing",
+        "example.com:40801",
+        "http://192.168.1.10:40801",
+        "http://10.0.0.5:40801",
+        "0.0.0.0:40801",
+        "127.0.0.2:40801",
+        "ftp://localhost:40801",
+        "ws://127.0.0.1:40801",
+        "http://user:pw@localhost:40801",
+        "http://localhost:40801/extra",
+        "http://localhost:40801?q=1",
+        "http://localhost:40801#frag",
+        "localhost",
+        "localhost:0",
+        "localhost:70000",
+        "localhost:notaport",
+    )
+    for bad_addr in rejected_inputs:
+        with pytest.raises(launcher.LauncherError):
+            launcher._normalize_ls_base_url(bad_addr)
+
+
+def test_refresh_live_mcp_server_validates_args_and_required_env() -> None:
+    """refresh_live_mcp_server raises actionable LauncherError on bad args or missing/placeholder env vars."""
+    valid_env = {
+        "ANTIGRAVITY_LS_ADDRESS": "localhost:40801",
+        "ANTIGRAVITY_CSRF_TOKEN": "csrf-valid-token",
+    }
+    with pytest.raises(launcher.LauncherError, match="must not be empty"):
+        launcher.refresh_live_mcp_server("   ", env=valid_env)
+
+    with pytest.raises(launcher.LauncherError, match="must be positive"):
+        launcher.refresh_live_mcp_server(env=valid_env, timeout=0.0)
+
+    for bad_addr in ("", "${ANTIGRAVITY_LS_ADDRESS}", "$ANTIGRAVITY_LS_ADDRESS"):
+        with pytest.raises(
+            launcher.LauncherError,
+            match="ANTIGRAVITY_LS_ADDRESS is unset or unexpanded",
+        ):
+            launcher.refresh_live_mcp_server(
+                env={
+                    "ANTIGRAVITY_LS_ADDRESS": bad_addr,
+                    "ANTIGRAVITY_CSRF_TOKEN": "csrf-valid-token",
+                }
+            )
+
+    for bad_csrf in ("", "${ANTIGRAVITY_CSRF_TOKEN}", "$ANTIGRAVITY_CSRF_TOKEN"):
+        with pytest.raises(
+            launcher.LauncherError,
+            match="ANTIGRAVITY_CSRF_TOKEN is unset or unexpanded",
+        ):
+            launcher.refresh_live_mcp_server(
+                env={
+                    "ANTIGRAVITY_LS_ADDRESS": "127.0.0.1:40801",
+                    "ANTIGRAVITY_CSRF_TOKEN": bad_csrf,
+                }
+            )
+
+
+def test_refresh_live_mcp_server_polls_transition_to_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """refresh_live_mcp_server posts RefreshMcpServers, polls GetMcpServerStates to READY, and verifies GitHub flags."""
+    csrf_val = "csrf-loopback-uuid-9876"
+    seen_requests: list[tuple[str, str, dict[str, object]]] = []
+    sleeps: list[float] = []
+    monkeypatch.setattr(launcher.time, "sleep", sleeps.append)
+
+    queued_payloads: list[dict[str, object]] = [
+        {},
+        {
+            "states": [
+                {
+                    "spec": {"serverName": "mimir-agent-kit_github"},
+                    "status": "MCP_SERVER_STATUS_STARTING",
+                }
+            ]
+        },
+        {
+            "states": [
+                {
+                    "spec": {
+                        "serverName": "mimir-agent-kit_github",
+                        "args": ["--", "--features=mcp_apps_disable_form_deferral"],
+                        "env": {"GITHUB_TOOLSETS": "all"},
+                    },
+                    "status": "MCP_SERVER_STATUS_READY",
+                    "tools": [{"name": f"tool_{idx}"} for idx in range(87)],
+                }
+            ]
+        },
+    ]
+
+    def _fake_urlopen(
+        req: urllib.request.Request, timeout: float = 0.0
+    ) -> _FakeHttpResponse:
+        assert timeout > 0
+        raw_data = req.data.decode("utf-8") if isinstance(req.data, bytes) else "{}"
+        headers_lower = {k.lower(): v for k, v in req.header_items()}
+        seen_requests.append((
+            req.full_url,
+            headers_lower.get("x-codeium-csrf-token", ""),
+            json.loads(raw_data),
+        ))
+        return _FakeHttpResponse(json.dumps(queued_payloads.pop(0)).encode("utf-8"))
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    result = launcher.refresh_live_mcp_server(
+        env={
+            "ANTIGRAVITY_LS_ADDRESS": "localhost:40801",
+            "ANTIGRAVITY_CSRF_TOKEN": csrf_val,
+        },
+        timeout=5.0,
+    )
+
+    assert result["serverName"] == "mimir-agent-kit_github"
+    assert result["status"] == "MCP_SERVER_STATUS_READY"
+    assert result["toolCount"] == 87
+    assert len(sleeps) == 1
+    assert seen_requests == [
+        (
+            "http://localhost:40801/exa.language_server_pb.LanguageServerService/RefreshMcpServers",
+            csrf_val,
+            {"serverName": "mimir-agent-kit_github"},
+        ),
+        (
+            "http://localhost:40801/exa.language_server_pb.LanguageServerService/GetMcpServerStates",
+            csrf_val,
+            {},
+        ),
+        (
+            "http://localhost:40801/exa.language_server_pb.LanguageServerService/GetMcpServerStates",
+            csrf_val,
+            {},
+        ),
+    ]
+
+
+def test_refresh_live_mcp_server_supports_custom_server_and_env_only_feature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """refresh_live_mcp_server accepts non-GitHub servers and GITHUB_FEATURES env defense."""
+    responses: list[dict[str, object]] = [
+        {},
+        {
+            "states": [
+                {
+                    "serverName": "mimir-agent-kit_time",
+                    "status": "MCP_SERVER_STATUS_READY",
+                    "toolCount": 3,
+                }
+            ]
+        },
+        {},
+        {
+            "states": [
+                {
+                    "spec": {
+                        "serverName": "mimir-agent-kit_github",
+                        "args": ["run"],
+                        "env": {"GITHUB_FEATURES": "mcp_apps_disable_form_deferral"},
+                    },
+                    "status": "MCP_SERVER_STATUS_READY",
+                    "tools": [{"name": "get_me"}],
+                }
+            ]
+        },
+    ]
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _FakeHttpResponse(
+            json.dumps(responses.pop(0)).encode("utf-8")
+        ),
+    )
+    ls_env = {
+        "ANTIGRAVITY_LS_ADDRESS": "http://127.0.0.1:40801",
+        "ANTIGRAVITY_CSRF_TOKEN": "csrf-tok-ok",
+    }
+
+    time_state = launcher.refresh_live_mcp_server("mimir-agent-kit_time", env=ls_env)
+    assert time_state["serverName"] == "mimir-agent-kit_time"
+    assert time_state["toolCount"] == 3
+
+    gh_state = launcher.refresh_live_mcp_server("mimir-agent-kit_github", env=ls_env)
+    assert gh_state["toolCount"] == 1
+
+
+def test_refresh_live_mcp_server_rejects_missing_stale_or_errored_states(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing servers, malformed states, or GitHub servers lacking form-deferral protection raise LauncherError."""
+    ls_env = {
+        "ANTIGRAVITY_LS_ADDRESS": "[::1]:40801",
+        "ANTIGRAVITY_CSRF_TOKEN": "csrf-secret-val-777",
+    }
+
+    bad_state_scenarios: list[tuple[dict[str, object], str]] = [
+        ({"states": "not-a-list"}, "missing 'states' list"),
+        ({"states": []}, "was not found in GetMcpServerStates"),
+        (
+            {
+                "states": [
+                    {
+                        "serverName": "mimir-agent-kit_github",
+                        "status": "MCP_SERVER_STATUS_READY",
+                    }
+                ]
+            },
+            "without a valid server spec",
+        ),
+        (
+            {
+                "states": [
+                    {
+                        "spec": {
+                            "serverName": "mimir-agent-kit_github",
+                            "args": ["--enable-form-deferral"],
+                        },
+                        "status": "MCP_SERVER_STATUS_READY",
+                    }
+                ]
+            },
+            "--enable-form-deferral enabled",
+        ),
+        (
+            {
+                "states": [
+                    {
+                        "spec": {
+                            "serverName": "mimir-agent-kit_github",
+                            "args": ["run"],
+                            "env": {},
+                        },
+                        "status": "MCP_SERVER_STATUS_READY",
+                    }
+                ]
+            },
+            "without 'mcp_apps_disable_form_deferral'",
+        ),
+    ]
+
+    for states_body, expected_msg in bad_state_scenarios:
+        pair = [{}, states_body]
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            lambda *_args, _q=pair, **_kwargs: _FakeHttpResponse(
+                json.dumps(_q.pop(0)).encode("utf-8")
+            ),
+        )
+        with pytest.raises(launcher.LauncherError, match=expected_msg):
+            launcher.refresh_live_mcp_server(env=ls_env)
+
+
+def test_refresh_live_mcp_server_redacts_csrf_on_http_network_and_state_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CSRF tokens and x-codeium-csrf-token headers never leak in HTTP, network, JSON, state, or timeout errors."""
+    csrf_val = "csrf-super-nonce-00112233"
+    ls_env = {
+        "ANTIGRAVITY_LS_ADDRESS": "127.0.0.1:40801",
+        "ANTIGRAVITY_CSRF_TOKEN": csrf_val,
+    }
+
+    def _raise_http_403(*_args: object, **_kwargs: object) -> _FakeHttpResponse:
+        body = f"invalid x-codeium-csrf-token: {csrf_val}".encode()
+        raise urllib.error.HTTPError(
+            "http://127.0.0.1:40801/rpc", 403, "Forbidden", Message(), io.BytesIO(body)
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", _raise_http_403)
+    with pytest.raises(launcher.LauncherError, match="HTTP 403") as http_exc:
+        launcher.refresh_live_mcp_server(env=ls_env)
+    assert csrf_val not in str(http_exc.value)
+    assert "x-codeium-csrf-token: <redacted>" in str(http_exc.value)
+
+    def _raise_url_error(*_args: object, **_kwargs: object) -> _FakeHttpResponse:
+        raise urllib.error.URLError(f"proxy rejected {csrf_val}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _raise_url_error)
+    with pytest.raises(
+        launcher.LauncherError, match="proxy rejected <redacted>"
+    ) as u_exc:
+        launcher.refresh_live_mcp_server(env=ls_env)
+    assert csrf_val not in str(u_exc.value)
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _FakeHttpResponse(f"not-json {csrf_val}".encode()),
+    )
+    with pytest.raises(launcher.LauncherError, match="invalid JSON") as json_exc:
+        launcher.refresh_live_mcp_server(env=ls_env)
+    assert csrf_val not in str(json_exc.value)
+
+    errored_pair: list[dict[str, object]] = [
+        {},
+        {
+            "states": [
+                {
+                    "spec": {"serverName": "mimir-agent-kit_github"},
+                    "status": "MCP_SERVER_STATUS_ERROR",
+                    "error": f"handshake failed ({csrf_val})",
+                }
+            ]
+        },
+    ]
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _FakeHttpResponse(
+            json.dumps(errored_pair.pop(0)).encode("utf-8")
+        ),
+    )
+    with pytest.raises(launcher.LauncherError, match="failed after refresh") as st_exc:
+        launcher.refresh_live_mcp_server(env=ls_env)
+    assert csrf_val not in str(st_exc.value)
+
+
+def test_refresh_live_mcp_server_times_out_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """refresh_live_mcp_server raises LauncherError when server never reaches MCP_SERVER_STATUS_READY."""
+    clock = [100.0]
+
+    def _fake_monotonic() -> float:
+        clock[0] += 0.3
+        return clock[0]
+
+    monkeypatch.setattr(launcher.time, "monotonic", _fake_monotonic)
+    monkeypatch.setattr(launcher.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _FakeHttpResponse(
+            json.dumps({
+                "states": [
+                    {
+                        "spec": {"serverName": "mimir-agent-kit_github"},
+                        "status": "MCP_SERVER_STATUS_STARTING",
+                    }
+                ]
+            }).encode("utf-8")
+        ),
+    )
+
+    with pytest.raises(launcher.LauncherError, match="Timed out"):
+        launcher.refresh_live_mcp_server(
+            env={
+                "ANTIGRAVITY_LS_ADDRESS": "localhost:40801",
+                "ANTIGRAVITY_CSRF_TOKEN": "csrf-timeout-tok",
+            },
+            timeout=0.5,
+        )
+
+
+def test_main_refresh_live_cli_dispatch_and_stderr_redaction(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """main(['--refresh-live', ...]) prints concise status without starting stdio or leaking CSRF tokens."""
+    csrf_val = "csrf-cli-never-print-999"
+    monkeypatch.setenv("ANTIGRAVITY_LS_ADDRESS", "localhost:40801")
+    monkeypatch.setenv("ANTIGRAVITY_CSRF_TOKEN", csrf_val)
+
+    def _forbid_stdio(*_args: object, **_kwargs: object) -> Path:
+        raise AssertionError("ensure_binary must not run during --refresh-live")
+
+    monkeypatch.setattr(launcher, "ensure_binary", _forbid_stdio)
+
+    ok_responses: list[dict[str, object]] = [
+        {},
+        {
+            "states": [
+                {
+                    "spec": {
+                        "serverName": "mimir-agent-kit_time",
+                        "args": [],
+                    },
+                    "status": "MCP_SERVER_STATUS_READY",
+                    "tools": [{"name": "a"}, {"name": "b"}, {"name": "c"}],
+                }
+            ]
+        },
+    ]
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _FakeHttpResponse(
+            json.dumps(ok_responses.pop(0)).encode("utf-8")
+        ),
+    )
+
+    rc = launcher.main(["--refresh-live", "--server-name", "mimir-agent-kit_time"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert (
+        captured.out
+        == "Refreshed mimir-agent-kit_time (MCP_SERVER_STATUS_READY, toolCount=3)\n"
+    )
+    assert not captured.err
+    assert csrf_val not in captured.out
+
+    def _fail_urlopen(*_args: object, **_kwargs: object) -> _FakeHttpResponse:
+        raise OSError(f"socket error x-codeium-csrf-token={csrf_val}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fail_urlopen)
+    rc_err = launcher.main(["--refresh-live"])
+    err_captured = capsys.readouterr()
+    assert rc_err == 1
+    assert not err_captured.out
+    assert "x-codeium-csrf-token=<redacted>" in err_captured.err
+    assert csrf_val not in err_captured.err
