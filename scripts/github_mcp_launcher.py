@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
-GITHUB_MCP_SERVER_VERSION: Final[str] = "2.2.0"
+GITHUB_MCP_SERVER_VERSION: Final[str] = "2.3.0"
 GITHUB_RELEASE_BASE_URL: Final[str] = (
     "https://github.com/github/github-mcp-server/releases/download"
 )

@@ -54,7 +54,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@cyanheads/pubmed-mcp-server@2.12.2"
+        "@cyanheads/pubmed-mcp-server@2.12.4"
       ]
     },
     "nasa_ads": {
@@ -85,7 +85,7 @@
     "zotero": {
       "command": "uvx",
       "args": [
-        "zotero-mcp-server==0.17.2"
+        "zotero-mcp-server==0.17.4"
       ],
       "env": {
         "ZOTERO_API_KEY": "${ZOTERO_API_KEY}",
@@ -109,7 +109,7 @@
     "workspace": {
       "command": "uvx",
       "args": [
-        "workspace-mcp==2.5.0",
+        "workspace-mcp==2.7.0",
         "--single-user"
       ],
       "env": {
@@ -140,7 +140,7 @@
     "time": {
       "command": "uvx",
       "args": [
-        "mcp-server-time==2026.11.11"
+        "mcp-server-time==2026.11.18"
       ]
     }
   }
